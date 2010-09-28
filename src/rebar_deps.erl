@@ -308,6 +308,7 @@ source_engine_avail({Name, _, _})
 scm_client_vsn(false, _VsnArg, _VsnRegex) ->
     false;
 scm_client_vsn(Path, VsnArg, VsnRegex) ->
+    os:putenv("LANG","C"),
     Info = os:cmd(Path ++ VsnArg),
     case re:run(Info, VsnRegex, [{capture, all_but_first, list}]) of
         {match, Match} ->
