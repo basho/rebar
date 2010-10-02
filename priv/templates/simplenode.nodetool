@@ -34,7 +34,7 @@ main(Args) ->
                 ok ->
                     ok;
                 {reply, Reply} ->
-                    io:format("~p\n", [Reply]);
+                    print_reply(Reply);
                 {badrpc, Reason} ->
                     io:format("RPC to ~p failed: ~p\n", [TargetNode, Reason]),
                     halt(1);
@@ -62,6 +62,15 @@ process_args(["-sname", TargetName | Rest], Acc, _) ->
     process_args(Rest, Acc, nodename(TargetName));
 process_args([Arg | Rest], Acc, Opts) ->
     process_args(Rest, [Arg | Acc], Opts).
+
+
+print_reply([]) ->
+    ok;
+print_reply([H|T]) ->
+    print_reply(H),
+    print_reply(T);
+print_reply(Reply) ->
+    io:format("~p\n", [Reply]).
 
 
 nodename(Name) ->
