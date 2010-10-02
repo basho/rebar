@@ -33,6 +33,8 @@ main(Args) ->
             case rpc:call(TargetNode, list_to_atom(Module), list_to_atom(Function), [RpcArgs], 60000) of
                 ok ->
                     ok;
+                {reply, Reply} ->
+                    io:format("~p\n", [Reply]);
                 {badrpc, Reason} ->
                     io:format("RPC to ~p failed: ~p\n", [TargetNode, Reason]),
                     halt(1);
