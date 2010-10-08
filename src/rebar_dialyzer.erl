@@ -72,10 +72,10 @@ analyze(Config, File) ->
         {error, no_such_file} ->
             ?ABORT("The PLT ~s does not exist. Please perform the build_plt command to ~n"
                    "produce the initial PLT. Be aware this operation may take several minutes.", [Plt]);
+        {error, read_error} ->
+            ?ABORT("Unable to read PLT ~n~n", [Plt]);
         {error, not_valid} ->
-            ?ABORT("The PLT ~s is not valid.~n", [Plt]);
-        {error, _Reason} ->
-            ?ABORT("Unable to determine the validity of the PLT ~s~n", [Plt])
+            ?ABORT("The PLT ~s is not valid.~n", [Plt])
     end,
     ok.
 
@@ -127,8 +127,8 @@ app_dirs(Apps) ->
         Path <- lists:map(fun(App) -> code:lib_dir(App) end, Apps), erlang:is_list(Path)].
 
 %% @doc Render the warnings on the console.
-%% @spec output_warnings(Warnings::[warning()]) -> none()
--spec(output_warnings(Warnings::[warning()]) -> none()).
+%% @spec output_warnings(Warnings::[warning()]) -> 'ok'
+-spec(output_warnings(Warnings::[warning()]) -> 'ok').
 output_warnings(Warnings) ->
     lists:foreach(fun(Warning) ->
                       ?CONSOLE("~s", [dialyzer:format_warning(Warning)])

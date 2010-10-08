@@ -93,7 +93,7 @@ sh(Command0, Env, Dir) ->
 %% We need a bash shell to execute on windows
 %% also the port doesn't seem to close from time to time (mingw)
 patch_on_windows(Cmd, {win32,nt}) ->
-    case os:find_executable(bash) of
+    case os:find_executable("bash") of
         false -> Cmd;
         Bash -> 
             Bash ++ " -c \"" ++ Cmd ++ "; echo _port_cmd_status_ $?\" "
@@ -129,7 +129,7 @@ abort(String, Args) ->
 
 %% TODO: Rename emulate_escript_foldl to escript_foldl and remove
 %% this function when the time is right. escript:foldl/3 was an
-%% undocumented exported fun and is going to be removed post-R13B04.
+%% undocumented exported fun and has been removed in R14.
 escript_foldl(Fun, Acc, File) ->
     {module, zip} = code:ensure_loaded(zip),
     case erlang:function_exported(zip, foldl, 3) of
@@ -140,7 +140,11 @@ escript_foldl(Fun, Acc, File) ->
     end.
 
 find_executable(Name) ->
-    "\"" ++ filename:nativename(os:find_executable(Name)) ++ "\"".
+    case os:find_executable(Name) of
+        false -> false;
+        Path ->
+            "\"" ++ filename:nativename(Path) ++ "\""
+    end.
 
 %% ====================================================================
 %% Internal functions

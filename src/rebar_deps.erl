@@ -1,3 +1,4 @@
+
 %% -*- tab-width: 4;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %% ex: ts=4 sw=4 et
 %% -------------------------------------------------------------------
@@ -148,7 +149,7 @@ update_deps_code_path([]) ->
 update_deps_code_path([Dep | Rest]) ->
     case is_app_available(Dep#dep.app, Dep#dep.vsn_regex, Dep#dep.dir) of
         {true, _} ->
-            code:add_patha(filename:join(Dep#dep.dir, ebin));
+            code:add_patha(filename:join(Dep#dep.dir, "ebin"));
         false ->
             ok
     end,
@@ -196,9 +197,7 @@ delete_dep(D) ->
 require_source_engine(Source) ->
     case source_engine_avail(Source) of
         true ->
-            ok;
-        false ->
-            ?ABORT("No command line interface available to process ~p\n", [Source])
+            ok
     end.
 
 
@@ -249,7 +248,7 @@ use_source(Dep, Count) ->
                 {true, _} ->
                     %% Available version matches up -- we're good to go; add the
                     %% app dir to our code path
-                    code:add_patha(filename:join(Dep#dep.dir, ebin)),
+                    code:add_patha(filename:join(Dep#dep.dir, "ebin")),
                     Dep;
                 false ->
                     %% The app that was downloaded doesn't match up (or had
@@ -295,21 +294,20 @@ download_source(AppDir, {svn, Url, Rev}) ->
 %% Source helper functions
 %% ===================================================================
 
-source_engine_avail({Name, _, _})
+source_engine_avail({Name, _, _}=Source)
   when Name == hg; Name == git; Name == svn; Name == bzr ->
     case scm_client_vsn(Name) >= required_scm_client_vsn(Name) of
         true ->
             true;
         false ->
-            ?ABORT("Rebar requires version ~p or higher of ~s\n",
-                   [required_scm_client_vsn(Name), Name])
+            ?ABORT("Rebar requires version ~p or higher of ~s to process ~p\n",
+                   [required_scm_client_vsn(Name), Name, Source])
     end.
 
 scm_client_vsn(false, _VsnArg, _VsnRegex) ->
     false;
 scm_client_vsn(Path, VsnArg, VsnRegex) ->
-    os:putenv("LANG","C"),
-    Info = os:cmd(Path ++ VsnArg),
+    Info = os:cmd("LANG=C " ++ Path ++ VsnArg),
     case re:run(Info, VsnRegex, [{capture, all_but_first, list}]) of
         {match, Match} ->
             list_to_tuple([list_to_integer(S) || S <- Match]);
@@ -323,12 +321,10 @@ required_scm_client_vsn(bzr) -> {2, 0};
 required_scm_client_vsn(svn) -> {1, 6}.
 
 scm_client_vsn(hg) ->
-    scm_client_vsn(rebar_utils:find_executable(hg), " --version", "version (\\d+).(\\d+)");
+    scm_client_vsn(rebar_utils:find_executable("hg"), " --version", "version (\\d+).(\\d+)");
 scm_client_vsn(git) ->
-    scm_client_vsn(rebar_utils:find_executable(git), " --version", "git version (\\d+).(\\d+)");
+    scm_client_vsn(rebar_utils:find_executable("git"), " --version", "git version (\\d+).(\\d+)");
 scm_client_vsn(bzr) ->
-    scm_client_vsn(rebar_utils:find_executable(bzr), " --version", "Bazaar \\(bzr\\) (\\d+).(\\d+)");
+    scm_client_vsn(rebar_utils:find_executable("bzr"), " --version", "Bazaar \\(bzr\\) (\\d+).(\\d+)");
 scm_client_vsn(svn) ->
-    scm_client_vsn(rebar_utils:find_executable(svn), " --version", "svn, version (\\d+).(\\d+)");
-scm_client_vsn(_) ->
-    undefined.
+    scm_client_vsn(rebar_utils:find_executable("svn"), " --version", "svn, version (\\d+).(\\d+)").
