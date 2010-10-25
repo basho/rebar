@@ -1,4 +1,3 @@
-
 %% -*- tab-width: 4;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %% ex: ts=4 sw=4 et
 %% -------------------------------------------------------------------
@@ -68,7 +67,9 @@ preprocess(Config, _) ->
     %% WILL run (and we want it to) for transitivity purposes.
     case rebar_config:get_global(skip_deps, false) of
         "true" ->
-            [rebar_core:skip_dir(D#dep.dir) || D <- AvailableDeps];
+            lists:foreach(fun (#dep{dir = Dir}) ->
+				  rebar_core:skip_dir(Dir)
+			  end, AvailableDeps);
         _ ->
             ok
     end,
@@ -97,23 +98,29 @@ compile(Config, AppFile) ->
             %% No missing deps
             ok;
         {_, MissingDeps} ->
-            [?CONSOLE("Dependency not available: ~p-~s (~p)\n",
-                      [D#dep.app, D#dep.vsn_regex, D#dep.source]) ||
-                D <- MissingDeps],
+            lists:foreach(fun (#dep{app=App, vsn_regex=Vsn, source=Src}) ->
+			    ?CONSOLE("Dependency not available: ~p-~s (~p)\n",
+				     [App, Vsn, Src])
+			  end, MissingDeps),
             ?FAIL
     end.
 
 'get-deps'(Config, _) ->
     %% Determine what deps are available and missing
     Deps = rebar_config:get_local(Config, deps, []),
-    {_AvailableDeps, MissingDeps} = find_deps(Deps),
+    {AvailableDeps, MissingDeps} = find_deps(Deps),
 
     %% For each missing dep with a specified source, try to pull it.
-    PulledDeps = [use_source(D) || D <- MissingDeps, D#dep.source /= undefined],
+    PulledDeps0 = [use_source(D) || D <- MissingDeps, D#dep.source /= undefined],
+
+    %% For each available dep try to update the source to the specified
+    %% version.
+    PulledDeps1 = [update_source(D) || D <- AvailableDeps,
+                                       D#dep.source /= undefined],
 
     %% Add each pulled dep to our list of dirs for post-processing. This yields
     %% the necessary transitivity of the deps
-    erlang:put(?MODULE, [D#dep.dir || D <- PulledDeps]),
+    erlang:put(?MODULE, [D#dep.dir || D <- PulledDeps0 ++ PulledDeps1]),
     ok.
 
 'delete-deps'(Config, _) ->
@@ -121,10 +128,9 @@ compile(Config, AppFile) ->
     DepsDir = get_deps_dir(),
     Deps = rebar_config:get_local(Config, deps, []),
     {AvailableDeps, _} = find_deps(Deps),
-    [delete_dep(D) || D <- AvailableDeps,
-                      lists:prefix(DepsDir, D#dep.dir) == true],
+    _ = [delete_dep(D) || D <- AvailableDeps,
+			  lists:prefix(DepsDir, D#dep.dir) == true],
     ok.
-
 
 
 %% ===================================================================
@@ -149,9 +155,9 @@ update_deps_code_path([]) ->
 update_deps_code_path([Dep | Rest]) ->
     case is_app_available(Dep#dep.app, Dep#dep.vsn_regex, Dep#dep.dir) of
         {true, _} ->
-            code:add_patha(filename:join(Dep#dep.dir, "ebin"));
+            true = code:add_patha(filename:join(Dep#dep.dir, "ebin"));
         false ->
-            ok
+            true
     end,
     update_deps_code_path(Rest).
 
@@ -246,9 +252,9 @@ use_source(Dep, Count) ->
             %% Already downloaded -- verify the versioning matches up with our regex
             case is_app_available(Dep#dep.app, Dep#dep.vsn_regex, Dep#dep.dir) of
                 {true, _} ->
-                    %% Available version matches up -- we're good to go; add the
-                    %% app dir to our code path
-                    code:add_patha(filename:join(Dep#dep.dir, "ebin")),
+                    %% Available version matches up -- we're good to go;
+                    %% add the app dir to our code path
+                    true = code:add_patha(filename:join(Dep#dep.dir, "ebin")),
                     Dep;
                 false ->
                     %% The app that was downloaded doesn't match up (or had
@@ -288,6 +294,27 @@ download_source(AppDir, {svn, Url, Rev}) ->
     rebar_utils:sh(?FMT("svn checkout -r ~s ~s ~s",
                         [Rev, Url, filename:basename(AppDir)]), [],
                    filename:dirname(AppDir)).
+
+update_source(Dep) ->
+    ?CONSOLE("Updating ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
+    require_source_engine(Dep#dep.source),
+    update_source(filename:join(get_deps_dir(), Dep#dep.app),
+                  Dep#dep.source),
+    Dep.
+
+update_source(AppDir, {git, _Url, {Type, Refspec}})
+  when Type =:= branch orelse
+       Type =:= tag ->
+    rebar_utils:sh(?FMT("git pull origin ~s", [Refspec]), [], AppDir);
+update_source(AppDir, {git, Url, Refspec}) ->
+    update_source(AppDir, {git, Url, {branch, Refspec}});
+update_source(AppDir, {svn, _Url, Rev}) ->
+    rebar_utils:sh(?FMT("svn up -r ~s", [Rev]), [], AppDir);
+update_source(AppDir, {hg, _Url, Rev}) ->
+    rebar_utils:sh(?FMT("hg pull -u -r ~s", [Rev]), [], AppDir);
+update_source(AppDir, {bzr, _Url, Rev}) ->
+    rebar_utils:sh(?FMT("bzr update -r ~s", [Rev]), [], AppDir).
+
 
 
 %% ===================================================================

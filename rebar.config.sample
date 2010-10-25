@@ -71,6 +71,9 @@
 %% Whether to enable coverage reporting. Default is `false'
 {cover_enabled, false}.
 
+%% Whether to print coverage report to console. Default is `false'
+{cover_print_enabled, false}.
+
 %% == Dialyzer ==
 
 %% Options for running the dialyzer, right now only `plt' is supported
@@ -90,6 +93,9 @@
 
 %% Binaries to link into the erlang path?
 {app_bin, []}.
+
+%% Enable validation of the OTP app module list. Default is 'true'
+{validate_app_modules, true}.
 
 %% == Dependancies ==
 
