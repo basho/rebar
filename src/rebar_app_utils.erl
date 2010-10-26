@@ -31,7 +31,8 @@
          app_src_to_app/1,
          app_name/1,
          app_applications/1,
-         app_vsn/1]).
+         app_vsn/1,
+         purge_cache/1]).
 
 -export([load_app_file/1]). % TEMPORARY
 
@@ -95,6 +96,13 @@ app_vsn(AppFile) ->
                    [AppFile, Reason])
     end.
 
+purge_cache(Dir) ->
+    case is_app_dir(Dir) of
+        {true, AppFile} ->
+            erlang:erase({app_file, AppFile});
+        _ ->
+            ok
+    end.
 
 %% ===================================================================
 %% Internal functions
