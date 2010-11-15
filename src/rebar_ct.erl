@@ -130,16 +130,20 @@ make_cmd(TestDir, Config) ->
             Include = ""
     end,
 
+    %% Add the code path of the rebar process to the code path. This 
+    %% includes the dependencies in the code path
+    CodeDirs = [io_lib:format("\"~s\"", [Dir]) || Dir <- [EbinDir|code:get_path()]],
+    CodePathString = string:join(CodeDirs, " "),
     Cmd = ?FMT("erl " % should we expand ERL_PATH?
-               " -noshell -pa \"~s\" ~s"
+               " -noshell -pa ~s ~s"
                " -s ct_run script_start -s erlang halt"
                " -name test@~s"
                " -logdir \"~s\""
                " -env TEST_DIR \"~s\"",
-               [EbinDir,
+               [CodePathString,
                 Include,
                 net_adm:localhost(),
-                LogDir,
+                LogDir, 
                 filename:join(Cwd, TestDir)]) ++
         get_cover_config(Config, Cwd) ++
         get_ct_config_file(TestDir) ++
