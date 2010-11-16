@@ -111,7 +111,8 @@ compile(Config, AppFile) ->
     {AvailableDeps, MissingDeps} = find_deps(Deps),
 
     %% For each missing dep with a specified source, try to pull it.
-    PulledDeps0 = [use_source(D) || D <- MissingDeps, D#dep.source /= undefined],
+    PulledDeps0 = [use_source(D) || D <- MissingDeps,
+                                    D#dep.source /= undefined],
 
     %% For each available dep try to update the source to the specified
     %% version.
@@ -219,7 +220,7 @@ is_app_available(App, VsnRegex, Path) ->
         {true, AppFile} ->
             case rebar_app_utils:app_name(AppFile) of
                 App ->
-                    Vsn = rebar_app_utils:app_vsn(AppFile),
+                    Vsn = rebar_app_utils:app_vsn(reload, AppFile),
                     ?INFO("Looking for ~s-~s ; found ~s-~s at ~s\n",
                           [App, VsnRegex, App, Vsn, Path]),
                     case re:run(Vsn, VsnRegex, [{capture, none}]) of
@@ -251,17 +252,24 @@ use_source(Dep, Count) ->
             %% Already downloaded -- verify the versioning matches up with our regex
             case is_app_available(Dep#dep.app, Dep#dep.vsn_regex, Dep#dep.dir) of
                 {true, _} ->
-                    Dir = filename:join(Dep#dep.dir, "ebin"),
-                    ok = filelib:ensure_dir(filename:join(Dir, "dummy")),
-                    %% Available version matches up -- we're good to go;
-                    %% add the app dir to our code path
-                    true = code:add_patha(Dir),
+                    %% Available version matches up -- we're good to go.
+                    add_app(Dep#dep.dir),
                     Dep;
                 false ->
-                    %% The app that was downloaded doesn't match up (or had
-                    %% errors or something). For the time being, abort.
-                    ?ABORT("Dependency dir ~s does not satisfy version regex ~s.\n",
-                           [Dep#dep.dir, Dep#dep.vsn_regex])
+                    %% Try updating the service and check if that gets us the
+                    %% right version.
+                    ?INFO("Updating dependancy ~p\n", [Dep#dep.app]),
+                    update_source(Dep),
+                    case is_app_available(Dep#dep.app, Dep#dep.vsn_regex, Dep#dep.dir) of
+                        {true, _} ->
+                            add_app(Dep#dep.dir),
+                            Dep;
+                        false ->
+                            %% The app that was downloaded doesn't match up (or had
+                            %% errors or something). For the time being, abort.
+                            ?ABORT("Dependency dir ~s does not satisfy version regex ~s.\n",
+                                   [Dep#dep.dir, Dep#dep.vsn_regex])
+                    end
             end;
         false ->
             ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
@@ -270,6 +278,13 @@ use_source(Dep, Count) ->
             download_source(TargetDir, Dep#dep.source),
             use_source(Dep#dep { dir = TargetDir }, Count-1)
     end.
+
+add_app(Dir) ->
+    %% Ensure the ebin directory exists.
+    Dir2 = filename:join(Dir, "ebin"),
+    ok = filelib:ensure_dir(filename:join(Dir2, "dummy")),
+    %% Add the app dir to our code path.
+    true = code:add_patha(Dir2).
 
 download_source(AppDir, {hg, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),

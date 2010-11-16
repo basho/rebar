@@ -31,6 +31,7 @@
          app_src_to_app/1,
          app_name/1,
          app_applications/1,
+         app_vsn/2,
          app_vsn/1]).
 
 -export([load_app_file/1]). % TEMPORARY
@@ -86,6 +87,10 @@ app_applications(AppFile) ->
                    [AppFile, Reason])
     end.
 
+app_vsn(reload, AppFile) ->
+    erlang:erase({app_file, AppFile}),
+    app_vsn(AppFile).
+    
 app_vsn(AppFile) ->
     case load_app_file(AppFile) of
         {ok, _, AppInfo} ->
