@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 RUNNER_SCRIPT_DIR=$(cd ${0%/*} && pwd)
 
@@ -64,7 +64,7 @@ case "$1" in
 
     stop)
         # Wait for the node to completely stop...
-        PID=`ps -ef|grep "$RUNNER_BASE_DIR/.*/[b]eam.smp|awk '{print $2}'"`
+        PID=`ps x|grep "$RUNNER_BASE_DIR/.*/[b]eam.smp|awk '{print $1}'"`
         $NODETOOL stop
         while `kill -0 $PID 2>/dev/null`;
         do
