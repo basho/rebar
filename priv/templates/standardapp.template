@@ -1,0 +1,7 @@
+{variables, [{appid, "myapp"}]}.
+{template, "simpleapp.app.src", "apps/{{appid}}/src/{{appid}}.app.src"}.
+{template, "simpleapp_app.erl", "apps/{{appid}}/src/{{appid}}_app.erl"}.
+{template, "simpleapp_sup.erl", "apps/{{appid}}/src/{{appid}}_sup.erl"}.
+{template, "standardapp.erl", "apps/{{appid}}/src/{{appid}}.erl"}.
+{template, "standardapp_rebar.config", "rebar.config"}.
+{template, "standardapp_Makefile", "Makefile"}.
