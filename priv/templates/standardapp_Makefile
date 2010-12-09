@@ -1,0 +1,23 @@
+ERL ?= erl
+PWD := $(shell pwd)
+
+.PHONY: deps
+.PHONY: start
+
+all: deps
+	@./rebar compile
+
+deps:
+	@./rebar get-deps
+
+clean:
+	@./rebar clean
+
+distclean: clean
+	@./rebar delete-deps
+
+docs:
+	@erl -noshell -run edoc_run application '{{appid}}' '"."' '[]'
+
+start: all
+	@erl -pa $(PWD)/apps/*/ebin/ $(PWD)/deps/*/ebin -boot start_sasl -s {{appid}}
