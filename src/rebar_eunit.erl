@@ -111,10 +111,17 @@ eunit(Config, AppFile) ->
                       string:str(N, "_tests.beam") =:= 0],
     Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- BeamFiles],
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
-    
+    FilteredModules = case rebar_config:get_global(modules, undefined) of
+		undefined ->
+			Modules;
+		Mods ->
+			TargetMods = [list_to_atom(A) || A <- string:tokens(Mods, ",")],
+			[A || A <- Modules, lists:member(A, TargetMods)]
+	end,
+
     cover_init(Config, BeamFiles),
-    EunitResult = perform_eunit(Config, Modules),
-    perform_cover(Config, Modules, SrcModules),
+    EunitResult = perform_eunit(Config, FilteredModules),
+    perform_cover(Config, FilteredModules, SrcModules),
 
     case EunitResult of
         ok ->
