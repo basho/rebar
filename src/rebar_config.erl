@@ -31,7 +31,8 @@
          get_all/2,
          set/3,
          set_global/2, get_global/2,
-         is_verbose/0, get_jobs/0]).
+         is_verbose/0, get_jobs/0,
+         get_dir/1]).
 
 -include("rebar.hrl").
 
@@ -110,6 +111,9 @@ is_verbose() ->
 
 get_jobs() ->
     get_global(jobs, 3).
+
+get_dir(Config) ->
+    Config#config.dir.
 
 %% ===================================================================
 %% Internal functions

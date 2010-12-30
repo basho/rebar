@@ -141,20 +141,23 @@ make_cmd(TestDir, Config) ->
     CodePathString = string:join(CodeDirs, " "),
     Cmd = ?FMT("erl " % should we expand ERL_PATH?
                " -noshell -pa ~s ~s"
-               " -s ct_run script_start -s erlang halt"
                " -name test@~s"
                " -logdir \"~s\""
-               " -env TEST_DIR \"~s\"",
+               " -env TEST_DIR \"~s\""
+               " ~s"
+               " -s ct_run script_start -s erlang halt ",
                [CodePathString,
                 Include,
                 net_adm:localhost(),
                 LogDir,
-                filename:join(Cwd, TestDir)]) ++
+                filename:join(Cwd, TestDir),
+                get_extra_params(Config, Cwd)]) ++
         get_cover_config(Config, Cwd) ++
         get_ct_config_file(TestDir) ++
         get_config_file(TestDir) ++
         get_suite(TestDir) ++
         get_case(),
+    ?DEBUG("Common Text launch command: ~s~n", [Cmd]),
     RawLog = filename:join(LogDir, "raw.log"),
     {Cmd, RawLog}.
 
@@ -225,4 +228,20 @@ get_case() ->
             "";
         Case ->
             " -case " ++ Case
+    end.
+
+%% Extra params are only return for cwd, meaning that extra launch
+%% param do not apply to dependency testing.
+get_extra_params(Config, Cwd) ->
+    Dir = rebar_config:get_dir(Config),
+    if
+        Dir == Cwd ->
+            case rebar_config:get_local(Config, 'ct_extra_params', undefined) of
+                undefined ->
+                    "";
+                ExtraParams ->
+                    ExtraParams
+            end;
+        true ->
+            ""
     end.
