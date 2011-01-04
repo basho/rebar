@@ -9,6 +9,7 @@
 ** eunit testing
 ** Installation
 ** Doc generation
+** Upgrade
 
 * Modes/File types
 ** Erlang 
