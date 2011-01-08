@@ -12,5 +12,5 @@
     ./rebar compile
     ./rebar generate
     ./rebar upgrade oldreleasepath=dummy_0.1
-    tar zxvf rel/dummy_0.2.tar.gz releases/0.2/relupx releases/0.2/relup
+    tar zxvf rel/dummy_0.2.tar.gz releases/0.2/relup
     cat releases/0.2/relup
