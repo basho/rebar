@@ -32,6 +32,7 @@
 %% </ul>
 %% The following Global options are supported:
 %% <ul>
+%%   <li>perform=0 - only prepare (and do not perform) eunit test</li>
 %%   <li>verbose=1 - show extra output from the eunit test</li>
 %%   <li>suite="foo"" - runs test/foo_tests.erl</li>
 %% </ul>
@@ -101,26 +102,33 @@ eunit(Config, AppFile) ->
     %% as well.
     rebar_erlc_compiler:doterl_compile(eunit_config(Config), ?EUNIT_DIR, TestErls),
 
-    %% Build a list of all the .beams in ?EUNIT_DIR -- use this for cover
-    %% and eunit testing. Normally you can just tell cover and/or eunit to
-    %% scan the directory for you, but eunit does a code:purge in conjunction
-    %% with that scan and causes any cover compilation info to be lost.
-    %% Filter out "*_tests" modules so eunit won't doubly run them and
-    %% so cover only calculates coverage on production code.
-    BeamFiles = [N || N <- rebar_utils:beams(?EUNIT_DIR),
-                      string:str(N, "_tests.beam") =:= 0],
-    Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- BeamFiles],
-    SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
-    
-    cover_init(Config, BeamFiles),
-    EunitResult = perform_eunit(Config, Modules),
-    perform_cover(Config, Modules, SrcModules),
-
-    case EunitResult of
-        ok ->
+    case rebar_config:get_global(perform, "1") =:= "0" of
+        true ->
             ok;
-        _ ->
-            ?ABORT("One or more eunit tests failed.~n", [])
+        false ->
+            %% Build a list of all the .beams in ?EUNIT_DIR -- use
+            %% this for cover and eunit testing. Normally you can just
+            %% tell cover and/or eunit to scan the directory for you,
+            %% but eunit does a code:purge in conjunction with that
+            %% scan and causes any cover compilation info to be lost.
+            %% Filter out "*_tests" modules so eunit won't doubly run
+            %% them and so cover only calculates coverage on
+            %% production code.
+            BeamFiles = [N || N <- rebar_utils:beams(?EUNIT_DIR),
+                              string:str(N, "_tests.beam") =:= 0],
+            Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- BeamFiles],
+            SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
+
+            cover_init(Config, BeamFiles),
+            EunitResult = perform_eunit(Config, Modules),
+            perform_cover(Config, Modules, SrcModules),
+
+            case EunitResult of
+                ok ->
+                    ok;
+                _ ->
+                    ?ABORT("One or more eunit tests failed.~n", [])
+            end
     end,
 
     %% Restore code path
