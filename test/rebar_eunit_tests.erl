@@ -44,6 +44,27 @@
 %% Rebar EUnit and Cover Tests
 %% ====================================================================
 
+eunit_controls_test_() ->
+    fun () ->
+            InOrder = {inorder, [bart, {timeout, 10, [homer]}]},
+            Parallel = {inparallel, [foo, bar]},
+            Modules = [foo, bar, baz, homer],
+            Result = rebar_eunit:eunit_controls([InOrder, Parallel], Modules),
+            Expected = [{inorder, [{timeout, 10, [homer]}]},
+                        {inparallel, [foo,bar]}, baz],
+            ?assertEqual(Expected, Result)
+    end.
+
+eunit_controls_wildcard_test_() ->
+    fun () ->
+            Controls = [{inorder, [foo]}, {inparallel, '_'}],
+            Modules = [foo, bar, baz, homer],
+            Result = rebar_eunit:eunit_controls(Controls, Modules),
+            Expected = [{inorder, [foo]}, {inparallel, [bar, baz, homer]}],
+            ?assertEqual(Expected, Result)
+    end.    
+
+
 eunit_test_() ->
     {"Ensure EUnit runs with tests in a 'test' dir and no defined suite",
      setup, fun() -> setup_basic_project(), rebar("-v eunit") end,

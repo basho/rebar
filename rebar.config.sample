@@ -83,6 +83,21 @@
 %% Options for eunit:test()
 {eunit_opts, []}.
 
+%% Primitive controls for eunit:test()
+%% See http://www.erlang.org/doc/apps/eunit/chapter.html#Control
+%%
+%% Use '_' as a wildcard to include all remaining modules. This should always
+%% be used in the last control of the list
+%%
+%% Example 1: run foo_test, bar_test sequencially, then all the other modules
+%% in parallel:
+%% [{inorder, [foo_test, bar_test]}, {inparallel, '_'}]
+%%
+%% Example 2: run foo_test and bar_test with a timeout of 10s in parallel with
+%% 3 threads:
+%% [{parallel, 3, [{timeout, 10, [foo_test, bar_test]}]}]
+{eunit_controls, []}
+
 %% Additional compile options for eunit. erl_opts from above is also used
 {eunit_compile_opts, []}.
 

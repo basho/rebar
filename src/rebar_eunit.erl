@@ -151,16 +151,20 @@ perform_eunit(Config, Modules) ->
     Cwd = rebar_utils:get_cwd(),
     ok = file:set_cwd(?EUNIT_DIR),
 
-    EunitResult = perform_eunit(EunitOpts, Modules, Suite),
+    %% Read any control primitives for the given module list
+    EunitControls = rebar_config:get_list(Config, eunit_controls, []),
+    Primitives = eunit_controls(EunitControls, Modules),
+
+    EunitResult = perform_eunit(EunitOpts, Primitives, Suite),
 
     %% Return to original working dir
     ok = file:set_cwd(Cwd),
 
     EunitResult.
 
-perform_eunit(EunitOpts, Modules, undefined) ->
-    (catch eunit:test(Modules, EunitOpts));
-perform_eunit(EunitOpts, _Modules, Suite) ->
+perform_eunit(EunitOpts, Primitives, undefined) ->
+    (catch eunit:test(Primitives, EunitOpts));
+perform_eunit(EunitOpts, _Primitives, Suite) ->
     (catch eunit:test(list_to_atom(Suite), EunitOpts)).
 
 get_eunit_opts(Config) ->
@@ -187,6 +191,38 @@ eunit_config(Config) ->
     Opts = [{d, 'TEST'}, debug_info] ++
         ErlOpts ++ EunitOpts ++ EqcOpts,
     rebar_config:set(Config, erl_opts, Opts).
+
+eunit_controls(Controls, Modules) ->
+    {Acc, Rest} = lists:foldl(fun eunit_control/2, {[], Modules}, Controls),
+    lists:reverse(Acc) ++ Rest.
+
+eunit_control({inparallel, Tests}, {Acc, Modules}) ->
+    {Included, Excluded} = split_controls(Tests, Modules),
+    {[{inparallel, Included} | Acc], Excluded};
+eunit_control({inparallel, N, Tests}, {Acc, Modules}) ->
+    {Included, Excluded} = split_controls(Tests, Modules),
+    {[{inparallel, N, Included} | Acc], Excluded};
+eunit_control({inorder, Tests}, {Acc, Modules}) ->
+    {Included, Excluded} = split_controls(Tests, Modules),
+    {[{inorder, Included} | Acc], Excluded};
+eunit_control({timeout, T, Tests}, {Acc, Modules}) ->
+    {Included, Excluded} = split_controls(Tests, Modules),
+    {[{timeout, T, Included} | Acc], Excluded};
+eunit_control(Module, {Acc, Modules}) when is_atom(Module) ->
+    case lists:member(Module, Modules) of
+        true -> {Acc ++ [Module], Modules -- [Module]};
+        _ -> {Acc, Modules}
+    end;
+eunit_control({module, Module}, {Acc, Modules}) when is_atom(Module) ->
+    eunit_control(Module, {Acc, Modules});
+%% Allows application, Path, dir... Relevant in rebar context ?
+eunit_control(Other, {Acc, Modules})  ->
+    {Acc ++ [Other], Modules}.
+    
+split_controls('_', Modules) ->
+    {Modules, []};
+split_controls(Tests, Modules) ->
+    lists:foldl(fun eunit_control/2, {[], Modules}, Tests).
 
 is_quickcheck_avail() ->
     case erlang:get(is_quickcheck_avail) of
