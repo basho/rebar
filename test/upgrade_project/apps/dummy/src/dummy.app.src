@@ -1,6 +1,6 @@
 {application, dummy, [
     {description, "a dummy app"},
-    {vsn, "0.2"},
+    {vsn, "0.1"},
     {registered, [
       dummy_app
     ]},

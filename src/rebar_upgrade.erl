@@ -43,7 +43,7 @@ upgrade(_Config, ReltoolFile) ->
             Release_NewVer = NewReleaseName ++ "_" ++ NewReleaseVer,
             setup(OldVerPath, NewReleaseName, NewReleaseVer, Release_NewVer),
             run_systools(Release_NewVer, NewReleaseName),
-            cleanup(Release_NewVer)
+            ok = cleanup(Release_NewVer)
     end.
   
 %% internal api
@@ -58,13 +58,9 @@ run_checks(OldVerPath, ReltoolFile) ->
     {ok, {release, {OldReleaseName, OldReleaseVer}}} = 
         get_release_version(ReleaseName, OldVerPath),
     true = 
-        release_name_check(NewReleaseName, OldReleaseName, "new and old .rel release names dont match"),
+        release_name_check(ReleaseName, NewReleaseName, OldReleaseName),
     true = 
-        release_name_check(ReleaseName, NewReleaseName, "reltool and .rel release names dont match"),
-    true =
-        new_old_release_version_check(NewReleaseVer, OldReleaseVer),
-    true = 
-        reltool_release_version_check(ReleaseVersion, NewReleaseVer),
+        release_version_check(ReleaseVersion, NewReleaseVer, OldReleaseVer),
     {ok, {release, {NewReleaseName, NewReleaseVer}}}.
 
 get_release_name(ReltoolFile) ->
@@ -88,30 +84,41 @@ release_path_check(Path) ->
             ?ABORT("release directory doesn't exist (~p)~n", [Path])
     end.
 
-reltool_release_version_check(Version1, Version2) when Version1 == Version2 ->
-    true;
-reltool_release_version_check(_, _) ->
-    ?ABORT("reltool version and .rel versions dont match~n", []).
+release_version_check(ReleaseVersion, NewReleaseVer, OldReleaseVer) ->
+    case ReleaseVersion == NewReleaseVer of
+        true ->
+            case NewReleaseVer == OldReleaseVer of
+                true ->
+                    ?ABORT("new and old .rel contain the same version~n", []);
+                false ->
+                    true
+            end;
+        false ->
+            ?ABORT("reltool version and .rel versions dont match~n", [])
+    end.
 
-new_old_release_version_check(Version1, Version2) when Version1 /= Version2 ->
-    true;
-new_old_release_version_check(_, _) ->
-    ?ABORT("new and old .rel contain the same version~n", []).
-
-release_name_check(Name1, Name2, _) when Name1 == Name2 ->
-    true;
-release_name_check(_, _, Msg) ->
-    ?ABORT("~p~n", [Msg]).
+release_name_check(ReleaseVersion, NewReleaseVer, OldReleaseVer) ->
+    case ReleaseVersion == NewReleaseVer of
+        true ->
+            case NewReleaseVer == OldReleaseVer of
+                true ->
+                    true;
+                false ->
+                    ?ABORT("new and old .rel release names dont match~n", [])
+            end;
+        false ->
+            ?ABORT("reltool and .rel release names dont match~n", [])
+    end.
 
 setup(OldVerPath, NewReleaseName, NewReleaseVer, Release_NewVer) ->
     NewRelPath = "./" ++ NewReleaseName,
-    {ok, _} = file:copy(
+    file:copy(
         NewRelPath ++ "/releases/" ++ NewReleaseVer ++ "/" ++ NewReleaseName ++ ".rel", 
         "./" ++ Release_NewVer ++ ".rel"),
-    ok = code:add_pathsa(filelib:wildcard(NewRelPath ++ "/*")),
-    ok = code:add_pathsa(filelib:wildcard(NewRelPath ++ "/lib/*/ebin")),
-    ok = code:add_pathsa(filelib:wildcard(OldVerPath ++ "/lib/*/ebin")),
-    ok = code:add_pathsa(filelib:wildcard(OldVerPath ++ "/releases/*")).
+    code:add_pathsa(filelib:wildcard(NewRelPath ++ "/*")),
+    code:add_pathsa(filelib:wildcard(NewRelPath ++ "/lib/*/ebin")),
+    code:add_pathsa(filelib:wildcard(OldVerPath ++ "/lib/*/ebin")),
+    code:add_pathsa(filelib:wildcard(OldVerPath ++ "/releases/*")).
 
 run_systools(NewReleaseVer, ReleaseName) ->
     case systools:make_relup(NewReleaseVer, [ReleaseName], [ReleaseName], [silent]) of
@@ -135,7 +142,8 @@ run_systools(NewReleaseVer, ReleaseName) ->
  
 cleanup(Release_NewVer) ->
     ?DEBUG("removing files needed for building the upgrade~n", []),
-    ok = file:delete("./" ++ Release_NewVer ++ ".rel"),
-    ok = file:delete("./" ++ Release_NewVer ++ ".boot"),
-    ok = file:delete("./" ++ Release_NewVer ++ ".script"),
-    ok = file:delete("./relup").
+    file:delete("./" ++ Release_NewVer ++ ".rel"),
+    file:delete("./" ++ Release_NewVer ++ ".boot"),
+    file:delete("./" ++ Release_NewVer ++ ".script"),
+    file:delete("./relup"),
+    ok.
