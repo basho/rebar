@@ -228,6 +228,8 @@ delete-deps                          Delete fetched dependencies
 
 generate    [dump_spec=0/1]          Build release with reltool
 
+upgrade     [oldreleasepath=path]    Build an upgrade package
+
 eunit       [suite=foo]              Run eunit [test/foo_tests.erl] tests
 ct          [suite=] [case=]         Run common_test suites in ./test
 
