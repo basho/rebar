@@ -35,106 +35,128 @@
 
 upgrade(_Config, ReltoolFile) ->
     case rebar_config:get_global(oldreleasepath, false) of
-        false ->
-            ?ABORT("oldreleasepath=PATH is required to create upgrade package~n", []);
-        OldVerPath ->
-            {ok, {release, {NewReleaseName, NewReleaseVer}}} = 
-                run_checks(OldVerPath, ReltoolFile),
-            Release_NewVer = NewReleaseName ++ "_" ++ NewReleaseVer,
-            setup(OldVerPath, NewReleaseName, NewReleaseVer, Release_NewVer),
-            run_systools(Release_NewVer, NewReleaseName),
-            cleanup(Release_NewVer)
+      false ->
+	  ?ABORT("oldreleasepath=PATH is required to create "
+		 "upgrade package~n",
+		 []);
+      OldVerPath ->
+	  {ok, {release, {NewReleaseName, NewReleaseVer}}} =
+	      run_checks(OldVerPath, ReltoolFile),
+	  Release_NewVer = NewReleaseName ++ "_" ++ NewReleaseVer,
+	  setup(OldVerPath, NewReleaseName, NewReleaseVer,
+		Release_NewVer),
+	  run_systools(Release_NewVer, NewReleaseName),
+	  cleanup(Release_NewVer)
     end.
-  
+
 %% internal api
 
 run_checks(OldVerPath, ReltoolFile) ->
     true = release_path_check(OldVerPath),
-    {ok, {release, {ReleaseName, ReleaseVersion}}} = 
-        get_release_name(ReltoolFile),
+    {ok, {release, {ReleaseName, ReleaseVersion}}} =
+	get_release_name(ReltoolFile),
     true = release_path_check("./" ++ ReleaseName),
-    {ok, {release, {NewReleaseName, NewReleaseVer}}} = 
-        get_release_version(ReleaseName, "./" ++ ReleaseName),
-    {ok, {release, {OldReleaseName, OldReleaseVer}}} = 
-        get_release_version(ReleaseName, OldVerPath),
-    true = 
-        release_name_check(NewReleaseName, OldReleaseName, "new and old .rel release names dont match"),
-    true = 
-        release_name_check(ReleaseName, NewReleaseName, "reltool and .rel release names dont match"),
-    true =
-        new_old_release_version_check(NewReleaseVer, OldReleaseVer),
-    true = 
-        reltool_release_version_check(ReleaseVersion, NewReleaseVer),
+    {ok, {release, {NewReleaseName, NewReleaseVer}}} =
+	get_release_version(ReleaseName, "./" ++ ReleaseName),
+    {ok, {release, {OldReleaseName, OldReleaseVer}}} =
+	get_release_version(ReleaseName, OldVerPath),
+    true = release_name_check(NewReleaseName,
+			      OldReleaseName,
+			      "new and old .rel release names dont "
+			      "match"),
+    true = release_name_check(ReleaseName, NewReleaseName,
+			      "reltool and .rel release names dont "
+			      "match"),
+    true = new_old_release_version_check(NewReleaseVer,
+					 OldReleaseVer),
+    true = reltool_release_version_check(ReleaseVersion,
+					 NewReleaseVer),
     {ok, {release, {NewReleaseName, NewReleaseVer}}}.
 
 get_release_name(ReltoolFile) ->
-    {ok, [{sys, ConfigList}, _]} = file:consult(ReltoolFile),
+    {ok, [{sys, ConfigList}, _]} =
+	file:consult(ReltoolFile),
     %% expect the first rel in the proplist to be the one you want
-    {rel, ReleaseName, ReleaseVersion, _} = proplists:lookup(rel, ConfigList),
+    {rel, ReleaseName, ReleaseVersion, _} =
+	proplists:lookup(rel, ConfigList),
     {ok, {release, {ReleaseName, ReleaseVersion}}}.
-  
+
 get_release_version(ReleaseName, Path) ->
-    [RelFile] = filelib:wildcard(Path ++ "/releases/*/" ++ ReleaseName ++ ".rel"),
-    [BinDir|_] = re:replace(RelFile, ReleaseName ++ "\\.rel", ""),
-    {ok, [{release, {ReleaseName1, ReleaseVer}, _, _}]} = 
-        file:consult(binary_to_list(BinDir) ++ ReleaseName ++ ".rel"),
+    [RelFile] = filelib:wildcard(Path ++
+				   "/releases/*/" ++ ReleaseName ++ ".rel"),
+    [BinDir | _] = re:replace(RelFile,
+			      ReleaseName ++ "\\.rel", ""),
+    {ok, [{release, {ReleaseName1, ReleaseVer}, _, _}]} =
+	file:consult(binary_to_list(BinDir) ++
+		       ReleaseName ++ ".rel"),
     {ok, {release, {ReleaseName1, ReleaseVer}}}.
 
 release_path_check(Path) ->
     case filelib:is_dir(Path) of
-        true ->
-            true;
-        false ->
-            ?ABORT("release directory doesn't exist (~p)~n", [Path])
+      true -> true;
+      false ->
+	  ?ABORT("release directory doesn't exist (~p)~n", [Path])
     end.
 
-reltool_release_version_check(Version1, Version2) when Version1 == Version2 ->
+reltool_release_version_check(Version1, Version2)
+    when Version1 == Version2 ->
     true;
 reltool_release_version_check(_, _) ->
-    ?ABORT("reltool version and .rel versions dont match~n", []).
+    ?ABORT("reltool version and .rel versions dont "
+	   "match~n",
+	   []).
 
-new_old_release_version_check(Version1, Version2) when Version1 /= Version2 ->
+new_old_release_version_check(Version1, Version2)
+    when Version1 /= Version2 ->
     true;
 new_old_release_version_check(_, _) ->
-    ?ABORT("new and old .rel contain the same version~n", []).
+    ?ABORT("new and old .rel contain the same version~n",
+	   []).
 
-release_name_check(Name1, Name2, _) when Name1 == Name2 ->
+release_name_check(Name1, Name2, _)
+    when Name1 == Name2 ->
     true;
-release_name_check(_, _, Msg) ->
-    ?ABORT("~p~n", [Msg]).
+release_name_check(_, _, Msg) -> ?ABORT("~p~n", [Msg]).
 
-setup(OldVerPath, NewReleaseName, NewReleaseVer, Release_NewVer) ->
+setup(OldVerPath, NewReleaseName, NewReleaseVer,
+      Release_NewVer) ->
     NewRelPath = "./" ++ NewReleaseName,
-    {ok, _} = file:copy(
-        NewRelPath ++ "/releases/" ++ NewReleaseVer ++ "/" ++ NewReleaseName ++ ".rel", 
-        "./" ++ Release_NewVer ++ ".rel"),
-    ok = code:add_pathsa(filelib:wildcard(NewRelPath ++ "/*")),
-    ok = code:add_pathsa(filelib:wildcard(NewRelPath ++ "/lib/*/ebin")),
-    ok = code:add_pathsa(filelib:wildcard(OldVerPath ++ "/lib/*/ebin")),
-    ok = code:add_pathsa(filelib:wildcard(OldVerPath ++ "/releases/*")).
+    {ok, _} = file:copy(NewRelPath ++
+			  "/releases/" ++
+			    NewReleaseVer ++ "/" ++ NewReleaseName ++ ".rel",
+			"./" ++ Release_NewVer ++ ".rel"),
+    ok = code:add_pathsa(filelib:wildcard(NewRelPath ++
+					    "/*")),
+    ok = code:add_pathsa(filelib:wildcard(NewRelPath ++
+					    "/lib/*/ebin")),
+    ok = code:add_pathsa(filelib:wildcard(OldVerPath ++
+					    "/lib/*/ebin")),
+    ok = code:add_pathsa(filelib:wildcard(OldVerPath ++
+					    "/releases/*")).
 
 run_systools(NewReleaseVer, ReleaseName) ->
-    case systools:make_relup(NewReleaseVer, [ReleaseName], [ReleaseName], [silent]) of
-        {error, _, _Message} ->
-            ?ABORT("~p~n", [_Message]);
-        _ ->
-            ?DEBUG("relup created~n", []),
-            case systools:make_script(NewReleaseVer, [silent]) of
-                {error, _, _Message1} ->
-                    ?ABORT("~p~n", [_Message1]);
-                _ ->
-                    ?DEBUG("script created~n", []),
-                    case systools:make_tar(NewReleaseVer, [silent]) of
-                        {error, _, _Message2} ->
-                            ?ABORT("~p~n", [_Message2]);
-                        _ ->
-                            ?CONSOLE("~p upgrade package created~n", [ReleaseName])
-                    end
-            end
+    case systools:make_relup(NewReleaseVer, [ReleaseName],
+			     [ReleaseName], [silent])
+	of
+      {error, _, _Message} -> ?ABORT("~p~n", [_Message]);
+      _ ->
+	  ?DEBUG("relup created~n", []),
+	  case systools:make_script(NewReleaseVer, [silent]) of
+	    {error, _, _Message1} -> ?ABORT("~p~n", [_Message1]);
+	    _ ->
+		?DEBUG("script created~n", []),
+		case systools:make_tar(NewReleaseVer, [silent]) of
+		  {error, _, _Message2} -> ?ABORT("~p~n", [_Message2]);
+		  _ ->
+		      ?CONSOLE("~p upgrade package created~n", [ReleaseName])
+		end
+	  end
     end.
- 
+
 cleanup(Release_NewVer) ->
-    ?DEBUG("removing files needed for building the upgrade~n", []),
+    ?DEBUG("removing files needed for building the "
+	   "upgrade~n",
+	   []),
     ok = file:delete("./" ++ Release_NewVer ++ ".rel"),
     ok = file:delete("./" ++ Release_NewVer ++ ".boot"),
     ok = file:delete("./" ++ Release_NewVer ++ ".script"),
