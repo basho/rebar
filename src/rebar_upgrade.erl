@@ -50,21 +50,18 @@ upgrade(_Config, ReltoolFile) ->
 
 run_checks(OldVerPath, ReltoolFile) ->
     true = release_path_check(OldVerPath),
-    {ok, {release, {ReleaseName, ReleaseVersion}}} = 
-        get_release_name(ReltoolFile),
+    {ok, {release, {ReleaseName, ReleaseVersion}}} = get_release_name(ReltoolFile),
     true = release_path_check("./" ++ ReleaseName),
-    {ok, {release, {NewReleaseName, NewReleaseVer}}} = 
-        get_release_version(ReleaseName, "./" ++ ReleaseName),
+    {ok, {release, {NewReleaseName, NewReleaseVer}}} = get_release_version(ReleaseName, 
+        "./" ++ ReleaseName),
     {ok, {release, {OldReleaseName, OldReleaseVer}}} = 
         get_release_version(ReleaseName, OldVerPath),
-    true = 
-        release_name_check(NewReleaseName, OldReleaseName, "new and old .rel release names dont match"),
-    true = 
-        release_name_check(ReleaseName, NewReleaseName, "reltool and .rel release names dont match"),
-    true =
-        new_old_release_version_check(NewReleaseVer, OldReleaseVer),
-    true = 
-        reltool_release_version_check(ReleaseVersion, NewReleaseVer),
+    true = release_name_check(NewReleaseName, 
+        OldReleaseName, "new and old .rel release names dont match"),
+    true = release_name_check(ReleaseName, 
+        NewReleaseName, "reltool and .rel release names dont match"),
+    true = new_old_release_version_check(NewReleaseVer, OldReleaseVer),
+    true = reltool_release_version_check(ReleaseVersion, NewReleaseVer),
     {ok, {release, {NewReleaseName, NewReleaseVer}}}.
 
 get_release_name(ReltoolFile) ->
