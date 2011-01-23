@@ -93,9 +93,8 @@
 %% in parallel:
 %% [{inorder, [foo_test, bar_test]}, {inparallel, '_'}]
 %%
-%% Example 2: run foo_test and bar_test with a timeout of 10s in parallel with
-%% 3 threads:
-%% [{parallel, 3, [{timeout, 10, [foo_test, bar_test]}]}]
+%% Example 2: run bar:bar_test with a timeout of 10s:
+%% [{timeout, 10, [{bar, bar_test}]}]
 {eunit_controls, []}
 
 %% Additional compile options for eunit. erl_opts from above is also used

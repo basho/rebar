@@ -197,17 +197,30 @@ eunit_controls(Controls, Modules) ->
     lists:reverse(Acc) ++ Rest.
 
 eunit_control({inparallel, Tests}, {Acc, Modules}) ->
-    {Included, Excluded} = split_controls(Tests, Modules),
+    {Included, Excluded} = recurse_controls(Tests, Modules),
     {[{inparallel, Included} | Acc], Excluded};
 eunit_control({inparallel, N, Tests}, {Acc, Modules}) ->
-    {Included, Excluded} = split_controls(Tests, Modules),
+    {Included, Excluded} = recurse_controls(Tests, Modules),
     {[{inparallel, N, Included} | Acc], Excluded};
 eunit_control({inorder, Tests}, {Acc, Modules}) ->
-    {Included, Excluded} = split_controls(Tests, Modules),
+    {Included, Excluded} = recurse_controls(Tests, Modules),
     {[{inorder, Included} | Acc], Excluded};
 eunit_control({timeout, T, Tests}, {Acc, Modules}) ->
-    {Included, Excluded} = split_controls(Tests, Modules),
+    {Included, Excluded} = recurse_controls(Tests, Modules),
     {[{timeout, T, Included} | Acc], Excluded};
+%% Some controls do not handle modules as input (eg: timeout)
+%% Allow to specify {Module, Function} and remember this particular test is
+%% performed
+eunit_control({M, F}, {Acc, Modules}) ->
+    case lists:member(M, Modules) of
+        true ->
+            M_tests = eunit_data:get_module_tests(M),
+            {Acc ++ [{M, F}], (Modules -- [M]) ++ (M_tests -- [{M, F}])};
+        _ ->
+            {Acc, Modules}
+    end;
+eunit_control('_', {Acc, Modules}) ->            
+    {Acc ++ Modules, []};
 eunit_control(Module, {Acc, Modules}) when is_atom(Module) ->
     case lists:member(Module, Modules) of
         true -> {Acc ++ [Module], Modules -- [Module]};
@@ -218,11 +231,11 @@ eunit_control({module, Module}, {Acc, Modules}) when is_atom(Module) ->
 %% Allows application, Path, dir... Relevant in rebar context ?
 eunit_control(Other, {Acc, Modules})  ->
     {Acc ++ [Other], Modules}.
-    
-split_controls('_', Modules) ->
-    {Modules, []};
-split_controls(Tests, Modules) ->
-    lists:foldl(fun eunit_control/2, {[], Modules}, Tests).
+
+recurse_controls(Tests, Modules) when is_list(Tests) ->
+    lists:foldl(fun eunit_control/2, {[], Modules}, Tests);
+recurse_controls(Test, Modules) ->
+    eunit_control(Test, {[], Modules}).
 
 is_quickcheck_avail() ->
     case erlang:get(is_quickcheck_avail) of
