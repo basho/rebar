@@ -511,11 +511,11 @@ run_modules([Module | Rest], Command, Config, File) ->
     Result.
 
 process_hooks(pre, Config, Command, Module) ->
-    process_hooks(Config, list_to_atom("pre_" ++ atom_to_list(Command)), Module);
+    apply_hooks(Config, {pre, Command}, list_to_atom("pre_" ++ atom_to_list(Command)), Module);
 process_hooks(post, Config, Command, Module) ->
-    process_hooks(Config, list_to_atom("post_" ++ atom_to_list(Command)), Module).
+    apply_hooks(Config, {post, Command}, list_to_atom("post_" ++ atom_to_list(Command)), Module).
 
-process_hooks(Config, ConfigKey, Module) ->
+apply_hooks(Config, {Mode, GivenCommand}, ConfigKey, Module) ->
     ModuleKey = list_to_atom(re:replace(atom_to_list(Module),
         "rebar_", "", [{return, list}])),
     case rebar_config:get_local(Config, ConfigKey, undefined) of
@@ -527,7 +527,12 @@ process_hooks(Config, ConfigKey, Module) ->
                 Cmd -> apply_hooks(Config, Cmd, Module)
             end;
         Command ->
-            apply_hooks(Config, Command, Module)
+            case erlang:get({Mode, GivenCommand}) of
+                true -> skip;
+                _ -> 
+                    apply_hooks(Config, Command, Module),
+                    erlang:put({Mode, GivenCommand}, true)
+            end
     end.
 
 apply_hooks(Config, Command, Module) ->
