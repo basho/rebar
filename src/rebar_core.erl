@@ -500,22 +500,48 @@ run_modules([], _Command, _Config, _File) ->
     ok;
 run_modules([Module | Rest], Command, Config, File) ->
     %% If there are pre_<module> tasks in rebar.config, then execute them
-    ConfigKey = list_to_atom("pre_" ++ re:replace(atom_to_list(Module),
-        "rebar_", "", [{return, list}])),
-    %% {ok, Pwd} = file:get_cwd(),
-    %% io:format("Looking for ~p in ~s from ~p\n", [ConfigKey, Pwd, rebar_config:get_local(Config, ConfigKey, undefined)]),
-    case rebar_config:get_local(Config, ConfigKey, undefined) of
-        undefined -> skip;
-        PreCommand ->
-            ?CONSOLE("Running ~p\n", [PreCommand]),
-            rebar_utils:sh(PreCommand, [{abort_on_error, 
-                lists:flatten(io_lib:format("Command [~p] failed!~n", [PreCommand]))}])
-    end,
-    case Module:Command(Config, File) of
+    process_hooks(pre, Config, Command, Module),
+    Result = case Module:Command(Config, File) of
         ok ->
             run_modules(Rest, Command, Config, File);
         {error, _} = Error ->
             {Module, Error}
+    end,
+    process_hooks(post, Config, Command, Module),
+    Result.
+
+process_hooks(pre, Config, Command, Module) ->
+    process_hooks(Config, list_to_atom("pre_" ++ atom_to_list(Command)), Module);
+process_hooks(post, Config, Command, Module) ->
+    process_hooks(Config, list_to_atom("post_" ++ atom_to_list(Command)), Module).
+
+process_hooks(Config, ConfigKey, Module) ->
+    ModuleKey = list_to_atom(re:replace(atom_to_list(Module),
+        "rebar_", "", [{return, list}])),
+    case rebar_config:get_local(Config, ConfigKey, undefined) of
+        undefined -> skip;
+        [] -> skip;
+        [{_,_}|_]=PropList ->
+            case proplists:get_value(ModuleKey, PropList, undefined) of
+                undefined -> skip;
+                Cmd -> apply_hooks(Config, Cmd, Module)
+            end;
+        Command ->
+            apply_hooks(Config, Command, Module)
+    end.
+
+apply_hooks(Config, Command, Module) ->
+    Env = check_for_env(Config, Module),
+    rebar_utils:sh(Command, [{env, Env}, {abort_on_error, 
+        lists:flatten(io_lib:format("Command [~p] failed!~n", [Command]))}]).
+
+check_for_env(Config, Module) ->
+    Exports = Module:module_info(exports),
+    case lists:member({setup_env, 1}, Exports) of
+        true ->
+            Module:setup_env(Config);
+        false ->
+            []
     end.
 
 acc_modules(Modules, Command, Config, File) ->
