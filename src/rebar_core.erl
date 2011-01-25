@@ -499,13 +499,24 @@ select_modules([Module | Rest], Command, Acc) ->
 run_modules([], _Command, _Config, _File) ->
     ok;
 run_modules([Module | Rest], Command, Config, File) ->
+    %% If there are pre_<module> tasks in rebar.config, then execute them
+    ConfigKey = list_to_atom("pre_" ++ re:replace(atom_to_list(Module),
+        "rebar_", "", [{return, list}])),
+    %% {ok, Pwd} = file:get_cwd(),
+    %% io:format("Looking for ~p in ~s from ~p\n", [ConfigKey, Pwd, rebar_config:get_local(Config, ConfigKey, undefined)]),
+    case rebar_config:get_local(Config, ConfigKey, undefined) of
+        undefined -> skip;
+        PreCommand ->
+            ?CONSOLE("Running ~p\n", [PreCommand]),
+            rebar_utils:sh(PreCommand, [{abort_on_error, 
+                lists:flatten(io_lib:format("Command [~p] failed!~n", [PreCommand]))}])
+    end,
     case Module:Command(Config, File) of
         ok ->
             run_modules(Rest, Command, Config, File);
         {error, _} = Error ->
             {Module, Error}
     end.
-
 
 acc_modules(Modules, Command, Config, File) ->
     acc_modules(select_modules(Modules, Command, []),
