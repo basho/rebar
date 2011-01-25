@@ -16,3 +16,10 @@
 
 -define(FMT(Str, Args), lists:flatten(io_lib:format(Str, Args))).
 
+-ifndef(BUILD_TIME).
+-define(BUILD_TIME, "undefined").
+-endif.
+
+-ifndef(VCS_INFO).
+-define(VCS_INFO, "undefined").
+-endif.
