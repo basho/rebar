@@ -295,13 +295,61 @@ select_modules([Module | Rest], Command, Acc) ->
 run_modules([], _Command, _Config, _File) ->
     ok;
 run_modules([Module | Rest], Command, Config, File) ->
-    case Module:Command(Config, File) of
-        ok ->
-            run_modules(Rest, Command, Config, File);
-        {error, _} = Error ->
-            {Module, Error}
+    process_hooks(pre, Config, Command, Module),
+    Result = case Module:Command(Config, File) of
+                 ok ->
+                     run_modules(Rest, Command, Config, File);
+                 {error, _} = Error ->
+                     {Module, Error}
+             end,
+    process_hooks(post, Config, Command, Module),
+    Result.
+
+process_hooks(pre, Config, Command, Module) ->
+    apply_hooks(Config, {pre, Command},
+                list_to_atom("pre_" ++ atom_to_list(Command)), Module);
+process_hooks(post, Config, Command, Module) ->
+    apply_hooks(Config, {post, Command},
+                list_to_atom("post_" ++ atom_to_list(Command)), Module).
+
+apply_hooks(Config, {Mode, GivenCommand}, ConfigKey, Module) ->
+    ModuleKey = list_to_atom(re:replace(atom_to_list(Module),
+                                        "rebar_", "", [{return, list}])),
+    case rebar_config:get_local(Config, ConfigKey, undefined) of
+        undefined ->
+            skip;
+        [] ->
+            skip;
+        [{_,_}|_]=PropList ->
+            case proplists:get_value(ModuleKey, PropList, undefined) of
+                undefined ->
+                    skip;
+                Cmd ->
+                    apply_hooks(Config, Cmd, Module)
+            end;
+        Command ->
+            case erlang:get({Mode, GivenCommand}) of
+                true ->
+                    skip;
+                _ ->
+                    apply_hooks(Config, Command, Module),
+                    erlang:put({Mode, GivenCommand}, true)
+            end
     end.
 
+apply_hooks(Config, Command, Module) ->
+    Env = check_for_env(Config, Module),
+    Msg = lists:flatten(io_lib:format("Command [~p] failed!~n", [Command])),
+    rebar_utils:sh(Command, [{env, Env}, {abort_on_error, Msg}]).
+
+check_for_env(Config, Module) ->
+    Exports = Module:module_info(exports),
+    case lists:member({setup_env, 1}, Exports) of
+        true ->
+            Module:setup_env(Config);
+        false ->
+            []
+    end.
 
 acc_modules(Modules, Command, Config, File) ->
     acc_modules(select_modules(Modules, Command, []),

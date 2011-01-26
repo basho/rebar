@@ -138,3 +138,33 @@
 
 %% Subdirectories?
 {sub_dirs, ["dir1", "dir2"]}.
+
+%% == Pre/Post Command Hooks ==
+
+%% pre and post commands can be assigned to any command
+{pre_clean, "make preclean"}.
+
+{post_clean, "touch postclean.out"}.
+{post_generate, "touch postgenerate.out"}.
+
+%% pre and post commands can also be tied to the execution of specific modules
+%% allowing for more fine grained control, at the expense of having to know
+%% the names of the modules that are executing (NB: minus the "rebar_" prefix).
+
+{pre_compile,
+    [{otp_app, "./prepare_package_files.sh"},
+     {erlc_compiler, "escript generate_headers"},
+     {abnfc_compiler, "touch precompile.abnfc.out"},
+     {lfe_compiler, "touch precompile.lfe.out"},
+     {asn1_compiler, "touch precompile.asn1.out"},
+     {neotoma_compiler, "touch precompile.neotoma.out"},
+     {port_compiler, "echo $DRV_LDFLAGS >> precompile.port.out"}]}.
+
+{post_compile,
+    [{otp_app, "touch postcompile.otp_app.out"},
+     {erlc_compiler, "touch postcompile.erlc.out"},
+     {abnfc_compiler, "touch postcompile.abnfc.out"},
+     {lfe_compiler, "touch postcompile.lfe.out"},
+     {asn1_compiler, "touch postcompile.asn1.out"},
+     {neotoma_compiler, "touch postcompile.neotoma.out"},
+     {port_compiler, "echo $DRV_LDFLAGS >> postcompile.port.out"}]}.
