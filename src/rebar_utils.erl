@@ -29,6 +29,9 @@
 -export([get_cwd/0,
          is_arch/1,
          get_arch/0,
+         get_temp_dir/0,
+         get_temp_filename/0,
+         is_outside_base_dir/1,
          sh/2,
          find_files/2,
          now_str/0,
@@ -62,6 +65,22 @@ get_arch() ->
     Words = integer_to_list(8 * erlang:system_info(wordsize)),
     erlang:system_info(otp_release) ++ "-"
         ++ erlang:system_info(system_architecture) ++ "-" ++ Words.
+
+get_temp_dir() ->
+    case os:getenv("TEMP") of
+      false ->
+          "/tmp";
+      Val -> 
+          Val
+    end.
+
+get_temp_filename() ->
+    filename:join(get_temp_dir(), 
+        io_lib:format("~p", [erlang:phash2(make_ref())])).
+
+is_outside_base_dir(Path) ->
+    BaseDir = rebar_config:get_global(base_dir, []),
+    not(lists:prefix(BaseDir, Path)).
 
 %%
 %% Options = [Option] -- defaults to [use_stdout, abort_on_error]

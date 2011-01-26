@@ -107,6 +107,20 @@ cover_coverage_test_() ->
        %% needs to be decremented in this case.
        assert_full_coverage("myapp_mymod")}]}.
 
+deps_outside_startdir_test_() ->
+    {"Handling dependencies installed outside the top level build directory",
+      setup, fun setup_project_with_external_deps/0,
+      fun teardown_project_with_external_deps/1,
+      [{"External installs should be ignored during 'clean' command execution",
+        fun() ->
+            [DepsDir] = get_test_deps_dir(),
+            rebar_utils:sh("rebar -v check-deps clean", [return_on_error, 
+                {env, [{"ERL_LIBS", filename:rootname(DepsDir, "libfoo")}]},
+                {use_stdout, false}]),
+            Ebin = filename:join(DepsDir, "ebin"),
+            ?assert(filelib:is_file(filename:join(Ebin, "libfoo.beam")))
+        end}]}.
+
 %% ====================================================================
 %% Environment and Setup Tests
 %% ====================================================================
@@ -166,8 +180,26 @@ basic_setup_test_() ->
          "-include_lib(\"eunit/include/eunit.hrl\").\n",
          "myfunc_test() -> ?assertMatch(ok, myapp_mymod:myfunc()).\n"]).
 
+-define(myrebar_config_with_external_deps_dir,
+        "{deps, [libfoo]}.\n{deps_dir, [~p]}.\n").
+
+-define(empty_beam, <<"ignored">>).
+
+app(Name) ->
+   App = {application, Name,
+          [{description, atom_to_list(Name)},
+           {vsn, "1"},
+           {modules, []},
+           {registered, []},
+           {applications, [kernel, stdlib]}]},
+   io_lib:format("~p.\n", [App]).
+
 make_tmp_dir() ->
     file:make_dir(?TMP_DIR).
+
+get_test_deps_dir() ->
+    {ok, PList} = file:consult("rebar.config"),
+    proplists:get_value(deps_dir, PList).
 
 setup_environment() ->
     make_tmp_dir(),
@@ -191,6 +223,25 @@ setup_cover_project_with_suite() ->
     file:write_file("test/mysuite.erl", ?mysuite),
     file:write_file("test/myapp_mymod_defined_in_mysuite_tests.erl",
                     ?myapp_mymod_defined_in_mysuite_tests).
+
+setup_project_with_external_deps() ->
+    setup_environment(),
+    TmpDir = rebar_utils:get_temp_filename(),
+    file:make_dir(TmpDir),
+    DepBaseDir = filename:join(TmpDir, "libfoo"),
+    file:make_dir(DepBaseDir),
+    DepEbin = filename:join(DepBaseDir, "ebin"),
+    file:make_dir(DepEbin),
+    file:write_file(filename:join(DepEbin, "libfoo.app"), app(libfoo)),
+    file:write_file(filename:join(DepEbin, "libfoo.beam"), ?empty_beam),
+    RebarConfig = lists:flatten(io_lib:format(
+        ?myrebar_config_with_external_deps_dir, [DepBaseDir])),
+    file:write_file("rebar.config", RebarConfig).
+
+teardown_project_with_external_deps(_) ->
+    [DepsDir] = get_test_deps_dir(),
+    rebar_file_utils:rm_rf(DepsDir),
+    teardown(arg_for_eunit).
 
 teardown(_) ->
     file:set_cwd(".."),

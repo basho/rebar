@@ -244,6 +244,13 @@ is_app_available(App, VsnRegex, Path) ->
                           [App, VsnRegex, App, Vsn, Path]),
                     case re:run(Vsn, VsnRegex, [{capture, none}]) of
                         match ->
+                            %% we found this one and it's already installed 
+                            %% outside of our working area, so we'll leave it 
+                            %% alone from now on (e.g., not clean/remove it).
+                            case rebar_utils:is_outside_base_dir(Path) of
+                                true -> rebar_core:skip_dir(Path);
+                                _ -> ignored
+                            end,
                             {true, Path};
                         nomatch ->
                             ?WARN("~s has version ~p; requested regex was ~s\n",
