@@ -297,11 +297,42 @@ select_modules([Module | Rest], Command, Acc) ->
 run_modules([], _Command, _Config, _File) ->
     ok;
 run_modules([Module | Rest], Command, Config, File) ->
-    case Module:Command(Config, File) of
+    %% If there are pre_<module> tasks in rebar.config, then execute them
+    process_hooks(pre, Config, Command, Module),
+    Result = case Module:Command(Config, File) of
         ok ->
             run_modules(Rest, Command, Config, File);
         {error, _} = Error ->
             {Module, Error}
+    end,
+    process_hooks(post, Config, Command, Module),
+    Result.
+
+process_hooks(pre, Config, Command, Module) ->
+    apply_hooks(Config, {pre, Command}, 
+            list_to_atom("pre_" ++ atom_to_list(Command)), Module);
+process_hooks(post, Config, Command, Module) ->
+    apply_hooks(Config, {post, Command}, 
+            list_to_atom("post_" ++ atom_to_list(Command)), Module).
+
+apply_hooks(Config, {Mode, GivenCommand}, ConfigKey, Module) ->
+    ModuleKey = list_to_atom(re:replace(atom_to_list(Module),
+        "rebar_", "", [{return, list}])),
+    case rebar_config:get_local(Config, ConfigKey, undefined) of
+        undefined -> skip;
+        [] -> skip;
+        [{_,_}|_]=PropList ->
+            case proplists:get_value(ModuleKey, PropList, undefined) of
+                undefined -> skip;
+                Cmd -> apply_hooks(Config, Cmd, Module)
+            end;
+        Command ->
+            case erlang:get({Mode, GivenCommand}) of
+                true -> skip;
+                _ ->
+                    apply_hooks(Config, Command, Module),
+                    erlang:put({Mode, GivenCommand}, true)
+            end
     end.
 
 apply_hooks(Mode, Config, Command) ->
