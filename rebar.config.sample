@@ -86,15 +86,21 @@
 %% Primitive controls for eunit:test()
 %% See http://www.erlang.org/doc/apps/eunit/chapter.html#Control
 %%
+%% Supported controls:
+%% - {inparallel, Tests}, {inparallel, N, Tests}
+%% - {inorder, Tests}
+%% where Tests can be a list of
+%% - module names (atoms) or {module, Module}
+%% - {Module, Function} tuples
+%%
 %% Use '_' as a wildcard to include all remaining modules. This should always
 %% be used in the last control of the list
 %%
-%% Example 1: run foo_test, bar_test sequencially, then all the other modules
-%% in parallel:
-%% [{inorder, [foo_test, bar_test]}, {inparallel, '_'}]
+%% Example: run foo_test, {bar, bar_test} sequencially,
+%% then all the other tests in parallel:
+%% [{inorder, [foo_test, {bar, bar_test}]}, {inparallel, '_'}]
 %%
-%% Example 2: run bar:bar_test with a timeout of 10s:
-%% [{timeout, 10, [{bar, bar_test}]}]
+%% The 'timeout' control should be specified in a 'test generator', not here.
 {eunit_controls, []}
 
 %% Additional compile options for eunit. erl_opts from above is also used

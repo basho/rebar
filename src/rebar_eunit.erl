@@ -205,13 +205,10 @@ eunit_control({inparallel, N, Tests}, {Acc, Modules}) ->
 eunit_control({inorder, Tests}, {Acc, Modules}) ->
     {Included, Excluded} = recurse_controls(Tests, Modules),
     {[{inorder, Included} | Acc], Excluded};
-eunit_control({timeout, T, Tests}, {Acc, Modules}) ->
-    {Included, Excluded} = recurse_controls(Tests, Modules),
-    {[{timeout, T, Included} | Acc], Excluded};
 %% Some controls do not handle modules as input (eg: timeout)
 %% Allow to specify {Module, Function} and remember this particular test is
 %% performed
-eunit_control({M, F}, {Acc, Modules}) ->
+eunit_control({M, F}, {Acc, Modules}) when is_atom(M), is_atom(F) ->
     case lists:member(M, Modules) of
         true ->
             M_tests = eunit_data:get_module_tests(M),
@@ -227,10 +224,7 @@ eunit_control(Module, {Acc, Modules}) when is_atom(Module) ->
         _ -> {Acc, Modules}
     end;
 eunit_control({module, Module}, {Acc, Modules}) when is_atom(Module) ->
-    eunit_control(Module, {Acc, Modules});
-%% Allows application, Path, dir... Relevant in rebar context ?
-eunit_control(Other, {Acc, Modules})  ->
-    {Acc ++ [Other], Modules}.
+    eunit_control(Module, {Acc, Modules}).
 
 recurse_controls(Tests, Modules) when is_list(Tests) ->
     lists:foldl(fun eunit_control/2, {[], Modules}, Tests);

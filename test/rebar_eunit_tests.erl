@@ -45,11 +45,11 @@
 %% ====================================================================
 
 eunit_controls_test() ->
-    InOrder = {inorder, [bart, {timeout, 10, [homer]}]},
+    InOrder = {inorder, [bart, homer]},
     Parallel = {inparallel, [foo, bar]},
     Modules = [foo, bar, baz, homer],
     Result = rebar_eunit:eunit_controls([InOrder, Parallel], Modules),
-    Expected = [{inorder, [{timeout, 10, [homer]}]},
+    Expected = [{inorder, [homer]},
                 {inparallel, [foo,bar]}, baz],
     ?assertEqual(Expected, Result).
 
@@ -62,10 +62,10 @@ eunit_controls_wildcard_test() ->
 
 eunit_controls_mod_fun_test() ->
     Test = {?MODULE, eunit_controls_mod_fun_test},
-    Controls = [{inparallel, [{timeout, 10, [Test]}]}],
+    Controls = [{inparallel, [Test]}],
     Modules = [?MODULE, bar],
     Result = rebar_eunit:eunit_controls(Controls, Modules),
-    [{inparallel, [{timeout, 10, [Test]}]}, bar | Rest] = Result,
+    [{inparallel, [Test]}, bar | Rest] = Result,
     ?assert(length(Rest) > 1),
     ?assertNot(lists:member(Test, Rest)),
     ?assertEqual(true, lists:all(fun(X) -> is_tuple(X) end, Rest)).
