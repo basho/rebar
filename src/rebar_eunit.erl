@@ -111,7 +111,7 @@ eunit(Config, AppFile) ->
                       string:str(N, "_tests.beam") =:= 0],
     Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- BeamFiles],
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
-    
+
     cover_init(Config, BeamFiles),
     EunitResult = perform_eunit(Config, Modules),
     perform_cover(Config, Modules, SrcModules),
@@ -219,7 +219,7 @@ eunit_control({M, F}, {Acc, Modules}) ->
         _ ->
             {Acc, Modules}
     end;
-eunit_control('_', {Acc, Modules}) ->            
+eunit_control('_', {Acc, Modules}) ->
     {Acc ++ Modules, []};
 eunit_control(Module, {Acc, Modules}) when is_atom(Module) ->
     case lists:member(Module, Modules) of
@@ -254,7 +254,7 @@ is_quickcheck_avail() ->
     end.
 
 perform_cover(Config, BeamFiles, SrcModules) ->
-    perform_cover(rebar_config:get(Config, cover_enabled, false), 
+    perform_cover(rebar_config:get(Config, cover_enabled, false),
                   Config, BeamFiles, SrcModules).
 
 perform_cover(false, _Config, _BeamFiles, _SrcModules) ->
