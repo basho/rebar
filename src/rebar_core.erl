@@ -343,8 +343,8 @@ apply_hooks(Config, Command, Module) ->
     rebar_utils:sh(Command, [{env, Env}, {abort_on_error, Msg}]).
 
 check_for_env(Config, Module) ->
-    Exports = Module:module_info(exports),
-    case lists:member({setup_env, 1}, Exports) of
+    {module, Module} = code:ensure_loaded(Module),
+    case erlang:function_exported(Module, setup_env, 1) of
         true ->
             Module:setup_env(Config);
         false ->
