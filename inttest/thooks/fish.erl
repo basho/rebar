@@ -9,6 +9,11 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+
+-define(nif_stub,nif_stub_error(?LINE)).
+nif_stub_error(Line) ->
+    erlang:nif_error({nif_not_loaded,module,?MODULE,line,Line}).
+
 init() ->
     case code:priv_dir(fish) of
         {error, bad_name} ->
@@ -19,10 +24,10 @@ init() ->
     erlang:load_nif(SoName, 0).
 
 new() ->
-    "NIF library not loaded".
+    ?nif_stub.
 
 foo(Ref) ->
-    "NIF library not loaded".
+    ?nif_stub.
 
 %% ===================================================================
 %% EUnit tests
