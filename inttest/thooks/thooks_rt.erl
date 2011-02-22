@@ -40,22 +40,22 @@ run(Dir) ->
     ok.
 
 ensure_precompile_premodule_commands_ran() ->
-    ?assertEqual(true, filelib:is_regular("precompile.erlc.out")),
-    ?assertEqual(true, filelib:is_regular("precompile.otp_app.out")),
-    ?assertEqual(true, filelib:is_regular("precompile.abnfc.out")),
-    ?assertEqual(true, filelib:is_regular("precompile.lfe.out")),
-    ?assertEqual(true, filelib:is_regular("precompile.asn1.out")),
-    ?assertEqual(true, filelib:is_regular("precompile.neotoma.out")),
-    ?assertEqual(true, filelib:is_regular("precompile.port.out")).
+    ?assert(filelib:is_regular("precompile.erlc.out")),
+    ?assert(filelib:is_regular("precompile.otp_app.out")),
+    ?assert(filelib:is_regular("precompile.abnfc.out")),
+    ?assert(filelib:is_regular("precompile.lfe.out")),
+    ?assert(filelib:is_regular("precompile.asn1.out")),
+    ?assert(filelib:is_regular("precompile.neotoma.out")),
+    ?assert(filelib:is_regular("precompile.port.out")).
 
 ensure_postcompile_postmodule_commands_ran() ->
-    ?assertEqual(true, filelib:is_regular("postcompile.erlc.out")),
-    ?assertEqual(true, filelib:is_regular("postcompile.otp_app.out")),
-    ?assertEqual(true, filelib:is_regular("postcompile.abnfc.out")),
-    ?assertEqual(true, filelib:is_regular("postcompile.lfe.out")),
-    ?assertEqual(true, filelib:is_regular("postcompile.asn1.out")),
-    ?assertEqual(true, filelib:is_regular("postcompile.neotoma.out")),
-    ?assertEqual(true, filelib:is_regular("postcompile.port.out")).
+    ?assert(filelib:is_regular("postcompile.erlc.out")),
+    ?assert(filelib:is_regular("postcompile.otp_app.out")),
+    ?assert(filelib:is_regular("postcompile.abnfc.out")),
+    ?assert(filelib:is_regular("postcompile.lfe.out")),
+    ?assert(filelib:is_regular("postcompile.asn1.out")),
+    ?assert(filelib:is_regular("postcompile.neotoma.out")),
+    ?assert(filelib:is_regular("postcompile.port.out")).
 
 ensure_port_env_passed_to_command(Command) ->
     {ok, Content} = file:read_file(Command ++ ".port.out"),
@@ -63,7 +63,7 @@ ensure_port_env_passed_to_command(Command) ->
 
 ensure_command_ran_only_once(Command) ->
     File = Command ++ ".out",
-    ?assertEqual(true, filelib:is_regular(File)),
+    ?assert(filelib:is_regular(File)),
     %% ensure that this command only ran once (not for each module)
     {ok, Content} = file:read_file(File),
     ?assertEqual(Command ++ "\n", binary_to_list(Content)).
