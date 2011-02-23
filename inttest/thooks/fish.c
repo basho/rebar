@@ -18,11 +18,10 @@ static ErlNifFunc nif_funcs[] =
 
 ERL_NIF_TERM fish_new(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-    fish_handle* handle = enif_alloc_resource(env,
-                                                    fish_RESOURCE,
-                                                    sizeof(fish_handle));
+    fish_handle* handle = enif_alloc_resource(fish_RESOURCE,
+                                              sizeof(fish_handle));
     ERL_NIF_TERM result = enif_make_resource(env, handle);
-    enif_release_resource(env, handle);
+    enif_release_resource(handle);
     return enif_make_tuple2(env, enif_make_atom(env, "ok"), result);
 }
 
@@ -40,10 +39,10 @@ static void fish_resource_cleanup(ErlNifEnv* env, void* arg)
 
 static int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
-    fish_RESOURCE = enif_open_resource_type(env, "fish_resource",
-                                                  &fish_resource_cleanup,
-                                                  ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER,
-                                                  0);
+    ErlNifResourceFlags flags = ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER;
+    fish_RESOURCE = enif_open_resource_type(env, "fish", "fish_resource",
+                                            &fish_resource_cleanup,
+                                            flags, NULL);
     return 0;
 }
 
