@@ -186,6 +186,14 @@ run_precompile_hook(Config, Env) ->
         undefined ->
             ok;
         {Script, BypassFileName} ->
+            ?CONSOLE(
+               <<
+                 "Config option 'port_pre_script' has been deprecated "
+                 "in favor of ~noption "
+                 "{pre_compile, [{port_compiler, \"script\"}]}."
+                 "~nFuture builds of rebar will remove the option "
+                 "'port_pre_script'.~n~n"
+               >>, []),
             case filelib:is_regular(BypassFileName) of
                 false ->
                     ?CONSOLE("Running ~s\n", [Script]),
@@ -202,6 +210,14 @@ run_cleanup_hook(Config) ->
         undefined ->
             ok;
         Script ->
+            ?CONSOLE(
+               <<
+                 "Config option 'port_pre_script' has been deprecated "
+                 "in favor of ~noption "
+                 "{pre_compile, [{port_compiler, \"script\"}]}."
+                 "~nFuture builds of rebar will remove the option "
+                 "'port_pre_script'.~n~n"
+               >>, []),
             ?CONSOLE("Running ~s\n", [Script]),
             {ok, _} = rebar_utils:sh(Script, []),
             ok
