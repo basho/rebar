@@ -235,9 +235,11 @@ execute(Command, Modules, Config, ModuleFile) ->
             erlang:put(operations, erlang:get(operations) + 1),
 
             %% Run the available modules
+            apply_hooks(pre_hooks, Config, Command),
             case catch(run_modules(TargetModules, Command,
                                    Config, ModuleFile)) of
                 ok ->
+                    apply_hooks(post_hooks, Config, Command),
                     ok;
                 {error, failed} ->
                     ?FAIL;
@@ -295,61 +297,27 @@ select_modules([Module | Rest], Command, Acc) ->
 run_modules([], _Command, _Config, _File) ->
     ok;
 run_modules([Module | Rest], Command, Config, File) ->
-    process_hooks(pre, Config, Command, Module),
-    Result = case Module:Command(Config, File) of
-                 ok ->
-                     run_modules(Rest, Command, Config, File);
-                 {error, _} = Error ->
-                     {Module, Error}
-             end,
-    process_hooks(post, Config, Command, Module),
-    Result.
+    case Module:Command(Config, File) of
+        ok ->
+            run_modules(Rest, Command, Config, File);
+        {error, _} = Error ->
+            {Module, Error}
+    end.
 
-process_hooks(pre, Config, Command, Module) ->
-    apply_hooks(Config, {pre, Command},
-                list_to_atom("pre_" ++ atom_to_list(Command)), Module);
-process_hooks(post, Config, Command, Module) ->
-    apply_hooks(Config, {post, Command},
-                list_to_atom("post_" ++ atom_to_list(Command)), Module).
-
-apply_hooks(Config, {Mode, GivenCommand}, ConfigKey, Module) ->
-    ModuleKey = list_to_atom(re:replace(atom_to_list(Module),
-                                        "rebar_", "", [{return, list}])),
-    case rebar_config:get_local(Config, ConfigKey, undefined) of
-        undefined ->
-            skip;
+apply_hooks(Mode, Config, Command) ->
+    case rebar_config:get_local(Config, Mode, []) of
         [] ->
             skip;
-        [{_,_}|_]=PropList ->
-            case proplists:get_value(ModuleKey, PropList, undefined) of
-                undefined ->
-                    skip;
-                Cmd ->
-                    apply_hooks(Config, Cmd, Module)
-            end;
-        Command ->
-            case erlang:get({Mode, GivenCommand}) of
-                true ->
-                    skip;
-                _ ->
-                    apply_hooks(Config, Command, Module),
-                    erlang:put({Mode, GivenCommand}, true)
-            end
+        Hooks when is_list(Hooks) ->
+            lists:foreach(fun apply_hook/1, 
+                [{Command, Hook} || Hook <- Hooks])
     end.
 
-apply_hooks(Config, Command, Module) ->
-    Env = check_for_env(Config, Module),
+apply_hook({Command, {Command, Hook}}) ->
     Msg = lists:flatten(io_lib:format("Command [~p] failed!~n", [Command])),
-    rebar_utils:sh(Command, [{env, Env}, {abort_on_error, Msg}]).
-
-check_for_env(Config, Module) ->
-    {module, Module} = code:ensure_loaded(Module),
-    case erlang:function_exported(Module, setup_env, 1) of
-        true ->
-            Module:setup_env(Config);
-        false ->
-            []
-    end.
+    rebar_utils:sh(Hook, [{abort_on_error, Msg}]);
+apply_hook({Command, {HookCmd, _}}) when Command =/= HookCmd ->
+    skip.
 
 acc_modules(Modules, Command, Config, File) ->
     acc_modules(select_modules(Modules, Command, []),

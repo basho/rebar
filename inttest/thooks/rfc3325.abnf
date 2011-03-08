@@ -1,9 +1,0 @@
-PAssertedID = "P-Asserted-Identity" HCOLON PAssertedID-value
-                      *(COMMA PAssertedID-value)
-
-PAssertedID-value = name-addr / addr-spec
-
-PPreferredID = "P-Preferred-Identity" HCOLON PPreferredID-value
-                        *(COMMA PPreferredID-value)
-
-PPreferredID-value = name-addr / addr-spec
