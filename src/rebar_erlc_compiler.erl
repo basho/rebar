@@ -117,7 +117,7 @@ doterl_compile(Config, OutDir) ->
 
 doterl_compile(Config, OutDir, MoreSources) ->
     FirstErls = rebar_config:get_list(Config, erl_first_files, []),
-    RawErlOpts = filter_defines(rebar_config:get(Config, erl_opts, []), []),
+    RawErlOpts = filter_defines(rebar_utils:erl_opts(Config), []),
     ErlOpts =
         case rebar_config:get_global(debug_info, "0") of
             "0" ->
