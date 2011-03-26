@@ -79,6 +79,9 @@ xref(Config, _) ->
     %% Restore the original code path
     true = code:set_path(OrigPath),
 
+    %% Stop xref
+    xref:stop(xref),
+
     ok.
 
 %% ===================================================================
