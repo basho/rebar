@@ -50,6 +50,26 @@
 -spec(doc(Config::#config{}, File::string()) -> ok).
 doc(Config, File) ->
     {ok, AppName, _AppData} = rebar_app_utils:load_app_file(File),
+    EDocOpts = edoc_opts(Config),
+    edoc:application(AppName, ".", EDocOpts).
+
+edoc_opts(Config) ->
     EDocOpts = rebar_config:get(Config, edoc_opts, []),
-    ok = edoc:application(AppName, ".", EDocOpts),
-    ok.
+    check_for_preprocess(Config, EDocOpts).
+
+%% if preprocessor is enabled then need to gen a list of include paths
+%% to pass to edoc or else the preprocessor will fail
+check_for_preprocess(Config, EDocOpts0) ->
+    case proplists:get_value(preprocess, EDocOpts0) of
+        true ->
+            Includes = get_include_dirs(Config),
+            [{includes, Includes}|EDocOpts0];
+        undefined ->
+            EDocOpts0
+    end.
+
+get_include_dirs(Config) ->
+    F = fun(P) ->
+                re:replace(P, "ebin", "include", [{return,list}])
+        end,
+    [Config#config.dir ++ "/include"|lists:map(F, code:get_path())].
