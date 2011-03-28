@@ -40,7 +40,8 @@
          find_executable/1,
          prop_check/3,
          expand_code_path/0,
-         erl_opts/1]).
+         erl_opts/1,
+         erl_paths/0]).
 
 -include("rebar.hrl").
 
@@ -253,7 +254,7 @@ emulate_escript_foldl(Fun, Acc, File) ->
 
 erl_opts(Config) ->
     ConfigOpts = rebar_config:get(Config, erl_opts, []),
-    case  rebar_config:get_global(erlopts,[]) of
+    case  rebar_config:get_global(erl_opts,[]) of
         [] ->
             %% no opts on the command line so just do what
             %% is in the config file
@@ -266,4 +267,15 @@ erl_opts(Config) ->
                 {error,{_Line,_Mod,Error}} ->
                     ?ABORT("~p is ~s~n",[Opts,Error])
             end
+    end.
+
+
+erl_paths() ->
+    case rebar_config:get_global(pa,undefined) of
+        undefined -> ok;
+        Pa -> ok = code:add_pathsa(Pa)
+    end,
+    case rebar_config:get_global(pz,undefined) of
+        undefined -> ok;
+        Pz -> ok = code:add_pathsz(Pz)
     end.

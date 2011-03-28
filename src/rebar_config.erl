@@ -105,6 +105,12 @@ set_global(jobs=Key, Value) when is_list(Value) ->
     set_global(Key, list_to_integer(Value));
 set_global(jobs=Key, Value) when is_integer(Value) ->
     application:set_env(rebar_global, Key, erlang:max(1,Value));
+set_global(pa=Key, Value) when is_list(Value) ->
+    NewValue = append_global(Key,Value),
+    application:set_env(rebar_global, Key, NewValue);
+set_global(pz=Key, Value) when is_list(Value) ->
+    NewValue = append_global(Key,Value),
+    application:set_env(rebar_global, Key, NewValue);
 set_global(Key, Value) ->
     application:set_env(rebar_global, Key, Value).
 
@@ -132,3 +138,11 @@ local_opts([local | _Rest], Acc) ->
     lists:reverse(Acc);
 local_opts([Item | Rest], Acc) ->
     local_opts(Rest, [Item | Acc]).
+
+append_global(Key, Value) ->
+    case get_global(Key,undefined) of
+        %% if there is no value set, make sure we set a list
+        undefined -> [Value];
+        Old -> lists:reverse([Value|Old])
+    end.
+                     

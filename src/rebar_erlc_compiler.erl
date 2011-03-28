@@ -69,6 +69,10 @@
 
 -spec compile(Config::rebar_config:config(), AppFile::file:filename()) -> 'ok'.
 compile(Config, _AppFile) ->
+
+    %% set the paths using code:add_pathsa/z if specified on cli
+    rebar_utils:erl_paths(),
+
     rebar_base_compiler:run(Config,
                             check_files(rebar_config:get_local(
                                           Config, xrl_first_files, [])),
