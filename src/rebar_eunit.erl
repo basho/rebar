@@ -229,11 +229,8 @@ perform_cover(true, Config, BeamFiles, SrcModules) ->
 cover_analyze(_Config, [], _SrcModules) ->
     ok;
 cover_analyze(Config, Modules, SrcModules) ->
-    Suite = list_to_atom(rebar_config:get_global(suite, "")),
-    FilteredModules = [M || M <- Modules, M =/= Suite],
-
     %% Generate coverage info for all the cover-compiled modules
-    Coverage = [cover_analyze_mod(M) || M <- FilteredModules],
+    Coverage = [cover_analyze_mod(M) || M <- Modules],
 
     %% Write index of coverage info
     cover_write_index(lists:sort(Coverage), SrcModules),
