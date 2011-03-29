@@ -61,17 +61,26 @@ xref(Config, _) ->
                                    undefined_function_calls]),
 
     %% Look for exports that are unused by anything
-    case lists:member(exports_not_used, XrefChecks) of
-        true ->
-            check_exports_not_used(Config);
-        false ->
-            ok
-    end,
+    ExportsNoWarn =
+        case lists:member(exports_not_used, XrefChecks) of
+            true ->
+                check_exports_not_used(Config);
+            false ->
+                true
+        end,
 
     %% Look for calls to undefined functions
-    case lists:member(undefined_function_calls, XrefChecks) of
+    UndefNoWarn =
+        case lists:member(undefined_function_calls, XrefChecks) of
+            true ->
+                check_undefined_function_calls(Config);
+            false ->
+                true
+        end,
+
+    case lists:member(fail_on_warning, XrefChecks) of
         true ->
-            check_undefined_function_calls(Config);
+            fail_on_warning(ExportsNoWarn, UndefNoWarn);
         false ->
             ok
     end,
@@ -88,15 +97,15 @@ xref(Config, _) ->
 %% Internal functions
 %% ===================================================================
 
-check_exports_not_used(_Config) ->
+check_exports_not_used(Config) ->
     {ok, UnusedExports0} = xref:analyze(xref, exports_not_used),
     UnusedExports = filter_away_ignored(UnusedExports0),
 
     %% Report all the unused functions
     display_mfas(UnusedExports, "is unused export (Xref)"),
-    ok.
+    UnusedExports =:= [].
 
-check_undefined_function_calls(_Config) ->
+check_undefined_function_calls(Config) ->
     {ok, UndefinedCalls0} = xref:analyze(xref, undefined_function_calls),
     UndefinedCalls =
         [{find_mfa_source(Caller), format_fa(Caller), format_mfa(Target)} ||
@@ -107,9 +116,13 @@ check_undefined_function_calls(_Config) ->
               ?CONSOLE("~s:~w: Warning ~s calls undefined function ~s\n",
                        [Source, Line, FunStr, Target])
       end, UndefinedCalls),
-    ok.
+    UndefinedCalls =:= [].
 
-
+fail_on_warning(true, true) ->
+    ok;
+fail_on_warning(_ExportsNoWarn, _UndefNoWarn) ->
+    ?FAIL.
+    
 code_path() ->
     [P || P <- code:get_path(),
           filelib:is_dir(P)] ++ [filename:join(rebar_utils:get_cwd(), "ebin")].
