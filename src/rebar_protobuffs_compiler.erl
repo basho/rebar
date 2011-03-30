@@ -35,8 +35,12 @@
 %% Public API
 %% ===================================================================
 
-compile(_Config, _AppFile) ->
-    case filelib:wildcard("src/*.proto") of
+compile(Config, _AppFile) ->
+    SrcDirs=["src"] ++ rebar_config:get(Config,src_dirs,[]) ++ rebar_config:get(Config,protobuf_dirs,[]),
+    SrcFiles=lists:foldl(fun(D,A) -> 
+        A ++ filelib:wildcard( D ++ "/*.proto")
+    end,[],SrcDirs),
+    case SrcFiles of
         [] ->
             ok;
         FoundFiles ->
