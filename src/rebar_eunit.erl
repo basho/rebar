@@ -61,7 +61,6 @@ eunit(Config, AppFile) ->
         undefined ->
             %% No app parameter specified, run everything..
             ok;
-
         Apps ->
             TargetApps = [list_to_atom(A) || A <- string:tokens(Apps, ",")],
             ThisApp = rebar_app_utils:app_name(AppFile),
