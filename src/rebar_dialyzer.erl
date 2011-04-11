@@ -104,13 +104,15 @@ dialyze(Config, File) ->
 -spec 'build-plt'(Config::rebar_config:config(), File::file:filename()) -> ok.
 'build-plt'(Config, File) ->
     Plt = new_plt_path(Config, File),
-
+    ExcludedApps = excluded_apps(Config),
     Apps = rebar_app_utils:app_applications(File),
+    UpdatedApps = lists:subtract(Apps, ExcludedApps),
 
-    ?DEBUG("Build PLT ~s including following apps:~n~p~n", [Plt, Apps]),
+    ?DEBUG("Build PLT ~s including following apps:~n~p~n", [Plt, UpdatedApps]),
     Warnings = dialyzer:run([{analysis_type, plt_build},
-                             {files_rec, app_dirs(Apps)},
+                             {files_rec, app_dirs(UpdatedApps)},
                              {output_plt, Plt}]),
+
     case Warnings of
         [] ->
             ?INFO("The built PLT can be found in ~s~n", [Plt]);
@@ -204,3 +206,10 @@ existing_plt_path(Config, File) ->
 warnings(Config) ->
     DialyzerOpts = rebar_config:get(Config, dialyzer_opts, []),
     proplists:get_value(warnings, DialyzerOpts, []).
+
+%% @doc If the excluded_apps option is present in rebar.config return its value,
+%% otherwise return [].
+-spec excluded_apps(Config::rebar_config:config()) -> list().
+excluded_apps(Config) ->
+    DialyzerOpts = rebar_config:get(Config, dialyzer_opts, []),
+    proplists:get_value(excluded_apps, DialyzerOpts, []).
