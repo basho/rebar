@@ -128,8 +128,13 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
             %% directories that should be processed _before_ the current one.
             Predirs = acc_modules(Modules, preprocess, Config, ModuleSetFile),
             ?DEBUG("Predirs: ~p\n", [Predirs]),
-            DirSet2 = process_each(Predirs, Command, Config,
-                                   ModuleSetFile, DirSet),
+
+            %% Mark the current directory as processed. 
+            %% Avoids circular dependencies
+            DirSet2 = sets:add_element(Dir, DirSet),
+
+            DirSet3 = process_each(Predirs, Command, Config,
+                                   ModuleSetFile, DirSet2),
 
             %% Make sure the CWD is reset properly; processing the dirs may have
             %% caused it to change
@@ -152,9 +157,6 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
                     execute(Command, Modules ++ PluginModules,
                             Config, ModuleSetFile)
             end,
-
-            %% Mark the current directory as processed
-            DirSet3 = sets:add_element(Dir, DirSet2),
 
             %% Invoke 'postprocess' on the modules. This yields a list of other
             %% directories that should be processed _after_ the current one.
