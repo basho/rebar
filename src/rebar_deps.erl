@@ -234,13 +234,26 @@ find_dep_in_dir(Dep, {true, Dir}) ->
     VsnRegex = Dep#dep.vsn_regex,
     case is_app_available(App, VsnRegex, Dir) of
         {true, _AppFile} -> {avail, Dir};
-        {false, _}       -> {missing, Dir}
+        {false, _}       -> find_dep_as_main_project(App, VsnRegex, Dir)
+    end.
+
+%% With circular dependencies a project can depend on the main project
+%% Avoid to download main project in dependencies directory
+find_dep_as_main_project(App, VsnRegex, Dir) ->
+    BaseDir = rebar_config:get_global(base_dir, []),
+    case is_app_available(App, VsnRegex, BaseDir) of
+        {true, _} ->
+            {main, BaseDir};
+        {false, _} ->
+            {missing, Dir}
     end.
 
 acc_deps(find, avail, Dep, AppDir, {Avail, Missing}) ->
     {[Dep#dep { dir = AppDir } | Avail], Missing};
 acc_deps(find, missing, Dep, AppDir, {Avail, Missing}) ->
     {Avail, [Dep#dep { dir = AppDir } | Missing]};
+acc_deps(_, main, _Dep, _AppDir, {Avail, Missing}) ->
+    {Avail, Missing};
 acc_deps(read, _, Dep, AppDir, Acc) ->
     [Dep#dep { dir = AppDir } | Acc].
 
