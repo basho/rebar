@@ -137,6 +137,7 @@ make_cmd(TestDir, Config) ->
     Cwd = rebar_utils:get_cwd(),
     LogDir = filename:join(Cwd, "logs"),
     EbinDir = filename:absname(filename:join(Cwd, "ebin")),
+    BaseEbinDirs = base_ebin_dirs(),
     IncludeDir = filename:join(Cwd, "include"),
     Include = case filelib:is_dir(IncludeDir) of
                   true ->
@@ -149,10 +150,12 @@ make_cmd(TestDir, Config) ->
     %% includes the dependencies in the code path. The directories
     %% that are part of the root Erlang install are filtered out to
     %% avoid duplication
+    %% Add base 'ebin' directories to support circular dependencies between
+    %% dependencies and base project
     R = code:root_dir(),
     NonLibCodeDirs = [P || P <- code:get_path(), not lists:prefix(R, P)],
     CodeDirs = [io_lib:format("\"~s\"", [Dir]) ||
-                   Dir <- [EbinDir|NonLibCodeDirs]],
+                   Dir <- BaseEbinDirs ++ [EbinDir|NonLibCodeDirs]],
     CodePathString = string:join(CodeDirs, " "),
     Cmd = case get_ct_specs(Cwd) of
               undefined ->
@@ -270,3 +273,9 @@ get_case() ->
         Case ->
             " -case " ++ Case
     end.
+
+base_ebin_dirs() ->
+    Subdirs = rebar_config:get_global(sub_dirs,
+                                      [rebar_config:get_global(base_dir, [])]),
+    [EbinDir || EbinDir <- [filename:join(Dir, "ebin") || Dir <- Subdirs],
+                filelib:is_dir(EbinDir)].

@@ -81,8 +81,11 @@ eunit(Config, AppFile) ->
     %% and the like work properly. Also, be sure to add ebin_dir()
     %% to the END of the code path so that we don't have to jump
     %% through hoops to access the .app file
+    %% Add base_ebin_dirs() to support circular dependencies between
+    %% dependencies and base project
     CodePath = code:get_path(),
     true = code:add_patha(eunit_dir()),
+    ok = code:add_pathsa(base_ebin_dirs()),
     true = code:add_pathz(ebin_dir()),
 
     %% Obtain all the test modules for inclusion in the compile stage.
@@ -140,6 +143,12 @@ eunit_dir() ->
 
 ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
+
+base_ebin_dirs() ->
+    Subdirs = rebar_config:get_global(sub_dirs,
+                                      [rebar_config:get_global(base_dir, [])]),
+    [EbinDir || EbinDir <- [filename:join(Dir, "ebin") || Dir <- Subdirs],
+               filelib:is_dir(EbinDir)].
 
 perform_eunit(Config, Modules) ->
     %% suite defined, so only specify the module that relates to the
