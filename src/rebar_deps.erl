@@ -134,9 +134,17 @@ compile(Config, AppFile) ->
     {true, DepsDir} = get_deps_dir(),
     Deps = rebar_config:get_local(Config, deps, []),
     {AvailableDeps, _} = find_deps(find, Deps),
+    %% Not delete a parent dep while is pre-processing any of its
+    %% dependencies. Otherwise, return to process the parent directory
+    %% in circular transitive dependencies fail.
+    %% Local deps are not part of processed dependencies
+    ProcessedDeps = lists:delete(Deps, rebar_config:get_all(Config, deps)),
+    ProcessedApps = [Name || ListsDeps <- ProcessedDeps,
+                             {Name, _Tag, _Repo} <- ListsDeps],
     _ = [delete_dep(D)
          || D <- AvailableDeps,
-            lists:prefix(DepsDir, D#dep.dir)],
+            lists:prefix(DepsDir, D#dep.dir),
+            not lists:member(D#dep.app, ProcessedApps)],
     ok.
 
 
