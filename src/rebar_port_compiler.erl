@@ -121,7 +121,8 @@ compile(Config, AppFile) ->
                       case needs_link(SoName, sets:to_list(Intersection)) of
                           true ->
                               rebar_utils:sh(
-                                ?FMT("$CC ~s $LDFLAGS $DRV_LDFLAGS -o ~s",
+                                ?FMT("$CC $CFLAGS $DRV_CFLAGS "
+                                     "~s $LDFLAGS $DRV_LDFLAGS -o ~s",
                                      [string:join(Bins, " "), SoName]),
                                 [{env, Env}]);
                           false ->
