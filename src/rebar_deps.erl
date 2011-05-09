@@ -31,6 +31,7 @@
 -export([preprocess/2,
          postprocess/2,
          compile/2,
+         get_deps_dir/0,
          'check-deps'/2,
          'get-deps'/2,
          'update-deps'/2,

@@ -317,9 +317,25 @@ apply_hook({Env, {Command, Hook}}) ->
     rebar_utils:sh(Hook, [{env, Env}, {abort_on_error, Msg}]).
 
 setup_envs(Config, Modules) ->
-    lists:flatten([M:setup_env(Config) ||
+    L = lists:flatten([M:setup_env(Config) ||
                       M <- Modules,
-                      erlang:function_exported(M, setup_env, 1)]).
+                      erlang:function_exported(M, setup_env, 1)]),
+    make_extra_envs() ++ L.
+
+
+% make $REBAR_DEPS_DIR and $ERL_LIBS environment libraries
+make_extra_envs() ->
+    {true, DepsDir} = rebar_deps:get_deps_dir(),
+    [{"REBAR_DEPS_DIR", DepsDir},  make_erl_libs_var(DepsDir)].
+
+
+% make "ERL_LIBS" environent variable so that it includes rebar's DepsDir
+make_erl_libs_var(DepsDir) ->
+    case os:getenv("ERL_LIBS") of
+        false -> {"ERL_LIBS", DepsDir};
+        PrevValue -> {"ERL_LIBS", DepsDir ++ ":" ++ PrevValue}
+    end.
+
 
 acc_modules(Modules, Command, Config, File) ->
     acc_modules(select_modules(Modules, Command, []),
