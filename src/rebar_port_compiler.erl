@@ -153,7 +153,7 @@ setup_env(Config) ->
     DefaultEnvs  = filter_envs(default_env(), []),
     PortEnvs = rebar_config:get_list(Config, port_envs, []),
     OverrideEnvs = filter_envs(PortEnvs, []),
-    RawEnv = DefaultEnvs ++ OverrideEnvs ++ os_env(),
+    RawEnv = os_env() ++ DefaultEnvs ++ OverrideEnvs,
     expand_vars_loop(merge_each_var(RawEnv, [])).
 
 %% ===================================================================
