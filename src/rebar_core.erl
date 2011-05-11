@@ -92,7 +92,7 @@ process_commands([Command | Rest]) ->
     process_commands(Rest).
 
 
-process_dir(Dir, ParentConfig, Command, DirSet) ->
+process_dir(Dir, ParentConfig, Cmd, DirSet) ->
     case filelib:is_dir(Dir) of
         false ->
             ?WARN("Skipping non-existent sub-dir: ~p\n", [Dir]),
@@ -100,6 +100,13 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
 
         true ->
             ?DEBUG("Entering ~s\n", [Dir]),
+
+            %% Some commands are 'unsafe' and should not be run in
+            %% deps, therefore we set skip_deps for those commands.
+            %% When the command is suffixed with "-deps" however, we
+            %% do execute it, stripping the suffix for some commands.
+            {Command, Skip} = sanitize_unsafe_commands(Cmd),
+
             ok = file:set_cwd(Dir),
             Config = rebar_config:new(ParentConfig),
 
@@ -171,11 +178,35 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
             %% the parent initialized it to
             restore_code_path(CurrentCodePath),
 
+            %% We also reset the prior value of skip_deps
+            reset_skip_deps(Skip),
+
             %% Return the updated dirset as our result
             DirSet4
     end.
 
+sanitize_unsafe_commands(Command) ->
+    CommandString = atom_to_list(Command),
+    Skip = rebar_config:get_global(skip_deps, false),
+    case lists:suffix("-deps", CommandString) of
+        false ->
+            rebar_config:set_global(skip_deps, "true"),
+            {Command, Skip};
+        true ->
+            case lists:member(CommandString,
+                              ["get-deps", "update-deps", "check-deps"]) of
+                true ->
+                    {Command, Skip};
+                false ->
+                    Parts = string:tokens(CommandString, "-"),
+                    [_Deps|Rest] = lists:reverse(Parts),
+                    NewCommand = string:join(Rest, "-"),
+                    {list_to_atom(NewCommand), Skip}
+            end
+    end.
 
+reset_skip_deps(Skip) ->
+    rebar_config:set_global(skip_deps, Skip).
 
 %%
 %% Given a list of directories and a set of previously processed directories,
