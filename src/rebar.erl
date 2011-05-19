@@ -78,7 +78,10 @@ run_aux(["version"]) ->
     ok;
 run_aux(Commands) ->
     %% Make sure crypto is running
-    ok = crypto:start(),
+    case crypto:start() of
+        ok -> ok;
+        {error,{already_started,crypto}} -> ok
+    end,
 
     %% Initialize logging system
     rebar_log:init(),
