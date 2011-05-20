@@ -89,7 +89,10 @@
 %% {plt, PltFile}
 %% 'src': run Dialyzer on the source files as in 'dialyzer --src'
 %% {warnings, [WarnOpts]}: turn on/off Dialyzer warnings
-{dialyzer_opts, [{plt, PltFile}, {warnings, [WarnOpts]}, src]}.
+%% {excluded_apps, [ExclApps]}: names of apps excluded
+%%   when building PTL
+{dialyzer_opts, [{plt, PltFile}, {warnings, [WarnOpts]}, src,
+                 {excluded_apps, [ExclApps]}]}.
 
 %% == Cleanup ==
 
