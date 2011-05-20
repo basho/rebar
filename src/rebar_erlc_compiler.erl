@@ -174,7 +174,7 @@ doterl_compile(Config, OutDir, MoreSources) ->
 include_path(Source, Config) ->
     ErlOpts = rebar_config:get(Config, erl_opts, []),
     ["include", filename:dirname(Source)]
-        ++ proplists:get_all_values(i, ErlOpts).
+        ++ lists:append(proplists:get_all_values(i, ErlOpts)).
 
 -spec inspect(Source::file:filename(),
               IncludePath::[file:filename(), ...]) -> {string(), [string()]}.
@@ -236,7 +236,8 @@ needs_compile(Source, Target, Hrls) ->
                            ErlOpts::list()) -> 'ok' | 'skipped'.
 internal_erl_compile(Source, Config, Outdir, ErlOpts) ->
     %% Determine the target name and includes list by inspecting the source file
-    {Module, Hrls} = inspect(Source, include_path(Source, Config)),
+    IncPaths = include_path(Source, Config),
+    {Module, Hrls} = inspect(Source, IncPaths),
 
     %% Construct the target filename
     Target = filename:join([Outdir | string:tokens(Module, ".")]) ++ ".beam",
@@ -247,7 +248,7 @@ internal_erl_compile(Source, Config, Outdir, ErlOpts) ->
     case needs_compile(Source, Target, Hrls) of
         true ->
             Opts = [{outdir, filename:dirname(Target)}] ++
-                ErlOpts ++ [{i, "include"}, report, return],
+                ErlOpts ++ [{i, IPath} || IPath <- IncPaths] ++ [report, return],
             case compile:file(Source, Opts) of
                 {ok, _, []} ->
                     ok;
