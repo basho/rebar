@@ -80,7 +80,13 @@ xref(Config, _) ->
 
     case lists:member(fail_on_warning, XrefChecks) of
         true ->
-            fail_on_warning(ExportsNoWarn, UndefNoWarn);
+            case lists:all(fun(NoWarn) -> NoWarn end,
+                           [ExportsNoWarn, UndefNoWarn]) of
+                true ->
+                    ok;
+                false ->
+                    ?FAIL
+            end;
         false ->
             ok
     end,
@@ -118,11 +124,6 @@ check_undefined_function_calls(Config) ->
       end, UndefinedCalls),
     UndefinedCalls =:= [].
 
-fail_on_warning(true, true) ->
-    ok;
-fail_on_warning(_ExportsNoWarn, _UndefNoWarn) ->
-    ?FAIL.
-    
 code_path() ->
     [P || P <- code:get_path(),
           filelib:is_dir(P)] ++ [filename:join(rebar_utils:get_cwd(), "ebin")].
