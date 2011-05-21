@@ -103,7 +103,7 @@ xref(Config, _) ->
 %% Internal functions
 %% ===================================================================
 
-check_exports_not_used(Config) ->
+check_exports_not_used(_Config) ->
     {ok, UnusedExports0} = xref:analyze(xref, exports_not_used),
     UnusedExports = filter_away_ignored(UnusedExports0),
 
@@ -111,7 +111,7 @@ check_exports_not_used(Config) ->
     display_mfas(UnusedExports, "is unused export (Xref)"),
     UnusedExports =:= [].
 
-check_undefined_function_calls(Config) ->
+check_undefined_function_calls(_Config) ->
     {ok, UndefinedCalls0} = xref:analyze(xref, undefined_function_calls),
     UndefinedCalls =
         [{find_mfa_source(Caller), format_fa(Caller), format_mfa(Target)} ||
