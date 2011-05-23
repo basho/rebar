@@ -80,8 +80,11 @@
 %% ===================================================================
 
 get_upgraded_apps(Name, OldVerPath, NewVerPath) ->
-    OldApps = rebar_rel_utils:get_rel_apps(Name, OldVerPath),
-    NewApps = rebar_rel_utils:get_rel_apps(Name, NewVerPath),
+    OldApps0 = rebar_rel_utils:get_rel_apps(Name, OldVerPath),
+    NewApps0 = rebar_rel_utils:get_rel_apps(Name, NewVerPath),
+
+    OldApps = make_proplist(OldApps0, []),
+    NewApps = make_proplist(NewApps0, []),
 
     Sorted = lists:umerge(lists:sort(NewApps), lists:sort(OldApps)),
     AddedorChanged = lists:subtract(Sorted, OldApps),
@@ -96,6 +99,15 @@ get_upgraded_apps(Name, OldVerPath, NewVerPath) ->
 
     [{AppName, {proplists:get_value(AppName, OldApps), NewVer}}
      || {AppName, NewVer} <- UpgradedApps].
+
+make_proplist([{_,_}=H|T], Acc) ->
+     make_proplist(T, [H|Acc]);
+make_proplist([H|T], Acc) ->
+     App = erlang:element(1, H),
+     Ver = erlang:element(2, H),
+     make_proplist(T, [{App,Ver}|Acc]);
+make_proplist([], Acc) ->
+     Acc.
 
 
 file_to_name(File) ->
