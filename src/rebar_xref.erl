@@ -61,17 +61,32 @@ xref(Config, _) ->
                                    undefined_function_calls]),
 
     %% Look for exports that are unused by anything
-    case lists:member(exports_not_used, XrefChecks) of
-        true ->
-            check_exports_not_used(Config);
-        false ->
-            ok
-    end,
+    ExportsNoWarn =
+        case lists:member(exports_not_used, XrefChecks) of
+            true ->
+                check_exports_not_used(Config);
+            false ->
+                true
+        end,
 
     %% Look for calls to undefined functions
-    case lists:member(undefined_function_calls, XrefChecks) of
+    UndefNoWarn =
+        case lists:member(undefined_function_calls, XrefChecks) of
+            true ->
+                check_undefined_function_calls(Config);
+            false ->
+                true
+        end,
+
+    case lists:member(fail_on_warning, XrefChecks) of
         true ->
-            check_undefined_function_calls(Config);
+            case lists:all(fun(NoWarn) -> NoWarn end,
+                           [ExportsNoWarn, UndefNoWarn]) of
+                true ->
+                    ok;
+                false ->
+                    ?FAIL
+            end;
         false ->
             ok
     end,
@@ -94,7 +109,7 @@ check_exports_not_used(_Config) ->
 
     %% Report all the unused functions
     display_mfas(UnusedExports, "is unused export (Xref)"),
-    ok.
+    UnusedExports =:= [].
 
 check_undefined_function_calls(_Config) ->
     {ok, UndefinedCalls0} = xref:analyze(xref, undefined_function_calls),
@@ -107,8 +122,7 @@ check_undefined_function_calls(_Config) ->
               ?CONSOLE("~s:~w: Warning ~s calls undefined function ~s\n",
                        [Source, Line, FunStr, Target])
       end, UndefinedCalls),
-    ok.
-
+    UndefinedCalls =:= [].
 
 code_path() ->
     [P || P <- code:get_path(),
