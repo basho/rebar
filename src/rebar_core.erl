@@ -194,7 +194,8 @@ sanitize_unsafe_commands(Command) ->
             {Command, Skip};
         true ->
             case lists:member(CommandString,
-                              ["get-deps", "update-deps", "check-deps"]) of
+                              ["get-deps", "update-deps", 
+                               "check-deps", "delete-deps"]) of
                 true ->
                     {Command, Skip};
                 false ->
