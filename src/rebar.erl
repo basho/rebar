@@ -191,7 +191,9 @@ show_info_maybe_halt(O, Opts, F) ->
     case proplists:get_bool(O, Opts) of
         true ->
             F(),
-            halt(0);
+            halt(0),
+            %% workaround to delay exit until all output is written
+            receive after infinity -> ok end;
         false ->
             false
     end.
@@ -234,9 +236,7 @@ xref                                 Run cross reference analysis
 help                                 Show the program options
 version                              Show version information
 ">>,
-    io:put_chars(S),
-    %% workaround to delay exit until all output is written
-    timer:sleep(300).
+    io:put_chars(S).
 
 %%
 %% options accepted via getopt
@@ -244,8 +244,8 @@ version                              Show version information
 option_spec_list() ->
     Jobs = rebar_config:get_jobs(),
     JobsHelp = io_lib:format(
-          "Number of concurrent workers a command may use. Default: ~B",
-          [Jobs]),
+                 "Number of concurrent workers a command may use. Default: ~B",
+                 [Jobs]),
     [
      %% {Name, ShortOpt, LongOpt, ArgSpec, HelpMsg}
      {help,     $h, "help",     undefined, "Show the program options"},

@@ -139,22 +139,31 @@ target_dir(ReltoolConfig) ->
     end.
 
 %%
-%% Look for overlay_vars file reference. The user can override this from the
-%% command line (i.e. globals), so we check there first and then fall back to
-%% what is present in the reltool.config file
+%% Look for overlay_vars file reference. If the user provides an overlay_vars on
+%% the command line (i.e. a global), the terms from that file OVERRIDE the one
+%% listed in reltool.config. To re-iterate, this means you can specify a
+%% variable in the file from reltool.config and then override that value by
+%% providing an additional file on the command-line.
 %%
-overlay_vars(ReltoolConfig) ->
-    case rebar_config:get_global(overlay_vars, undefined) of
-        undefined ->
-            case lists:keyfind(overlay_vars, 1, ReltoolConfig) of
-                {overlay_vars, File} ->
-                    File;
-                false ->
-                    undefined
-            end;
-        File ->
-            File
+overlay_vars(Vars0, ReltoolConfig) ->
+    BaseVars = load_vars_file(proplists:get_value(overlay_vars, ReltoolConfig)),
+    OverrideVars = load_vars_file(rebar_config:get_global(overlay_vars, undefined)),
+    M = fun(_Key, _Base, Override) -> Override end,
+    dict:merge(M, dict:merge(M, Vars0, BaseVars), OverrideVars).
+
+%%
+%% If a filename is provided, construct a dict of terms
+%%
+load_vars_file(undefined) ->
+    dict:new();
+load_vars_file(File) ->
+    case file:consult(File) of
+        {ok, Terms} ->
+            dict:from_list(Terms);
+        {error, Reason} ->
+            ?ABORT("Unable to load overlay_vars from ~s: ~p\n", [File, Reason])
     end.
+
 
 
 validate_rel_apps(ReltoolServer, {sys, ReltoolConfig}) ->
@@ -211,22 +220,13 @@ run_reltool(Server, _Config, ReltoolConfig) ->
 
             %% Initialize overlay vars with some basics
             %% (that can get overwritten)
-            OverlayVars0 = [{erts_vsn, "erts-" ++ erlang:system_info(version)}],
+            OverlayVars0 = dict:from_list([{erts_vsn, "erts-" ++ erlang:system_info(version)},
+                                           {target_dir, TargetDir}]),
 
             %% Load up any variables specified by overlay_vars
-            OverlayVars = case overlay_vars(ReltoolConfig) of
-                              undefined ->
-                                  dict:from_list(OverlayVars0);
-                              File ->
-                                  case file:consult(File) of
-                                      {ok, Terms} ->
-                                          dict:from_list(OverlayVars0 ++ Terms);
-                                      {error, Reason2} ->
-                                          ?ABORT("Unable to load overlay_vars "
-                                                 "from ~s: ~p\n",
-                                                 [File, Reason2])
-                                  end
-                          end,
+            OverlayVars1 = overlay_vars(OverlayVars0, ReltoolConfig),
+            OverlayVars = rebar_templater:resolve_variables(dict:to_list(OverlayVars1),
+                                                            OverlayVars1),
 
             %% Finally, overlay the files specified by the overlay section
             case lists:keyfind(overlay, 1, ReltoolConfig) of
@@ -273,18 +273,20 @@ dump_spec(Spec) ->
     end.
 
 
+%% TODO: Merge functionality here with rebar_templater
+
 execute_overlay([], _Vars, _BaseDir, _TargetDir) ->
     ok;
 execute_overlay([{mkdir, Out} | Rest], Vars, BaseDir, TargetDir) ->
-    OutFile = render(filename:join([TargetDir, Out, "dummy"]), Vars),
+    OutFile = rebar_templater:render(filename:join([TargetDir, Out, "dummy"]), Vars),
     ok = filelib:ensure_dir(OutFile),
     ?DEBUG("Created dir ~s\n", [filename:dirname(OutFile)]),
     execute_overlay(Rest, Vars, BaseDir, TargetDir);
 execute_overlay([{copy, In} | Rest], _Vars, BaseDir, TargetDir) ->
     execute_overlay([{copy, In, ""} | Rest], _Vars, BaseDir, TargetDir);
 execute_overlay([{copy, In, Out} | Rest], Vars, BaseDir, TargetDir) ->
-    InFile = render(filename:join(BaseDir, In), Vars),
-    OutFile = render(filename:join(TargetDir, Out), Vars),
+    InFile = rebar_templater:render(filename:join(BaseDir, In), Vars),
+    OutFile = rebar_templater:render(filename:join(TargetDir, Out), Vars),
     case filelib:is_dir(InFile) of
         true ->
             ok;
@@ -293,12 +295,27 @@ execute_overlay([{copy, In, Out} | Rest], Vars, BaseDir, TargetDir) ->
     end,
     rebar_file_utils:cp_r([InFile], OutFile),
     execute_overlay(Rest, Vars, BaseDir, TargetDir);
+execute_overlay([{template_wildcard, Wildcard, OutDir} | Rest], Vars, BaseDir, TargetDir) ->
+    %% Generate a series of {template, In, Out} instructions from the wildcard
+    %% that will get processed per normal
+    Ifun = fun(F, Acc0) ->
+                   [{template, F, filename:join(OutDir, filename:basename(F))} | Acc0]
+           end,
+    NewInstrs = lists:foldl(Ifun, Rest, filelib:wildcard(Wildcard, BaseDir)),
+    case length(NewInstrs) == length(Rest) of
+        true ->
+            ?WARN("template_wildcard: ~s did not match any files!\n", [Wildcard]);
+        false ->
+            ok
+    end,
+    ?DEBUG("template_wildcard: ~s expanded to ~p\n", [Wildcard, NewInstrs]),
+    execute_overlay(NewInstrs, Vars, BaseDir, TargetDir);
 execute_overlay([{template, In, Out} | Rest], Vars, BaseDir, TargetDir) ->
-    InFile = render(filename:join(BaseDir, In), Vars),
+    InFile = rebar_templater:render(filename:join(BaseDir, In), Vars),
     {ok, InFileData} = file:read_file(InFile),
-    OutFile = render(filename:join(TargetDir, Out), Vars),
+    OutFile = rebar_templater:render(filename:join(TargetDir, Out), Vars),
     ok = filelib:ensure_dir(OutFile),
-    case file:write_file(OutFile, render(InFileData, Vars)) of
+    case file:write_file(OutFile, rebar_templater:render(InFileData, Vars)) of
         ok ->
             ok = apply_file_info(InFile, OutFile),
             ?DEBUG("Templated ~p\n", [OutFile]),
@@ -307,7 +324,7 @@ execute_overlay([{template, In, Out} | Rest], Vars, BaseDir, TargetDir) ->
             ?ABORT("Failed to template ~p: ~p\n", [OutFile, Reason])
     end;
 execute_overlay([{create, Out, Contents} | Rest], Vars, BaseDir, TargetDir) ->
-    OutFile = render(filename:join(TargetDir, Out), Vars),
+    OutFile = rebar_templater:render(filename:join(TargetDir, Out), Vars),
     ok = filelib:ensure_dir(OutFile),
     case file:write_file(OutFile, Contents) of
         ok ->
@@ -322,9 +339,9 @@ execute_overlay([{replace, Out, Regex, Replacement} | Rest],
                     Vars, BaseDir, TargetDir);
 execute_overlay([{replace, Out, Regex, Replacement, Opts} | Rest],
                 Vars, BaseDir, TargetDir) ->
-    Filename = render(filename:join(TargetDir, Out), Vars),
+    Filename = rebar_templater:render(filename:join(TargetDir, Out), Vars),
     {ok, OrigData} = file:read_file(Filename),
-    Data = re:replace(OrigData, Regex, Replacement,
+    Data = re:replace(OrigData, Regex, rebar_templater:render(Replacement, Vars),
                       [global, {return, binary}] ++ Opts),
     case file:write_file(Filename, Data) of
         ok ->
@@ -335,18 +352,6 @@ execute_overlay([{replace, Out, Regex, Replacement, Opts} | Rest],
     end;
 execute_overlay([Other | _Rest], _Vars, _BaseDir, _TargetDir) ->
     {error, {unsupported_operation, Other}}.
-
-
-
-%%
-%% Render a binary to a string, using mustache and the specified context
-%%
-render(Bin, Context) ->
-    ReOpts = [global, {return, list}],
-    %% Be sure to escape any double-quotes before rendering...
-    Str0 = re:replace(Bin, "\\\\", "\\\\\\", ReOpts),
-    Str1 = re:replace(Str0, "\"", "\\\\\"", ReOpts),
-    mustache:render(Str1, Context).
 
 
 apply_file_info(InFile, OutFile) ->

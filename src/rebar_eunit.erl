@@ -59,9 +59,23 @@ eunit(Config, AppFile) ->
     %% of apps on which we want to run eunit
     case rebar_config:get_global(app, undefined) of
         undefined ->
-            %% No app parameter specified, run everything..
-            ok;
-
+            %% No app parameter specified, check the skip list..
+            case rebar_config:get_global(skip_app, undefined) of
+                undefined ->
+                    %% no skip list, run everything..
+                    ok;
+                SkipApps ->
+                    TargetApps = [list_to_atom(A) ||
+                                     A <- string:tokens(SkipApps, ",")],
+                    ThisApp = rebar_app_utils:app_name(AppFile),
+                    case lists:member(ThisApp, TargetApps) of
+                        false ->
+                            ok;
+                        true ->
+                            ?DEBUG("Skipping eunit on app: ~p\n", [ThisApp]),
+                            throw(ok)
+                    end
+            end;
         Apps ->
             TargetApps = [list_to_atom(A) || A <- string:tokens(Apps, ",")],
             ThisApp = rebar_app_utils:app_name(AppFile),
@@ -144,7 +158,7 @@ ebin_dir() ->
 
 perform_eunit(Config, Modules) ->
     %% suite defined, so only specify the module that relates to the
-    %% suite (if any)
+    %% suite (if any). Suite can be a comma seperated list of modules to run.
     Suite = rebar_config:get_global(suite, undefined),
     EunitOpts = get_eunit_opts(Config),
 
@@ -162,8 +176,9 @@ perform_eunit(Config, Modules) ->
 
 perform_eunit(EunitOpts, Modules, undefined) ->
     (catch eunit:test(Modules, EunitOpts));
-perform_eunit(EunitOpts, _Modules, Suite) ->
-    (catch eunit:test(list_to_atom(Suite), EunitOpts)).
+perform_eunit(EunitOpts, _Modules, Suites) ->
+    (catch eunit:test([list_to_atom(Suite) ||
+                          Suite <- string:tokens(Suites, ",")], EunitOpts)).
 
 get_eunit_opts(Config) ->
     %% Enable verbose in eunit if so requested..
@@ -182,13 +197,13 @@ eunit_config(Config) ->
 
     ErlOpts = rebar_config:get_list(Config, erl_opts, []),
     EunitOpts = rebar_config:get_list(Config, eunit_compile_opts, []),
-    Opts = [{d, 'TEST'}, debug_info] ++
+    Opts0 = [{d, 'TEST'}] ++
         ErlOpts ++ EunitOpts ++ EqcOpts ++ PropErOpts,
+    Opts = [O || O <- Opts0, O =/= no_debug_info],
     Config1 = rebar_config:set(Config, erl_opts, Opts),
 
     FirstErls = rebar_config:get_list(Config1, eunit_first_files, []),
     rebar_config:set(Config1, erl_first_files, FirstErls).
-
 
 eqc_opts() ->
     define_if('EQC', is_lib_avail(is_eqc_avail, eqc,
@@ -229,8 +244,13 @@ perform_cover(true, Config, BeamFiles, SrcModules) ->
 cover_analyze(_Config, [], _SrcModules) ->
     ok;
 cover_analyze(Config, Modules, SrcModules) ->
-    Suite = list_to_atom(rebar_config:get_global(suite, "")),
-    FilteredModules = [M || M <- Modules, M =/= Suite],
+    %% suite can be a comma seperated list of modules to test
+    Suite = [list_to_atom(S) ||
+                S <- string:tokens(rebar_config:get_global(suite, ""), ",")],
+    FilteredModules = case Suite of
+                          [] -> Modules;
+                          _  -> [M || M <- Modules, lists:member(M, Suite)]
+                      end,
 
     %% Generate coverage info for all the cover-compiled modules
     Coverage = [cover_analyze_mod(M) || M <- FilteredModules],

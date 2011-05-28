@@ -27,7 +27,8 @@
 -module(rebar_port_compiler).
 
 -export([compile/2,
-         clean/2]).
+         clean/2,
+         setup_env/1]).
 
 -include("rebar.hrl").
 
@@ -94,14 +95,7 @@ compile(Config, AppFile) ->
         [] ->
             ok;
         _ ->
-            %% Extract environment values from the config (if specified) and
-            %% merge with the default for this operating system. This enables
-            %% max flexibility for users.
-            DefaultEnvs  = filter_envs(default_env(), []),
-            PortEnvs = rebar_config:get_list(Config, port_envs, []),
-            OverrideEnvs = filter_envs(PortEnvs, []),
-            RawEnv = DefaultEnvs ++ OverrideEnvs ++ os_env(),
-            Env = expand_vars_loop(merge_each_var(RawEnv, [])),
+            Env = setup_env(Config),
 
             %% One or more files are available for building.
             %% Run the pre-compile hook, if necessary.
@@ -122,7 +116,8 @@ compile(Config, AppFile) ->
             %% and list of new binaries
             lists:foreach(
               fun({SoName,Bins}) ->
-                      AllBins = [sets:from_list(Bins), sets:from_list(NewBins)],
+                      AllBins = [sets:from_list(Bins),
+                                 sets:from_list(NewBins)],
                       Intersection = sets:intersection(AllBins),
                       case needs_link(SoName, sets:to_list(Intersection)) of
                           true ->
@@ -152,8 +147,15 @@ clean(Config, AppFile) ->
     %% Run the cleanup script, if it exists
     run_cleanup_hook(Config).
 
-
-
+setup_env(Config) ->
+    %% Extract environment values from the config (if specified) and
+    %% merge with the default for this operating system. This enables
+    %% max flexibility for users.
+    DefaultEnvs  = filter_envs(default_env(), []),
+    PortEnvs = rebar_config:get_list(Config, port_envs, []),
+    OverrideEnvs = filter_envs(PortEnvs, []),
+    RawEnv = apply_defaults(os_env(), DefaultEnvs) ++ OverrideEnvs,
+    expand_vars_loop(merge_each_var(RawEnv, [])).
 
 %% ===================================================================
 %% Internal functions
@@ -182,15 +184,9 @@ run_precompile_hook(Config, Env) ->
         undefined ->
             ok;
         {Script, BypassFileName} ->
-            ?CONSOLE(
-               <<
-                 "WARNING: option deprecated~n"
-                 "Config option 'port_pre_script' has been deprecated "
-                 "in favor of ~n{pre_hooks, [{compile, \"script\"}]}."
-                 "~nskipfile support has also been removed. Add skipfile"
-                 " logic to the~nscript instead.~nFuture builds of rebar"
-                 " will remove the option 'port_pre_script'.~n~n"
-               >>, []),
+            ?DEPRECATED(port_pre_script,
+                        {pre_hooks, [{compile, "script"}]},
+                        "in a future build of rebar"),
             case filelib:is_regular(BypassFileName) of
                 false ->
                     ?CONSOLE("Running ~s\n", [Script]),
@@ -207,14 +203,9 @@ run_cleanup_hook(Config) ->
         undefined ->
             ok;
         Script ->
-            ?CONSOLE(
-               <<
-                 "WARNING: option deprecated~n"
-                 "Config option 'port_pre_script' has been deprecated "
-                 "in favor of ~n{post_hooks, [{clean, \"script\"}]}."
-                 "~nFuture builds of rebar will remove the option "
-                 "'port_pre_script'.~n~n"
-               >>, []),
+            ?DEPRECATED(port_cleanup_script,
+                        {post_hooks, [{clean, "script"}]},
+                        "in a future build of rebar"),
             ?CONSOLE("Running ~s\n", [Script]),
             {ok, _} = rebar_utils:sh(Script, []),
             ok
@@ -259,7 +250,7 @@ needs_link(SoName, NewBins) ->
             ?DEBUG("Last mod is 0 on ~s\n", [SoName]),
             true;
         Other ->
-            ?DEBUG("Checking ~p >= ~p", [MaxLastMod, Other]),
+            ?DEBUG("Checking ~p >= ~p\n", [MaxLastMod, Other]),
             MaxLastMod >= Other
     end.
 
@@ -276,6 +267,24 @@ compiler(".c++") -> "$CXX";
 compiler(".C")   -> "$CXX";
 compiler(_)      -> "$CC".
 
+%%
+%% Given a list of {Key, Value} variables, and another list of default
+%% {Key, Value} variables, return a merged list where the rule is if the
+%% default is expandable expand it with the value of the variable list,
+%% otherwise just return the value of the variable.
+%%
+apply_defaults(Vars, Defaults) ->
+    dict:to_list(
+      dict:merge(fun(Key, VarValue, DefaultValue) ->
+                         case is_expandable(DefaultValue) of
+                             true ->
+                                 expand_env_variable(DefaultValue,
+                                                     Key, VarValue);
+                             false -> VarValue
+                         end
+                 end,
+                 dict:from_list(Vars),
+                 dict:from_list(Defaults))).
 
 %%
 %% Given a list of {Key, Value} environment variables, where Key may be defined
@@ -285,15 +294,15 @@ compiler(_)      -> "$CC".
 merge_each_var([], Vars) ->
     Vars;
 merge_each_var([{Key, Value} | Rest], Vars) ->
-    case orddict:find(Key, Vars) of
-        error ->
-            %% Nothing yet defined for this key/value.
-            %% Expand any self-references as blank.
-            Evalue = expand_env_variable(Value, Key, "");
-        {ok, Value0} ->
-            %% Use previous definition in expansion
-            Evalue = expand_env_variable(Value, Key, Value0)
-    end,
+    Evalue = case orddict:find(Key, Vars) of
+                 error ->
+                     %% Nothing yet defined for this key/value.
+                     %% Expand any self-references as blank.
+                     expand_env_variable(Value, Key, "");
+                 {ok, Value0} ->
+                     %% Use previous definition in expansion
+                     expand_env_variable(Value, Key, Value0)
+             end,
     merge_each_var(Rest, orddict:store(Key, Evalue, Vars)).
 
 %%
@@ -323,16 +332,24 @@ expand_vars_loop(Vars0, Count) ->
 expand_vars(Key, Value, Vars) ->
     lists:foldl(
       fun({AKey, AValue}, Acc) ->
-              case AKey of
-                  Key ->
-                      NewValue = AValue;
-                  _ ->
-                      NewValue = expand_env_variable(AValue, Key, Value)
-              end,
+              NewValue = case AKey of
+                             Key ->
+                                 AValue;
+                             _ ->
+                                 expand_env_variable(AValue, Key, Value)
+                         end,
               [{AKey, NewValue} | Acc]
       end,
       [], Vars).
 
+%%
+%% Given a string, determine if it is expandable
+%%
+is_expandable(InStr) ->
+    case re:run(InStr,"\\\$",[{capture,none}]) of
+        match -> true;
+        nomatch -> false
+    end.
 
 %%
 %% Given env. variable FOO we want to expand all references to
@@ -384,17 +401,20 @@ default_env() ->
      {"ERLANG_ARCH", integer_to_list(8 * erlang:system_info(wordsize))},
      {"ERLANG_TARGET", rebar_utils:get_arch()},
 
-     {"solaris.*-64$", "CFLAGS", "-D_REENTRANT -m64"}, % Solaris specific flags
-     {"solaris.*-64$", "CXXFLAGS", "-D_REENTRANT -m64"},
-     {"solaris.*-64$", "LDFLAGS", "-m64"},
+     %% Solaris specific flags
+     {"solaris.*-64$", "CFLAGS", "-D_REENTRANT -m64 $CFLAGS"},
+     {"solaris.*-64$", "CXXFLAGS", "-D_REENTRANT -m64 $CXXFLAGS"},
+     {"solaris.*-64$", "LDFLAGS", "-m64 $LDFLAGS"},
 
-     {"darwin9.*-64$", "CFLAGS", "-m64"}, % OS X Leopard flags for 64-bit
-     {"darwin9.*-64$", "CXXFLAGS", "-m64"},
-     {"darwin9.*-64$", "LDFLAGS", "-arch x86_64"},
+     %% OS X Leopard flags for 64-bit
+     {"darwin9.*-64$", "CFLAGS", "-m64 $CFLAGS"},
+     {"darwin9.*-64$", "CXXFLAGS", "-m64 $CXXFLAGS"},
+     {"darwin9.*-64$", "LDFLAGS", "-arch x86_64 $LDFLAGS"},
 
-     {"darwin10.*-32", "CFLAGS", "-m32"}, % OS X Snow Leopard flags for 32-bit
-     {"darwin10.*-32", "CXXFLAGS", "-m32"},
-     {"darwin10.*-32", "LDFLAGS", "-arch i386"}
+     %% OS X Snow Leopard flags for 32-bit
+     {"darwin10.*-32", "CFLAGS", "-m32 $CFLAGS"},
+     {"darwin10.*-32", "CXXFLAGS", "-m32 $CXXFLAGS"},
+     {"darwin10.*-32", "LDFLAGS", "-arch i386 $LDFLAGS"}
     ].
 
 
