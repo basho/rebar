@@ -72,10 +72,13 @@ run(Config, FirstFiles, SourceDir, SourceExt, TargetDir, TargetExt,
     %% Check opts for flag indicating that compile should check lastmod
     CheckLastMod = proplists:get_bool(check_last_mod, Opts),
 
+    %% See if we have a prefix to apply to the target file name
+    TargetPrefix = proplists:get_value(target_prefix, Opts, ""),
+
     run(Config, FirstFiles, RestFiles,
         fun(S, C) ->
                 Target = target_file(S, SourceDir, SourceExt,
-                                     TargetDir, TargetExt),
+                                     TargetDir, TargetExt, TargetPrefix),
                 simple_compile_wrapper(S, Target, Compile3Fn, C, CheckLastMod)
         end).
 
@@ -94,13 +97,15 @@ simple_compile_wrapper(Source, Target, Compile3Fn, Config, true) ->
             skipped
     end.
 
-target_file(SourceFile, SourceDir, SourceExt, TargetDir, TargetExt) ->
+target_file(SourceFile, SourceDir, SourceExt, TargetDir, TargetExt, TargetPrefix) ->
     %% Remove all leading components of the source dir from the file -- we want
     %% to maintain the deeper structure (if any) of the source file path
     BaseFile = remove_common_path(SourceFile, SourceDir),
     filename:join([TargetDir, filename:dirname(BaseFile),
-                   filename:basename(BaseFile, SourceExt) ++ TargetExt]).
+                   basename(BaseFile, SourceExt, TargetPrefix, TargetExt)]).
 
+basename(BaseFile, SourceExt, TargetPrefix, TargetExt) ->
+    TargetPrefix ++ filename:basename(BaseFile, SourceExt) ++ TargetExt.
 
 remove_common_path(Fname, Path) ->
     remove_common_path1(filename:split(Fname), filename:split(Path)).
