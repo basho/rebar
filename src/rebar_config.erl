@@ -31,7 +31,7 @@
          get_all/2,
          set/3,
          set_global/3, get_global/3,
-         is_verbose/1,
+         is_recursive/1, is_verbose/1,
          save_env/3, get_env/2, reset_envs/1,
          set_skip_dir/2, is_skip_dir/2, reset_skip_dirs/1,
          clean_config/2,
@@ -109,6 +109,9 @@ get_global(Config, Key, Default) ->
         {ok, Value} ->
             Value
     end.
+
+is_recursive(Config) ->
+    get_xconf(Config, recursive, false).
 
 is_verbose(Config) ->
     DefaulLevel = rebar_log:default_level(),
