@@ -76,11 +76,15 @@ process_commands([Command | Rest]) ->
     lists:foreach(fun (D) -> erlang:erase({skip_dir, D}) end, skip_dirs()),
     Operations = erlang:get(operations),
 
+    %% Add config value that indicates current rebar command, so plugins
+    %% can identify what will be run in pre/post process.
+    Config0 = rebar_config:set(rebar_config:new(), rebar_command, Command),
+
     %% Convert the code path so that all the entries are absolute paths.
     %% If not, code:set_path() may choke on invalid relative paths when trying
     %% to restore the code path from inside a subdirectory.
     true = rebar_utils:expand_code_path(),
-    _ = process_dir(rebar_utils:get_cwd(), rebar_config:new(),
+    _ = process_dir(rebar_utils:get_cwd(), Config0,
                     Command, sets:new()),
     case erlang:get(operations) of
         Operations ->
