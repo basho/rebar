@@ -36,21 +36,26 @@
 %% ===================================================================
 
 preprocess(Config, _) ->
-    %% Get the list of subdirs specified in the config (if any).
-    Cwd = rebar_utils:get_cwd(),
-    ListSubdirs = rebar_config:get_local(Config, sub_dirs, []),
-    Subdirs0 = lists:flatmap(fun filelib:wildcard/1, ListSubdirs),
-    case {rebar_config:is_skip_dir(Config, Cwd), Subdirs0} of
-        {true, []} ->
-            {ok, []};
-        {true, _} ->
-            ?WARN("Ignoring sub_dirs for ~s~n", [Cwd]),
-            {ok, []};
-        {false, _} ->
-            Check = check_loop(Cwd),
-            ok = lists:foreach(Check, Subdirs0),
-            Subdirs = [filename:join(Cwd, Dir) || Dir <- Subdirs0],
-            {ok, Subdirs}
+    case rebar_config:is_recursive(Config) of
+        true ->
+            %% Get the list of subdirs specified in the config (if any).
+            Cwd = rebar_utils:get_cwd(),
+            ListSubdirs = rebar_config:get_local(Config, sub_dirs, []),
+            Subdirs0 = lists:flatmap(fun filelib:wildcard/1, ListSubdirs),
+            case {rebar_config:is_skip_dir(Config, Cwd), Subdirs0} of
+                {true, []} ->
+                    {ok, []};
+                {true, _} ->
+                    ?WARN("Ignoring sub_dirs for ~s~n", [Cwd]),
+                    {ok, []};
+                {false, _} ->
+                    Check = check_loop(Cwd),
+                    ok = lists:foreach(Check, Subdirs0),
+                    Subdirs = [filename:join(Cwd, Dir) || Dir <- Subdirs0],
+                    {ok, Subdirs}
+            end;
+        false ->
+            {ok, []}
     end.
 
 %% ===================================================================
