@@ -37,6 +37,9 @@
          'delete-deps'/2,
          'list-deps'/2]).
 
+%% List of commands in this module that require recursive=true
+-define(R_CMDS, ['check-deps', 'get-deps', 'update-deps',
+                 'delete-deps', 'list-deps']).
 
 -record(dep, { dir,
                app,
@@ -48,6 +51,18 @@
 %% ===================================================================
 
 preprocess(Config, _) ->
+    %% If the command being run is one of the commands in this module
+    %% and recursive=false, treat it as an error
+    Cmd = rebar_config:get(Config, rebar_command, undefined),
+    NeedsRecursive = lists:member(Cmd, ?R_CMDS),
+    case NeedsRecursive and not rebar_config:is_recursive() of
+        true ->
+            ?ABORT("~s requires rebar to process directories recursively (-r flag).\n",
+                   [Cmd]);
+        false ->
+            ok
+    end,
+
     %% Side effect to set deps_dir globally for all dependencies from
     %% top level down. Means the root deps_dir is honoured or the default
     %% used globally since it will be set on the first time through here
@@ -64,11 +79,11 @@ preprocess(Config, _) ->
     %% Add available deps to code path
     update_deps_code_path(AvailableDeps),
 
-    %% If skip_deps=true, mark each dep dir as a skip_dir w/ the core so that
+    %% If recursive=false, mark each dep dir as a skip_dir w/ the core so that
     %% the current command doesn't run on the dep dir. However, pre/postprocess
     %% WILL run (and we want it to) for transitivity purposes.
-    case rebar_config:get_global(skip_deps, false) of
-        "true" ->
+    case rebar_config:is_recursive() of
+        false ->
             lists:foreach(fun (#dep{dir = Dir}) ->
                                   rebar_core:skip_dir(Dir)
                           end, AvailableDeps);
