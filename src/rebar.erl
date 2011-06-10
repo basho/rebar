@@ -124,6 +124,7 @@ parse_args(Args) ->
             ok = show_info_maybe_halt(Options, NonOptArgs),
 
             %% Set global variables based on getopt options
+            set_global_flag(Options, recursive),
             set_global_flag(Options, verbose),
             set_global_flag(Options, force),
             DefJobs = rebar_config:get_jobs(),
@@ -251,7 +252,8 @@ option_spec_list() ->
      {version,  $V, "version",  undefined, "Show version information"},
      {force,    $f, "force",    undefined, "Force"},
      {jobs,     $j, "jobs",     integer,   JobsHelp},
-     {config,   $C, "config",   string,    "Rebar config file to use"}
+     {config,   $C, "config",   string,    "Rebar config file to use"},
+     {recursive, $r, "recursive", boolean, "Apply commands to subdirs and dependencies"}
     ].
 
 %%

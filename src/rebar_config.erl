@@ -31,7 +31,8 @@
          get_all/2,
          set/3,
          set_global/2, get_global/2,
-         is_verbose/0, get_jobs/0]).
+         is_recursive/0, is_verbose/0,
+         get_jobs/0]).
 
 -include("rebar.hrl").
 
@@ -115,6 +116,9 @@ get_global(Key, Default) ->
         {ok, Value} ->
             Value
     end.
+
+is_recursive() ->
+    get_global(recursive, "0") =:= "1".
 
 is_verbose() ->
     get_global(verbose, "0") =:= "1".

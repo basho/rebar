@@ -36,7 +36,12 @@
 
 preprocess(Config, _) ->
     %% Get the list of subdirs specified in the config (if any).
-    Cwd = rebar_utils:get_cwd(),
-    Subdirs = [filename:join(Cwd, Dir) ||
-                  Dir <- rebar_config:get_local(Config, sub_dirs, [])],
-    {ok, Subdirs}.
+    case rebar_config:is_recursive() of
+        true ->
+            Cwd = rebar_utils:get_cwd(),
+            Subdirs = [filename:join(Cwd, Dir) ||
+                          Dir <- rebar_config:get_local(Config, sub_dirs, [])],
+            {ok, Subdirs};
+        false ->
+            {ok, []}
+    end.
