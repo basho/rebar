@@ -51,16 +51,22 @@ process_commands([Command | Rest], ParentConfig) ->
     ParentConfig1 = rebar_config:reset_skip_dirs(ParentConfig),
     Operations = get_operations(ParentConfig1),
 
-    ParentConfig4 =
+    ParentConfig5 =
         try
+            %% Add config value that indicates current rebar command, so plugins
+            %% can identify what will be run in pre/post process.
+            ParentConfig2 = rebar_config:set_xconf(ParentConfig1,
+                                                   rebar_command, Command),
+
+
             %% Convert the code path so that all the entries are absolute paths.
             %% If not, code:set_path() may choke on invalid relative paths when trying
             %% to restore the code path from inside a subdirectory.
             true = rebar_utils:expand_code_path(),
-            {ParentConfig2, _DirSet} = process_dir(rebar_utils:get_cwd(),
-                                                   ParentConfig1, Command,
+            {ParentConfig3, _DirSet} = process_dir(rebar_utils:get_cwd(),
+                                                   ParentConfig2, Command,
                                                    sets:new()),
-            case get_operations(ParentConfig2) of
+            case get_operations(ParentConfig3) of
                 Operations ->
                     %% This command didn't do anything
                     ?CONSOLE("Command '~p' not understood or not applicable~n",
@@ -69,10 +75,10 @@ process_commands([Command | Rest], ParentConfig) ->
                     ok
             end,
             %% TODO: reconsider after config inheritance removal/redesign
-            ParentConfig3 = rebar_config:clean_config(ParentConfig1, ParentConfig2),
+            ParentConfig4 = rebar_config:clean_config(ParentConfig2, ParentConfig3),
             %% Wipe out vsn cache to avoid invalid hits when
             %% dependencies are updated
-            rebar_config:set_xconf(ParentConfig3, vsn_cache, dict:new())
+            rebar_config:set_xconf(ParentConfig4, vsn_cache, dict:new())
         catch
             throw:rebar_abort ->
                 case rebar_config:get_xconf(ParentConfig1, keep_going, false) of
@@ -84,7 +90,7 @@ process_commands([Command | Rest], ParentConfig) ->
                                                abort_trapped, true)
                 end
         end,
-    process_commands(Rest, ParentConfig4).
+    process_commands(Rest, ParentConfig5).
 
 process_dir(Dir, ParentConfig, Command, DirSet) ->
     case filelib:is_dir(Dir) of
