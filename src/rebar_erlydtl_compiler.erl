@@ -82,13 +82,20 @@
 
 compile(Config, _AppFile) ->
     DtlOpts = erlydtl_opts(Config),
+    ModulePrefix = option(module_prefix, DtlOpts),
+    CompileOpts = case length(ModulePrefix) > 0 of
+                      false ->
+                          [{check_last_mod, false}];
+                      true ->
+                          [{check_last_mod, false}, 
+                           {target_prefix, ModulePrefix}]
+                  end,
     rebar_base_compiler:run(Config, [],
                             option(doc_root, DtlOpts),
                             option(source_ext, DtlOpts),
                             option(out_dir, DtlOpts),
                             option(module_ext, DtlOpts) ++ ".beam",
-                            fun compile_dtl/3, [{check_last_mod, false}]).
-
+                            fun compile_dtl/3, CompileOpts).
 
 %% ===================================================================
 %% Internal functions
@@ -104,6 +111,7 @@ default(doc_root) -> "templates";
 default(out_dir)  -> "ebin";
 default(source_ext) -> ".dtl";
 default(module_ext) -> "_dtl";
+default(module_prefix) -> "";
 default(custom_tags_dir) -> "".
 
 compile_dtl(Source, Target, Config) ->
