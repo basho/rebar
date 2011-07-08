@@ -161,8 +161,9 @@ compile(Config, AppFile) ->
 %% need all deps in same dir and should be the one set by the root rebar.config
 %% Sets a default if root config has no deps_dir set
 set_global_deps_dir(Config, []) ->
-    rebar_config:set_global(deps_dir,
-                            rebar_config:get_local(Config, deps_dir, "deps"));
+    ExistingGlobalDepsDir = rebar_config:get(Config, deps_dir, "deps"),
+    rebar_config:set_global(deps_dir, rebar_config:get_local(
+        Config, deps_dir, ExistingGlobalDepsDir));
 set_global_deps_dir(_Config, _DepsDir) ->
     ok.
 
