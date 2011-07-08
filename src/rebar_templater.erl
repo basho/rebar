@@ -359,7 +359,7 @@ execute_template([{dir, Name} | Rest], TemplateType, TemplateName, Context,
             ?ABORT("Failed while processing template instruction "
                    "{dir, ~s}: ~p\n", [Name, Reason])
     end;
-execute_template([{dir, Input, Output} | Rest], TemplateType, TemplateName,
+execute_template([{copy, Input, Output} | Rest], TemplateType, TemplateName,
                  Context, Force, ExistingFiles) ->
     InputName = filename:join(filename:dirname(TemplateName), Input),
     case rebar_file_utils:cp_r([InputName ++ "/*"], Output) of
