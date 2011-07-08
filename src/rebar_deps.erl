@@ -175,6 +175,21 @@ get_deps_dir(App) ->
     DepsDir = rebar_config:get_global(deps_dir, "deps"),
     {true, filename:join([BaseDir, DepsDir, App])}.
 
+check_deps_dir(App) ->
+    %% we want to allow for forms such as "<appname>-<vsn>"
+    {true, BasePath} = get_deps_dir(App),
+    case filelib:is_dir(BasePath) of
+        true ->
+            {true, BasePath};
+        false ->
+            case filelib:wildcard(BasePath ++ "*") of
+                [Dir|_] ->
+                    {true, Dir};
+                _ ->
+                    {false, BasePath}
+            end
+    end.
+
 get_lib_dir(App) ->
     %% Find App amongst the reachable lib directories
     %% Returns either the found path or a tagged tuple with a boolean
@@ -239,7 +254,7 @@ find_dep(Dep, _Source) ->
     %% _Source is defined.  Regardless of what it is, we must find it
     %% locally satisfied or fetch it from the original source
     %% into the project's deps
-    find_dep_in_dir(Dep, get_deps_dir(Dep#dep.app)).
+    find_dep_in_dir(Dep, check_deps_dir(Dep#dep.app)).
 
 find_dep_in_dir(_Dep, {false, Dir}) ->
     {missing, Dir};
