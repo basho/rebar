@@ -26,7 +26,7 @@
 %% -------------------------------------------------------------------
 -module(rebar_core).
 
--export([process_commands/1,
+-export([process_commands/2,
          skip_dir/1,
          is_skip_dir/1,
          skip_dirs/0]).
@@ -63,7 +63,7 @@ skip_dirs() ->
 %% Internal functions
 %% ===================================================================
 
-process_commands([]) ->
+process_commands([], _ParentConfig) ->
     case erlang:get(operations) of
         0 ->
             %% none of the commands had an effect
@@ -71,7 +71,7 @@ process_commands([]) ->
         _ ->
             ok
     end;
-process_commands([Command | Rest]) ->
+process_commands([Command | Rest], ParentConfig) ->
     %% Reset skip dirs
     lists:foreach(fun (D) -> erlang:erase({skip_dir, D}) end, skip_dirs()),
     Operations = erlang:get(operations),
@@ -80,7 +80,7 @@ process_commands([Command | Rest]) ->
     %% If not, code:set_path() may choke on invalid relative paths when trying
     %% to restore the code path from inside a subdirectory.
     true = rebar_utils:expand_code_path(),
-    _ = process_dir(rebar_utils:get_cwd(), rebar_config:new(),
+    _ = process_dir(rebar_utils:get_cwd(), ParentConfig,
                     Command, sets:new()),
     case erlang:get(operations) of
         Operations ->
@@ -89,7 +89,7 @@ process_commands([Command | Rest]) ->
         _ ->
             ok
     end,
-    process_commands(Rest).
+    process_commands(Rest, ParentConfig).
 
 
 process_dir(Dir, ParentConfig, Command, DirSet) ->
@@ -148,9 +148,17 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
                     %% in preprocess.
                     {ok, PluginModules} = plugin_modules(Config),
 
+                    %% Execute any before_command plugins on this directory
+                    execute_pre(Command, PluginModules,
+                                Config, ModuleSetFile),
+
                     %% Execute the current command on this directory
                     execute(Command, Modules ++ PluginModules,
-                            Config, ModuleSetFile)
+                            Config, ModuleSetFile),
+
+                    %% Execute any after_command plugins on this directory
+                    execute_post(Command, PluginModules,
+                                 Config, ModuleSetFile)
             end,
 
             %% Mark the current directory as processed
@@ -215,6 +223,17 @@ is_dir_type(rel_dir, Dir) ->
 is_dir_type(_, _) ->
     false.
 
+execute_pre(Command, Modules, Config, ModuleFile) ->
+    execute_plugin_hook("pre_", Command, Modules,
+                        Config, ModuleFile).
+
+execute_post(Command, Modules, Config, ModuleFile) ->
+    execute_plugin_hook("post_", Command, Modules,
+                        Config, ModuleFile).
+
+execute_plugin_hook(Hook, Command, Modules, Config, ModuleFile) ->
+    HookFunction = list_to_atom(Hook ++ atom_to_list(Command)),
+    execute(HookFunction, Modules, Config, ModuleFile).
 
 %%
 %% Execute a command across all applicable modules
@@ -222,8 +241,15 @@ is_dir_type(_, _) ->
 execute(Command, Modules, Config, ModuleFile) ->
     case select_modules(Modules, Command, []) of
         [] ->
-            ?WARN("'~p' command does not apply to directory ~s\n",
-                  [Command, rebar_utils:get_cwd()]);
+            Cmd = atom_to_list(Command),
+            case lists:prefix("pre_", Cmd)
+                orelse lists:prefix("post_", Cmd) of
+                true ->
+                    ok;
+                false ->
+                    ?WARN("'~p' command does not apply to directory ~s\n",
+                          [Command, rebar_utils:get_cwd()])
+            end;
 
         TargetModules ->
             %% Provide some info on where we are

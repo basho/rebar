@@ -45,7 +45,7 @@ compile(Config, _AppFile) ->
 %% Internal functions
 %% ===================================================================
 
-compile_lfe(Source, Target, Config) ->
+compile_lfe(Source, _Target, Config) ->
     case code:which(lfe_comp) of
         non_existing ->
             ?CONSOLE(<<
@@ -61,19 +61,11 @@ compile_lfe(Source, Target, Config) ->
                      >>, []),
             ?FAIL;
         _ ->
-            Opts = [{i, "include"}, {outdir, "ebin"}, report, return] ++
-                rebar_config:get_list(Config, erl_opts, []),
+            Opts = [{i, "include"}, {outdir, "ebin"}, report]
+                ++ rebar_config:get_list(Config, erl_opts, []),
             case lfe_comp:file(Source, Opts) of
-                {ok, _, []} ->
+                {ok, _} ->
                     ok;
-                {ok, _, _Warnings} ->
-                    case lists:member(fail_on_warning, Opts) of
-                        true ->
-                            ok = file:delete(Target),
-                            ?FAIL;
-                        false ->
-                            ok
-                    end;
                 _ ->
                     ?FAIL
             end

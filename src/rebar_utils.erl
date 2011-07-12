@@ -29,6 +29,7 @@
 -export([get_cwd/0,
          is_arch/1,
          get_arch/0,
+         wordsize/0,
          sh/2,
          find_files/2,
          now_str/0,
@@ -40,7 +41,7 @@
          find_executable/1,
          prop_check/3,
          expand_code_path/0,
-         deprecated/3, deprecated/4]).
+         deprecated/4, deprecated/5]).
 
 -include("rebar.hrl").
 
@@ -62,9 +63,18 @@ is_arch(ArchRegex) ->
     end.
 
 get_arch() ->
-    Words = integer_to_list(8 * erlang:system_info(wordsize)),
+    Words = wordsize(),
     erlang:system_info(otp_release) ++ "-"
         ++ erlang:system_info(system_architecture) ++ "-" ++ Words.
+
+wordsize() ->
+    try erlang:system_info({wordsize, external}) of
+        Val ->
+            integer_to_list(8 * Val)
+    catch
+        error:badarg ->
+            integer_to_list(8 * erlang:system_info(wordsize))
+    end.
 
 %%
 %% Options = [Option] -- defaults to [use_stdout, abort_on_error]
@@ -251,19 +261,19 @@ emulate_escript_foldl(Fun, Acc, File) ->
             Error
     end.
 
-deprecated(Old, New, Opts, When) ->
+deprecated(Key, Old, New, Opts, When) ->
     case lists:member(Old, Opts) of
         true ->
-            deprecated(Old, New, When);
+            deprecated(Key, Old, New, When);
         false ->
             ok
     end.
 
-deprecated(Old, New, When) ->
+deprecated(Key, Old, New, When) ->
     io:format(
       <<
-        "WARNING: option deprecated~n"
-        "Config option '~p' has been deprecated~n"
+        "WARNING: deprecated ~p option used~n"
+        "Option '~p' has been deprecated~n"
         "in favor of '~p'.~n"
         "'~p' will be removed ~s.~n~n"
-      >>, [Old, New, Old, When]).
+      >>, [Key, Old, New, Old, When]).

@@ -38,11 +38,11 @@
 
 %% Supported configuration variables:
 %%
-%% * port_sources - Erlang list of files and/or wildcard strings to be
-%%                  compiled. Platform specific sources can be specified
-%%                  by enclosing a string in a tuple of the form
-%%                  {Regex, String} wherein Regex is a regular expression
-%%                  that is checked against the system architecture.
+%% * port_sources - Erlang list of filenames or wildcards to be compiled. May
+%%                  also contain a tuple consisting of a regular expression to
+%%                  be applied against the system architecture and a list of
+%%                  filenames or wildcards to include should the expression
+%%                  pass.
 %%
 %% * so_specs  - Erlang list of tuples of the form
 %%               {"priv/so_name.so", ["c_src/object_file_name.o"]}
@@ -62,6 +62,14 @@
 %%               ERL_LDFLAGS - default -L and -lerl_interface -lei
 %%               DRV_CFLAGS  - flags that will be used for compiling the driver
 %%               DRV_LDFLAGS - flags that will be used for linking the driver
+%%               ERL_EI_LIBDIR - ei library directory
+%%               CXX_TEMPLATE  - C++ command template
+%%               CC_TEMPLATE   - C command template
+%%               LINK_TEMPLATE - Linker command template
+%%               PORT_IN_FILES - contains a space separated list of input
+%%                    file(s), (used in command template)
+%%               PORT_OUT_FILE - contains the output filename (used in
+%%                    command template)
 %%
 %%               Note that if you wish to extend (vs. replace) these variables,
 %%               you MUST include a shell-style reference in your definition.
@@ -97,10 +105,6 @@ compile(Config, AppFile) ->
         _ ->
             Env = setup_env(Config),
 
-            %% One or more files are available for building.
-            %% Run the pre-compile hook, if necessary.
-            ok = run_precompile_hook(Config, Env),
-
             %% Compile each of the sources
             {NewBins, ExistingBins} = compile_each(Sources, Config, Env,
                                                    [], []),
@@ -116,14 +120,15 @@ compile(Config, AppFile) ->
             %% and list of new binaries
             lists:foreach(
               fun({SoName,Bins}) ->
-                      AllBins = [sets:from_list(Bins), sets:from_list(NewBins)],
+                      AllBins = [sets:from_list(Bins),
+                                 sets:from_list(NewBins)],
                       Intersection = sets:intersection(AllBins),
                       case needs_link(SoName, sets:to_list(Intersection)) of
                           true ->
-                              rebar_utils:sh(
-                                ?FMT("$CC ~s $LDFLAGS $DRV_LDFLAGS -o ~s",
-                                     [string:join(Bins, " "), SoName]),
-                                [{env, Env}]);
+                              Cmd = expand_command("LINK_TEMPLATE", Env,
+                                                   string:join(Bins, " "),
+                                                   SoName),
+                              rebar_utils:sh(Cmd, [{env, Env}]);
                           false ->
                               ?INFO("Skipping relink of ~s\n", [SoName]),
                               ok
@@ -141,10 +146,7 @@ clean(Config, AppFile) ->
     ExtractSoName = fun({SoName, _}) -> SoName end,
     rebar_file_utils:delete_each([ExtractSoName(S)
                                   || S <- so_specs(Config, AppFile,
-                                                   expand_objects(Sources))]),
-
-    %% Run the cleanup script, if it exists
-    run_cleanup_hook(Config).
+                                                   expand_objects(Sources))]).
 
 setup_env(Config) ->
     %% Extract environment values from the config (if specified) and
@@ -153,7 +155,7 @@ setup_env(Config) ->
     DefaultEnvs  = filter_envs(default_env(), []),
     PortEnvs = rebar_config:get_list(Config, port_envs, []),
     OverrideEnvs = filter_envs(PortEnvs, []),
-    RawEnv = DefaultEnvs ++ OverrideEnvs ++ os_env(),
+    RawEnv = apply_defaults(os_env(), DefaultEnvs) ++ OverrideEnvs,
     expand_vars_loop(merge_each_var(RawEnv, [])).
 
 %% ===================================================================
@@ -165,7 +167,7 @@ expand_sources([], Acc) ->
 expand_sources([{ArchRegex, Spec} | Rest], Acc) ->
     case rebar_utils:is_arch(ArchRegex) of
         true ->
-            Acc2 = filelib:wildcard(Spec) ++ Acc,
+            Acc2 = expand_sources(Spec, Acc),
             expand_sources(Rest, Acc2);
         false ->
             expand_sources(Rest, Acc)
@@ -178,39 +180,6 @@ expand_objects(Sources) ->
     [filename:join([filename:dirname(F), filename:basename(F) ++ ".o"])
      || F <- Sources].
 
-run_precompile_hook(Config, Env) ->
-    case rebar_config:get(Config, port_pre_script, undefined) of
-        undefined ->
-            ok;
-        {Script, BypassFileName} ->
-            ?DEPRECATED(port_pre_script,
-                        {pre_hooks, [{compile, "script"}]},
-                        "in a future build of rebar"),
-            case filelib:is_regular(BypassFileName) of
-                false ->
-                    ?CONSOLE("Running ~s\n", [Script]),
-                    {ok, _} = rebar_utils:sh(Script, [{env, Env}]),
-                    ok;
-                true ->
-                    ?INFO("~s exists; not running ~s\n",
-                          [BypassFileName, Script])
-            end
-    end.
-
-run_cleanup_hook(Config) ->
-    case rebar_config:get(Config, port_cleanup_script, undefined) of
-        undefined ->
-            ok;
-        Script ->
-            ?DEPRECATED(port_cleanup_script,
-                        {post_hooks, [{clean, "script"}]},
-                        "in a future build of rebar"),
-            ?CONSOLE("Running ~s\n", [Script]),
-            {ok, _} = rebar_utils:sh(Script, []),
-            ok
-    end.
-
-
 compile_each([], _Config, _Env, NewBins, ExistingBins) ->
     {lists:reverse(NewBins), lists:reverse(ExistingBins)};
 compile_each([Source | Rest], Config, Env, NewBins, ExistingBins) ->
@@ -221,12 +190,13 @@ compile_each([Source | Rest], Config, Env, NewBins, ExistingBins) ->
             ?CONSOLE("Compiling ~s\n", [Source]),
             case compiler(Ext) of
                 "$CC" ->
-                    rebar_utils:sh(?FMT("$CC -c $CFLAGS $DRV_CFLAGS ~s -o ~s",
-                                        [Source, Bin]), [{env, Env}]);
+                    rebar_utils:sh(expand_command("CC_TEMPLATE", Env,
+                                                  Source, Bin),
+                                   [{env, Env}]);
                 "$CXX" ->
-                    rebar_utils:sh(
-                      ?FMT("$CXX -c $CXXFLAGS $DRV_CFLAGS ~s -o ~s",
-                           [Source, Bin]), [{env, Env}])
+                    rebar_utils:sh(expand_command("CXX_TEMPLATE", Env,
+                                                  Source, Bin),
+                                   [{env, Env}])
             end,
             compile_each(Rest, Config, Env, [Bin | NewBins], ExistingBins);
 
@@ -266,6 +236,24 @@ compiler(".c++") -> "$CXX";
 compiler(".C")   -> "$CXX";
 compiler(_)      -> "$CC".
 
+%%
+%% Given a list of {Key, Value} variables, and another list of default
+%% {Key, Value} variables, return a merged list where the rule is if the
+%% default is expandable expand it with the value of the variable list,
+%% otherwise just return the value of the variable.
+%%
+apply_defaults(Vars, Defaults) ->
+    dict:to_list(
+      dict:merge(fun(Key, VarValue, DefaultValue) ->
+                         case is_expandable(DefaultValue) of
+                             true ->
+                                 expand_env_variable(DefaultValue,
+                                                     Key, VarValue);
+                             false -> VarValue
+                         end
+                 end,
+                 dict:from_list(Vars),
+                 dict:from_list(Defaults))).
 
 %%
 %% Given a list of {Key, Value} environment variables, where Key may be defined
@@ -323,15 +311,32 @@ expand_vars(Key, Value, Vars) ->
       end,
       [], Vars).
 
+expand_command(TmplName, Env, InFiles, OutFile) ->
+    Cmd0 = proplists:get_value(TmplName, Env),
+    Cmd1 = expand_env_variable(Cmd0, "PORT_IN_FILES", InFiles),
+    Cmd2 = expand_env_variable(Cmd1, "PORT_OUT_FILE", OutFile),
+    re:replace(Cmd2, "\\\$\\w+|\\\${\\w+}", "", [global, {return, list}]).
+
+%%
+%% Given a string, determine if it is expandable
+%%
+is_expandable(InStr) ->
+    case re:run(InStr,"\\\$",[{capture,none}]) of
+        match -> true;
+        nomatch -> false
+    end.
 
 %%
 %% Given env. variable FOO we want to expand all references to
 %% it in InStr. References can have two forms: $FOO and ${FOO}
+%% The end of form $FOO is delimited with whitespace or eol
 %%
 expand_env_variable(InStr, VarName, VarValue) ->
-    R1 = re:replace(InStr, "\\\$" ++ VarName, VarValue),
-    re:replace(R1, "\\\${" ++ VarName ++ "}", VarValue, [{return, list}]).
-
+    R1 = re:replace(InStr, "\\\$" ++ VarName ++ "\\s", VarValue ++ " ",
+                    [global]),
+    R2 = re:replace(R1, "\\\$" ++ VarName ++ "\$", VarValue),
+    re:replace(R2, "\\\${" ++ VarName ++ "}", VarValue,
+               [global, {return, list}]).
 
 %%
 %% Filter a list of env vars such that only those which match the provided
@@ -356,35 +361,45 @@ erts_dir() ->
 os_env() ->
     Os = [list_to_tuple(re:split(S, "=", [{return, list}, {parts, 2}])) ||
              S <- os:getenv()],
-    lists:keydelete([],1,Os). %% Remove Windows current disk and path
+    %% Drop variables without a name (win32)
+    [T1 || {K, _V} = T1 <- Os, K =/= []].
 
 default_env() ->
     [
+     {"CXX_TEMPLATE",
+      "$CXX -c $CXXFLAGS $DRV_CFLAGS $PORT_IN_FILES -o $PORT_OUT_FILE"},
+     {"CC_TEMPLATE",
+      "$CC -c $CFLAGS $DRV_CFLAGS $PORT_IN_FILES -o $PORT_OUT_FILE"},
+     {"LINK_TEMPLATE",
+      "$CC $PORT_IN_FILES $LDFLAGS $DRV_LDFLAGS -o $PORT_OUT_FILE"},
      {"CC", "cc"},
      {"CXX", "c++"},
      {"ERL_CFLAGS", lists:concat([" -I", code:lib_dir(erl_interface, include),
                                   " -I", filename:join(erts_dir(), "include"),
                                   " "])},
-     {"ERL_LDFLAGS", lists:concat([" -L", code:lib_dir(erl_interface, lib),
-                                   " -lerl_interface -lei"])},
+     {"ERL_LDFLAGS", " -L$ERL_EI_LIBDIR -lerl_interface -lei"},
      {"DRV_CFLAGS", "-g -Wall -fPIC $ERL_CFLAGS"},
      {"DRV_LDFLAGS", "-shared $ERL_LDFLAGS"},
+     {"ERL_EI_LIBDIR", code:lib_dir(erl_interface, lib)},
      {"darwin", "DRV_LDFLAGS",
       "-bundle -flat_namespace -undefined suppress $ERL_LDFLAGS"},
-     {"ERLANG_ARCH", integer_to_list(8 * erlang:system_info(wordsize))},
+     {"ERLANG_ARCH", rebar_utils:wordsize()},
      {"ERLANG_TARGET", rebar_utils:get_arch()},
 
-     {"solaris.*-64$", "CFLAGS", "-D_REENTRANT -m64"}, % Solaris specific flags
-     {"solaris.*-64$", "CXXFLAGS", "-D_REENTRANT -m64"},
-     {"solaris.*-64$", "LDFLAGS", "-m64"},
+     %% Solaris specific flags
+     {"solaris.*-64$", "CFLAGS", "-D_REENTRANT -m64 $CFLAGS"},
+     {"solaris.*-64$", "CXXFLAGS", "-D_REENTRANT -m64 $CXXFLAGS"},
+     {"solaris.*-64$", "LDFLAGS", "-m64 $LDFLAGS"},
 
-     {"darwin9.*-64$", "CFLAGS", "-m64"}, % OS X Leopard flags for 64-bit
-     {"darwin9.*-64$", "CXXFLAGS", "-m64"},
-     {"darwin9.*-64$", "LDFLAGS", "-arch x86_64"},
+     %% OS X Leopard flags for 64-bit
+     {"darwin9.*-64$", "CFLAGS", "-m64 $CFLAGS"},
+     {"darwin9.*-64$", "CXXFLAGS", "-m64 $CXXFLAGS"},
+     {"darwin9.*-64$", "LDFLAGS", "-arch x86_64 $LDFLAGS"},
 
-     {"darwin10.*-32", "CFLAGS", "-m32"}, % OS X Snow Leopard flags for 32-bit
-     {"darwin10.*-32", "CXXFLAGS", "-m32"},
-     {"darwin10.*-32", "LDFLAGS", "-arch i386"}
+     %% OS X Snow Leopard flags for 32-bit
+     {"darwin10.*-32", "CFLAGS", "-m32 $CFLAGS"},
+     {"darwin10.*-32", "CXXFLAGS", "-m32 $CXXFLAGS"},
+     {"darwin10.*-32", "LDFLAGS", "-arch i386 $LDFLAGS"}
     ].
 
 
