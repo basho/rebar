@@ -96,6 +96,10 @@ compile(Config, _AppFile) ->
 
 -spec clean(Config::rebar_config:config(), AppFile::file:filename()) -> 'ok'.
 clean(_Config, _AppFile) ->
+    MibFiles = rebar_utils:find_files("mibs", "^.*\\.mib\$"),
+    MIBs = [filename:rootname(filename:basename(MIB))||MIB <- MibFiles],
+    rebar_file_utils:delete_each(
+      [filename:join(["include",MIB++".hrl"])||MIB <- MIBs]),
     lists:foreach(fun(F) -> ok = rebar_file_utils:rm_rf(F) end,
                   ["ebin/*.beam", "priv/mibs/*.bin"]),
 
@@ -270,6 +274,21 @@ compile_mib(Source, Target, Config) ->
         rebar_config:get(Config, mib_opts, []),
     case snmpc:compile(Source, Opts) of
         {ok, _} ->
+            Outdir = proplists:get_value(outdir, Opts),
+            Old_cwd = rebar_utils:get_cwd(),
+            Abs_outdir = filename:join(Old_cwd, Outdir),
+            file:set_cwd(Abs_outdir),
+            Mib_name = filename:basename(Source, ".mib"),
+            ok = snmpc:mib_to_hrl(Mib_name),
+            Hrl_filename = Mib_name ++ ".hrl",
+            Source_hrl_file =
+                filename:join(Abs_outdir, Hrl_filename),
+            Target_hrl_file =
+                filename:join([Old_cwd, "include", Hrl_filename]),
+            file:copy(Source_hrl_file,
+                      Target_hrl_file),
+            file:delete(Source_hrl_file),
+            file:set_cwd(Old_cwd),
             ok;
         {error, compilation_failed} ->
             ?FAIL
