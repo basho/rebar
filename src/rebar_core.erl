@@ -361,7 +361,14 @@ acc_modules([Module | Rest], Command, Config, File, Acc) ->
 %% Return a flat list of rebar plugin modules.
 %%
 plugin_modules(Config) ->
-    Modules = lists:flatten(rebar_config:get_all(Config, rebar_plugins)),
+    case application:get_env(rebar, plugins) of
+        {ok, GlobalPlugins} ->
+            ok;
+        _ ->
+            GlobalPlugins = []
+        end,
+    Plugins = GlobalPlugins ++ rebar_config:get_all(Config, rebar_plugins),
+    Modules = lists:flatten(Plugins),
     plugin_modules(Config, ulist(Modules)).
 
 ulist(L) ->
