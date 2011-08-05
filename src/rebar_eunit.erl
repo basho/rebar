@@ -175,7 +175,11 @@ perform_eunit(Config, Modules) ->
     EunitResult.
 
 perform_eunit(EunitOpts, Modules, undefined) ->
-    (catch eunit:test(Modules, EunitOpts));
+    Res = [(catch eunit:test(Module, EunitOpts))||Module<-Modules],
+    case [R||R<-Res, R/=ok] of
+        [] -> ok;
+        X -> {error,X}
+    end;
 perform_eunit(EunitOpts, _Modules, Suites) ->
     (catch eunit:test([list_to_atom(Suite) ||
                           Suite <- string:tokens(Suites, ",")], EunitOpts)).
