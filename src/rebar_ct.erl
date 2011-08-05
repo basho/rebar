@@ -46,8 +46,20 @@
 %% ===================================================================
 
 ct(Config, File) ->
-    run_test_if_present("test", Config, File).
-
+    case rebar_config:get_global(app, undefined) of
+        undefined ->
+            %% No app parameter specified, run everything..
+            run_test_if_present("test", Config, File);
+        Apps ->
+            TargetApps = [list_to_atom(A) || A <- string:tokens(Apps, ",")],
+            ThisApp = rebar_app_utils:app_name(File),
+            case lists:member(ThisApp, TargetApps) of
+                true ->
+                    run_test_if_present("test", Config, File);
+                false ->
+                    ?DEBUG("Skipping common_test on app: ~p\n", [ThisApp])
+            end
+    end.
 
 %% ===================================================================
 %% Internal functions
@@ -90,7 +102,7 @@ clear_log(RawLog) ->
 %% log results
 check_log(RawLog) ->
     {ok, Msg} =
-        rebar_utils:sh("grep -e 'TEST COMPLETE' -e '{error,make_failed}' "
+        rebar_utils:sh("egrep -e 'TEST COMPLETE' -e '{error,make_failed}' "
                        ++ RawLog, [{use_stdout, false}]),
     MakeFailed = string:str(Msg, "{error,make_failed}") =/= 0,
     RunFailed = string:str(Msg, ", 0 failed") =:= 0,
@@ -145,15 +157,17 @@ make_cmd(TestDir, Config) ->
               undefined ->
                   ?FMT("erl " % should we expand ERL_PATH?
                        " -noshell -pa ~s ~s"
-                       " -s ct_run script_start -s erlang halt"
                        " -name test@~s"
                        " -logdir \"~s\""
-                       " -env TEST_DIR \"~s\"",
+                       " -env TEST_DIR \"~s\""
+                       " ~s"
+                       " -s ct_run script_start -s erlang halt",
                        [CodePathString,
                         Include,
                         net_adm:localhost(),
                         LogDir,
-                        filename:join(Cwd, TestDir)]) ++
+                        filename:join(Cwd, TestDir),
+                        get_extra_params(Config)]) ++
                       get_cover_config(Config, Cwd) ++
                       get_ct_config_file(TestDir) ++
                       get_config_file(TestDir) ++
@@ -162,19 +176,24 @@ make_cmd(TestDir, Config) ->
               SpecFlags ->
                   ?FMT("erl " % should we expand ERL_PATH?
                        " -noshell -pa ~s ~s"
-                       " -s ct_run script_start -s erlang halt"
                        " -name test@~s"
                        " -logdir \"~s\""
-                       " -env TEST_DIR \"~s\"",
+                       " -env TEST_DIR \"~s\""
+                       " ~s"
+                       " -s ct_run script_start -s erlang halt",
                        [CodePathString,
                         Include,
                         net_adm:localhost(),
                         LogDir,
-                        filename:join(Cwd, TestDir)]) ++
+                        filename:join(Cwd, TestDir),
+                        get_extra_params(Config)]) ++
                       SpecFlags ++ get_cover_config(Config, Cwd)
           end,
     RawLog = filename:join(LogDir, "raw.log"),
     {Cmd, RawLog}.
+
+get_extra_params(Config) ->
+    rebar_config:get_local(Config, ct_extra_params, "").
 
 get_ct_specs(Cwd) ->
     case collect_glob(Cwd, ".*\.test\.spec\$") of

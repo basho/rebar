@@ -32,26 +32,44 @@ Clone the git repository:
 
 #### Building rebar
 
-    $ cd rebar/
-    $ ./bootstrap
-    Recompile: src/getopt
-    ...
-    Recompile: src/rebar_utils
-    ==> rebar (compile)
-    Congratulations! You now have a self-contained script called "rebar" in
-    your current working directory. Place this script anywhere in your path
-    and you can use rebar to build OTP-compliant apps.
+```sh
+$ cd rebar
+$ ./bootstrap
+Recompile: src/getopt
+...
+Recompile: src/rebar_utils
+==> rebar (compile)
+Congratulations! You now have a self-contained script called "rebar" in
+your current working directory. Place this script anywhere in your path
+and you can use rebar to build OTP-compliant apps.
+```
 
 
 Contributing to rebar
 =====================
 
-Coding style
-------------
+Pull requests and branching
+---------------------------
+
+Use one topic branch per pull request.
+
+Do not commit to master in your fork.
+
+Provide a clean branch without any merge commits from upstream.
+
+Usually you should squash any intermediate commits into the original single commit.
+
+Code style
+----------
 
 Do not introduce trailing whitespace.
 
+Do not mix spaces and tabs.
+
 Do not introduce lines longer than 80 characters.
+
+[erlang-mode (emacs)](http://www.erlang.org/doc/man/erlang.el.html) indentation is preferred.
+vi-only users are encouraged to give [Vimpulse](http://www.emacswiki.org/emacs/Vimpulse) a try.
 
 Writing Commit Messages
 -----------------------
@@ -69,9 +87,9 @@ Longer description (wrap at 72 characters)
 * Less than 50 characters
 * What was changed
 * Imperative present tense (fix, add, change)
-> Fix bug 123  
-> Add 'foobar' command  
-> Change default timeout to 123  
+  * `Fix bug 123`
+  * `Add 'foobar' command`
+  * `Change default timeout to 123`
 * No period
 
 ### Description
@@ -91,22 +109,18 @@ Dialyzer and Tidier
 Before you submit a patch check for discrepancies with
 [Dialyzer](http://www.erlang.org/doc/man/dialyzer.html):
 
-<pre>
-$ cd rebar/
+```sh
+$ cd rebar
 $ ./bootstrap debug
 $ dialyzer ebin -Wunmatched_returns -Werror_handling -Wrace_conditions -Wunderspecs
-</pre>
+```
 
 The following discrepancies are known and safe to ignore:
-<pre>
-rebar_templater.erl:249: The call rebar_templater:consult(
-                                Cont1::erl_scan:return_cont(),'eof',
-                                Acc::[any()])
-                         contains an opaque term as 1st argument when terms
-                         of different types are expected in these positions
-rebar_utils.erl:144: Call to missing or unexported function escript:foldl/3
-rebar_utils.erl:165: The created fun has no local return
-</pre>
+
+```
+rebar_utils.erl:147: Call to missing or unexported function escript:foldl/3
+rebar_utils.erl:180: The created fun has no local return
+```
 
 It is **strongly recommended** to check the code with
 [Tidier](http://tidier.softlab.ntua.gr:20000/tidier/getstarted).  

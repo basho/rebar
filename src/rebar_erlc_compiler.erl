@@ -52,7 +52,8 @@
 %%
 %%                OtpRelease = erlang:system_info(otp_release).
 %%                SysArch = erlang:system_info(system_architecture).
-%%                Words = integer_to_list(8 * erlang:system_info(wordsize)).
+%%                Words = integer_to_list(8 *
+%%                            erlang:system_info({wordsize, external})).
 %%
 %%              E.g. to define HAVE_SENDFILE only on systems with
 %%              sendfile(), to define BACKLOG on Linux/FreeBSD as 128,
@@ -69,9 +70,15 @@
 
 -spec compile(Config::rebar_config:config(), AppFile::file:filename()) -> 'ok'.
 compile(Config, _AppFile) ->
-
     %% set the paths using code:add_pathsa/z if specified on cli
     rebar_utils:erl_paths(),
+
+    ?DEPRECATED(xrl_opts, fail_on_warning, warnings_as_errors,
+                rebar_config:get_list(Config, xrl_opts, []),
+                "once R14B04 is released"),
+    ?DEPRECATED(yrl_opts, fail_on_warning, warnings_as_errors,
+                rebar_config:get_list(Config, yrl_opts, []),
+                "once R14B04 is released"),
 
     rebar_base_compiler:run(Config,
                             check_files(rebar_config:get_local(
@@ -121,14 +128,15 @@ doterl_compile(Config, OutDir) ->
 
 doterl_compile(Config, OutDir, MoreSources) ->
     FirstErls = rebar_config:get_list(Config, erl_first_files, []),
+
     RawErlOpts = filter_defines(rebar_utils:erl_opts(Config), []),
-    ErlOpts =
-        case rebar_config:get_global(debug_info, "0") of
-            "0" ->
-                RawErlOpts;
-            _ ->
-                [debug_info|RawErlOpts]
-        end,
+    ErlOpts = case proplists:is_defined(no_debug_info, RawErlOpts) of
+                  true ->
+                      [O || O <- RawErlOpts, O =/= no_debug_info];
+                  _ ->
+                      [debug_info|RawErlOpts]
+              end,
+
     ?DEBUG("erl_opts ~p~n",[ErlOpts]),
     %% Support the src_dirs option allowing multiple directories to
     %% contain erlang source. This might be used, for example, should
@@ -248,21 +256,10 @@ internal_erl_compile(Source, Config, Outdir, ErlOpts) ->
     case needs_compile(Source, Target, Hrls) of
         true ->
             Opts = [{outdir, filename:dirname(Target)}] ++
-                ErlOpts ++ [{i, "include"}, report, return],
+                ErlOpts ++ [{i, "include"}, report],
             case compile:file(Source, Opts) of
-                {ok, _, []} ->
+                {ok, _} ->
                     ok;
-                {ok, _, _Warnings} ->
-                    %% We got at least one warning -- if fail_on_warning
-                    %% is in options, fail
-                    case lists:member(fail_on_warning, Opts) of
-                        true ->
-                            %% remove target to prevent overlooking this failure
-                            ok = file:delete(Target),
-                            ?FAIL;
-                        false ->
-                            ok
-                    end;
                 _ ->
                     ?FAIL
             end;
@@ -287,14 +284,14 @@ compile_mib(Source, Target, Config) ->
                   Config::rebar_config:config()) -> 'ok'.
 compile_xrl(Source, Target, Config) ->
     Opts = [{scannerfile, Target}, {return, true}
-            |rebar_config:get(Config, xrl_opts, [])],
+            | rebar_config:get(Config, xrl_opts, [])],
     compile_xrl_yrl(Source, Target, Opts, leex).
 
 -spec compile_yrl(Source::file:filename(), Target::file:filename(),
                   Config::rebar_config:config()) -> 'ok'.
 compile_yrl(Source, Target, Config) ->
     Opts = [{parserfile, Target}, {return, true}
-            |rebar_config:get(Config, yrl_opts, [])],
+            | rebar_config:get(Config, yrl_opts, [])],
     compile_xrl_yrl(Source, Target, Opts, yecc).
 
 -spec compile_xrl_yrl(Source::file:filename(), Target::file:filename(),
@@ -306,6 +303,7 @@ compile_xrl_yrl(Source, Target, Opts, Mod) ->
                 {ok, _, []} ->
                     ok;
                 {ok, _, _Warnings} ->
+                    %% TODO: remove once R14B04 is released
                     case lists:member(fail_on_warning, Opts) of
                         true ->
                             ?FAIL;

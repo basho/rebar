@@ -40,11 +40,15 @@
 
 'generate-appups'(_Config, ReltoolFile) ->
     %% Get the old release path
-    OldVerPath = rebar_rel_utils:get_previous_release_path(),
+    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
+    TargetParentDir = rebar_rel_utils:get_target_parent_dir(ReltoolConfig),
+
+    OldVerPath = filename:join([TargetParentDir,
+                      rebar_rel_utils:get_previous_release_path()]),
 
     %% Get the new and old release name and versions
-    {Name, _Ver} = rebar_rel_utils:get_reltool_release_info(ReltoolFile),
-    NewVerPath = filename:join([".", Name]),
+    {Name, _Ver} = rebar_rel_utils:get_reltool_release_info(ReltoolConfig),
+    NewVerPath = filename:join([TargetParentDir, Name]),
     {NewName, NewVer} = rebar_rel_utils:get_rel_release_info(Name, NewVerPath),
     {OldName, OldVer} = rebar_rel_utils:get_rel_release_info(Name, OldVerPath),
 
@@ -56,22 +60,20 @@
              "Reltool and .rel release names do not match~n", []),
 
     %% Find all the apps that have been upgraded
-    UpgradedApps = get_upgraded_apps(Name, OldVerPath, NewVerPath),
+    {_Added, _Removed, Upgraded} = get_apps(Name, OldVerPath, NewVerPath),
 
     %% Get a list of any appup files that exist in the new release
     NewAppUpFiles = rebar_utils:find_files(
-                      filename:join([NewName, "lib"]), "^.*.appup$"),
+                      filename:join([NewVerPath, "lib"]), "^.*.appup$"),
 
     %% Convert the list of appup files into app names
-    AppUpApps = lists:map(fun(File) ->
-                                  file_to_name(File)
-                          end, NewAppUpFiles),
+    AppUpApps = [file_to_name(File) || File <- NewAppUpFiles],
 
     %% Create a list of apps that don't already have appups
-    Apps = genappup_which_apps(UpgradedApps, AppUpApps),
+    UpgradeApps = genappup_which_apps(Upgraded, AppUpApps),
 
-    %% Generate appup files
-    generate_appup_files(Name, OldVerPath, Apps),
+    %% Generate appup files for upgraded apps
+    generate_appup_files(NewVerPath, OldVerPath, UpgradeApps),
 
     ok.
 
@@ -79,24 +81,43 @@
 %% Internal functions
 %% ===================================================================
 
-get_upgraded_apps(Name, OldVerPath, NewVerPath) ->
+get_apps(Name, OldVerPath, NewVerPath) ->
     OldApps = rebar_rel_utils:get_rel_apps(Name, OldVerPath),
+    ?DEBUG("Old Version Apps: ~p~n", [OldApps]),
+
     NewApps = rebar_rel_utils:get_rel_apps(Name, NewVerPath),
+    ?DEBUG("New Version Apps: ~p~n", [NewApps]),
 
-    Sorted = lists:umerge(lists:sort(NewApps), lists:sort(OldApps)),
-    AddedorChanged = lists:subtract(Sorted, OldApps),
-    DeletedorChanged = lists:subtract(Sorted, NewApps),
-    ?DEBUG("Added or Changed: ~p~n", [AddedorChanged]),
-    ?DEBUG("Deleted or Changed: ~p~n", [DeletedorChanged]),
+    Added = app_list_diff(NewApps, OldApps),
+    ?DEBUG("Added: ~p~n", [Added]),
 
-    AddedDeletedChanged = lists:ukeysort(1, lists:append(DeletedorChanged,
-                                                         AddedorChanged)),
-    UpgradedApps = lists:subtract(AddedorChanged, AddedDeletedChanged),
-    ?DEBUG("Upgraded Apps:~p~n", [UpgradedApps]),
+    Removed = app_list_diff(OldApps, NewApps),
+    ?DEBUG("Removed: ~p~n", [Removed]),
 
-    [{AppName, {proplists:get_value(AppName, OldApps), NewVer}}
-     || {AppName, NewVer} <- UpgradedApps].
+    PossiblyUpgraded = proplists:get_keys(NewApps),
 
+    UpgradedApps = [upgraded_app(AppName,
+                                 proplists:get_value(AppName, OldApps),
+                                 proplists:get_value(AppName, NewApps))
+                    || AppName <- PossiblyUpgraded],
+
+    Upgraded = lists:dropwhile(fun(Elem) ->
+                                       Elem == false
+                               end, lists:sort(UpgradedApps)),
+
+    ?DEBUG("Upgraded: ~p~n", [Upgraded]),
+
+    {Added, Removed, Upgraded}.
+
+upgraded_app(AppName, OldAppVer, NewAppVer) when OldAppVer /= NewAppVer ->
+    {AppName, {OldAppVer, NewAppVer}};
+upgraded_app(_, _, _) ->
+    false.
+
+app_list_diff(List1, List2) ->
+    List3 = lists:umerge(lists:sort(proplists:get_keys(List1)),
+                         lists:sort(proplists:get_keys(List2))),
+    List3 -- proplists:get_keys(List2).
 
 file_to_name(File) ->
     filename:rootname(filename:basename(File)).
@@ -107,10 +128,12 @@ genappup_which_apps(UpgradedApps, [First|Rest]) ->
 genappup_which_apps(Apps, []) ->
     Apps.
 
-generate_appup_files(Name, OldVerPath, [{App, {OldVer, NewVer}}|Rest]) ->
-    OldEbinDir = filename:join([".", OldVerPath, "lib",
+generate_appup_files(NewVerPath, OldVerPath, [{_App, {undefined, _}}|Rest]) ->
+    generate_appup_files(NewVerPath, OldVerPath, Rest);
+generate_appup_files(NewVerPath, OldVerPath, [{App, {OldVer, NewVer}}|Rest]) ->
+    OldEbinDir = filename:join([OldVerPath, "lib",
                                 atom_to_list(App) ++ "-" ++ OldVer, "ebin"]),
-    NewEbinDir = filename:join([".", Name, "lib",
+    NewEbinDir = filename:join([NewVerPath, "lib",
                                 atom_to_list(App) ++ "-" ++ NewVer, "ebin"]),
 
     {AddedFiles, DeletedFiles, ChangedFiles} = beam_lib:cmp_dirs(NewEbinDir,
@@ -130,7 +153,7 @@ generate_appup_files(Name, OldVerPath, [{App, {OldVer, NewVer}}|Rest]) ->
                                         OldVer, Inst, OldVer])),
 
     ?CONSOLE("Generated appup for ~p~n", [App]),
-    generate_appup_files(Name, OldVerPath, Rest);
+    generate_appup_files(NewVerPath, OldVerPath, Rest);
 generate_appup_files(_, _, []) ->
     ?CONSOLE("Appup generation complete~n", []).
 
@@ -157,17 +180,14 @@ generate_instruction_advanced(Name, _, code_change) ->
     {update, Name, {advanced, []}};
 generate_instruction_advanced(Name, _, _) ->
     %% Anything else
-    {update, Name}.
+    {load_module, Name}.
 
 get_behavior(List) ->
     Attributes = proplists:get_value(attributes, List),
-    Behavior = case proplists:get_value(behavior, Attributes) of
-                   undefined ->
-                       proplists:get_value(behaviour, Attributes);
-                   Else ->
-                       Else
-               end,
-    Behavior.
+    case proplists:get_value(behavior, Attributes) of
+        undefined -> proplists:get_value(behaviour, Attributes);
+        Else -> Else
+    end.
 
 is_code_change(List) ->
     Exports = proplists:get_value(exports, List),

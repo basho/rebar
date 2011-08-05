@@ -29,6 +29,7 @@
 -export([get_cwd/0,
          is_arch/1,
          get_arch/0,
+         wordsize/0,
          sh/2,
          find_files/2,
          now_str/0,
@@ -41,7 +42,8 @@
          prop_check/3,
          expand_code_path/0,
          erl_opts/1,
-         erl_paths/0]).
+         erl_paths/0,
+         deprecated/5]).
 
 -include("rebar.hrl").
 
@@ -63,9 +65,18 @@ is_arch(ArchRegex) ->
     end.
 
 get_arch() ->
-    Words = integer_to_list(8 * erlang:system_info(wordsize)),
+    Words = wordsize(),
     erlang:system_info(otp_release) ++ "-"
         ++ erlang:system_info(system_architecture) ++ "-" ++ Words.
+
+wordsize() ->
+    try erlang:system_info({wordsize, external}) of
+        Val ->
+            integer_to_list(8 * Val)
+    catch
+        error:badarg ->
+            integer_to_list(8 * erlang:system_info(wordsize))
+    end.
 
 %%
 %% Options = [Option] -- defaults to [use_stdout, abort_on_error]
@@ -76,7 +87,7 @@ get_arch() ->
 %% Val = string() | false
 %%
 sh(Command0, Options0) ->
-    ?INFO("sh: ~s\n~p\n", [Command0, Options0]),
+    ?INFO("sh info:\n\tcwd: ~p\n\tcmd: ~s\n\topts: ~p\n", [get_cwd(), Command0, Options0]),
 
     DefaultOptions = [use_stdout, abort_on_error],
     Options = [expand_sh_flag(V)
@@ -93,8 +104,8 @@ sh(Command0, Options0) ->
     case sh_loop(Port, OutputHandler, []) of
         {ok, _Output} = Ok ->
             Ok;
-        {error, Rc} ->
-            ErrorHandler(Command, Rc)
+        {error, Err} ->
+            ErrorHandler(Command, Err)
     end.
 
 %% We need a bash shell to execute on windows
@@ -173,12 +184,12 @@ expand_code_path() ->
 
 expand_sh_flag(return_on_error) ->
     {error_handler,
-     fun(_Command, Rc) ->
-             {error, Rc}
+     fun(_Command, Err) ->
+             {error, Err}
      end};
 expand_sh_flag({abort_on_error, Message}) ->
     {error_handler,
-     fun(_Command, _Rc) ->
+     fun(_Command, _Err) ->
              ?ABORT(Message, [])
      end};
 expand_sh_flag(abort_on_error) ->
@@ -188,12 +199,12 @@ expand_sh_flag(use_stdout) ->
     {output_handler,
      fun(Line, Acc) ->
              ?CONSOLE("~s", [Line]),
-             [Acc | Line]
+             [Line | Acc]
      end};
 expand_sh_flag({use_stdout, false}) ->
     {output_handler,
      fun(Line, Acc) ->
-             [Acc | Line]
+             [Line | Acc]
      end};
 expand_sh_flag({cd, _CdArg} = Cd) ->
     {port_settings, Cd};
@@ -201,8 +212,8 @@ expand_sh_flag({env, _EnvArg} = Env) ->
     {port_settings, Env}.
 
 -spec log_and_abort(string(), integer()) -> no_return().
-log_and_abort(Command, Rc) ->
-    ?ABORT("~s failed with error: ~w\n", [Command, Rc]).
+log_and_abort(Command, {Rc, Output}) ->
+    ?ABORT("~s failed with error: ~w and output:~n~s~n", [Command, Rc, Output]).
 
 sh_loop(Port, Fun, Acc) ->
     receive
@@ -217,9 +228,9 @@ sh_loop(Port, Fun, Acc) ->
         {Port, {data, {noeol, Line}}} ->
             sh_loop(Port, Fun, Fun(Line, Acc));
         {Port, {exit_status, 0}} ->
-            {ok, lists:flatten(Acc)};
+            {ok, lists:flatten(lists:reverse(Acc))};
         {Port, {exit_status, Rc}} ->
-            {error, Rc}
+            {error, {Rc, lists:flatten(lists:reverse(Acc))}}
     end.
 
 beam_to_mod(Dir, Filename) ->
@@ -278,4 +289,17 @@ erl_paths() ->
     case rebar_config:get_global(pz,undefined) of
         undefined -> ok;
         Pz -> ok = code:add_pathsz(Pz)
+    end.
+
+deprecated(Key, Old, New, Opts, When) ->
+    case lists:member(Old, Opts) of
+        true ->
+            io:format(
+              <<"WARNING: deprecated ~p option used~n"
+                "Option '~p' has been deprecated~n"
+                "in favor of '~p'.~n"
+                "'~p' will be removed ~s.~n~n">>,
+              [Key, Old, New, Old, When]);
+        false ->
+            ok
     end.

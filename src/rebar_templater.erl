@@ -31,6 +31,10 @@
          'list-templates'/2,
          create/2]).
 
+%% API for other utilities that need templating functionality
+-export([resolve_variables/2,
+         render/2]).
+
 -include("rebar.hrl").
 
 -define(TEMPLATE_RE, ".*\\.template\$").
@@ -104,17 +108,33 @@ create(_Config, _) ->
             Context0 = dict:new()
     end,
 
+    %% Load variables from disk file, if provided
+    Context1 = case rebar_config:get_global(template_vars, undefined) of
+                   undefined ->
+                       Context0;
+                   File ->
+                       case file:consult(File) of
+                           {ok, Terms} ->
+                               %% TODO: Cleanup/merge with similar code in rebar_reltool
+                               M = fun(_Key, _Base, Override) -> Override end,
+                               dict:merge(M, Context0, dict:from_list(Terms));
+                           {error, Reason} ->
+                               ?ABORT("Unable to load template_vars from ~s: ~p\n",
+                                      [File, Reason])
+                       end
+               end,
+
     %% For each variable, see if it's defined in global vars -- if it is,
     %% prefer that value over the defaults
-    Context1 = update_vars(dict:fetch_keys(Context0), Context0),
+    Context2 = update_vars(dict:fetch_keys(Context1), Context1),
     ?DEBUG("Template ~p context: ~p\n", [TemplateId, dict:to_list(Context1)]),
 
     %% Handle variables that possibly include other variables in their
     %% definition
-    Context = resolve_recursive_vars(dict:to_list(Context1), Context1),
+    Context = resolve_variables(dict:to_list(Context2), Context2),
 
     ?DEBUG("Resolved Template ~p context: ~p\n",
-           [TemplateId, dict:to_list(Context1)]),
+           [TemplateId, dict:to_list(Context)]),
 
     %% Now, use our context to process the template definition -- this
     %% permits us to use variables within the definition for filenames.
@@ -126,6 +146,28 @@ create(_Config, _) ->
     execute_template(FinalTemplate, Type, Template, Context, Force, []).
 
 
+%%
+%% Given a list of key value pairs, for each string value attempt to
+%% render it using Dict as the context. Storing the result in Dict as Key.
+%%
+resolve_variables([], Dict) ->
+    Dict;
+resolve_variables([{Key, Value0} | Rest], Dict) when is_list(Value0) ->
+    Value = render(list_to_binary(Value0), Dict),
+    resolve_variables(Rest, dict:store(Key, Value, Dict));
+resolve_variables([_Pair | Rest], Dict) ->
+    resolve_variables(Rest, Dict).
+
+
+%%
+%% Render a binary to a string, using mustache and the specified context
+%%
+render(Bin, Context) ->
+    %% Be sure to escape any double-quotes before rendering...
+    ReOpts = [global, {return, list}],
+    Str0 = re:replace(Bin, "\\\\", "\\\\\\", ReOpts),
+    Str1 = re:replace(Str0, "\"", "\\\\\"", ReOpts),
+    mustache:render(Str1, Context).
 
 
 %% ===================================================================
@@ -158,8 +200,8 @@ find_escript_templates() ->
 
 find_disk_templates() ->
     OtherTemplates = find_other_templates(),
-    HomeFiles = rebar_utils:find_files(filename:join(os:getenv("HOME"),
-                                                     ".rebar/templates"),
+    HomeFiles = rebar_utils:find_files(filename:join([os:getenv("HOME"),
+                                                      ".rebar", "templates"]),
                                        ?TEMPLATE_RE),
     LocalFiles = rebar_utils:find_files(".", ?TEMPLATE_RE),
     [{file, F} || F <- OtherTemplates ++ HomeFiles ++ LocalFiles].
@@ -216,18 +258,6 @@ update_vars([Key | Rest], Dict) ->
 
 
 %%
-%% Given a list of key value pairs, for each string value attempt to
-%% render it using Dict as the context. Storing the result in Dict as Key.
-%%
-resolve_recursive_vars([], Dict) ->
-    Dict;
-resolve_recursive_vars([{Key, Value0} | Rest], Dict) when is_list(Value0) ->
-    Value = render(list_to_binary(Value0), Dict),
-    resolve_recursive_vars(Rest, dict:store(Key, Value, Dict));
-resolve_recursive_vars([_Pair | Rest], Dict) ->
-    resolve_recursive_vars(Rest, Dict).
-
-%%
 %% Given a string or binary, parse it into a list of terms, ala file:consult/0
 %%
 consult(Str) when is_list(Str) ->
@@ -251,14 +281,6 @@ consult(Cont, Str, Acc) ->
             consult(Cont1, eof, Acc)
     end.
 
-
-%%
-%% Render a binary to a string, using mustache and the specified context
-%%
-render(Bin, Context) ->
-    %% Be sure to escape any double-quotes before rendering...
-    Str = re:replace(Bin, "\"", "\\\\\"", [global, {return,list}]),
-    mustache:render(Str, Context).
 
 write_file(Output, Data, Force) ->
     %% determine if the target file already exists
@@ -336,6 +358,17 @@ execute_template([{dir, Name} | Rest], TemplateType, TemplateName, Context,
         {error, Reason} ->
             ?ABORT("Failed while processing template instruction "
                    "{dir, ~s}: ~p\n", [Name, Reason])
+    end;
+execute_template([{copy, Input, Output} | Rest], TemplateType, TemplateName,
+                 Context, Force, ExistingFiles) ->
+    InputName = filename:join(filename:dirname(TemplateName), Input),
+    try rebar_file_utils:cp_r([InputName ++ "/*"], Output) of
+        ok ->
+            execute_template(Rest, TemplateType, TemplateName,
+                             Context, Force, ExistingFiles)
+    catch _:_ ->
+            ?ABORT("Failed while processing template instruction "
+                   "{dir, ~s, ~s}~n", [Input, Output])
     end;
 execute_template([{chmod, Mod, File} | Rest], TemplateType, TemplateName,
                  Context, Force, ExistingFiles) when is_integer(Mod) ->

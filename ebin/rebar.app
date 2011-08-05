@@ -1,3 +1,6 @@
+%% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
+%% ex: ts=4 sw=4 ft=erlang et
+
 {application, rebar,
  [{description, "Rebar: Erlang Build Tool"},
   {vsn, "2"},
@@ -11,7 +14,6 @@
               rebar_cleaner,
               rebar_ct,
               rebar_deps,
-              rebar_dialyzer,
               rebar_asn1_compiler,
               rebar_edoc,
               rebar_erlc_compiler,
@@ -25,9 +27,6 @@
               rebar_port_compiler,
               rebar_protobuffs_compiler,
               rebar_neotoma_compiler,
-              rebar_port_compiler,
-              rebar_post_script,
-              rebar_pre_script,
               rebar_rel_utils,
               rebar_reltool,
               rebar_require_vsn,
@@ -61,7 +60,6 @@
          %% Dir specific processing modules
          {modules, [
                     {app_dir, [
-                               rebar_pre_script,
                                rebar_abnfc_compiler,
                                rebar_protobuffs_compiler,
                                rebar_neotoma_compiler,
@@ -73,11 +71,9 @@
                                rebar_otp_app,
                                rebar_ct,
                                rebar_eunit,
-                               rebar_dialyzer,
                                rebar_escripter,
                                rebar_edoc,
-                               rebar_xref,
-                               rebar_post_script
+                               rebar_xref
                               ]},
 
                     {rel_dir, [
@@ -87,4 +83,4 @@
                               ]}
                    ]}
         ]}
-]}.
+ ]}.

@@ -34,7 +34,8 @@
          'check-deps'/2,
          'get-deps'/2,
          'update-deps'/2,
-         'delete-deps'/2]).
+         'delete-deps'/2,
+         'list-deps'/2]).
 
 
 -record(dep, { dir,
@@ -138,6 +139,18 @@ compile(Config, AppFile) ->
          || D <- AvailableDeps,
             lists:prefix(DepsDir, D#dep.dir)],
     ok.
+
+'list-deps'(Config, _) ->
+    Deps = rebar_config:get_local(Config, deps, []),
+    case find_deps(find, Deps) of
+        {AvailDeps, []} ->
+            lists:foreach(fun(Dep) ->
+                                  ?CONSOLE("~s\n", [print_source(Dep#dep.source)])
+                          end, AvailDeps),
+            ok;
+        {_, MissingDeps} ->
+            ?ABORT("Missing dependencies: ~p\n", [MissingDeps])
+    end.
 
 
 %% ===================================================================
@@ -398,7 +411,11 @@ update_source(AppDir, {bzr, _Url, Rev}) ->
 %% Source helper functions
 %% ===================================================================
 
-source_engine_avail({Name, _, _}=Source)
+source_engine_avail(Source) ->
+    Name = element(1, Source),
+    source_engine_avail(Name, Source).
+
+source_engine_avail(Name, Source)
   when Name == hg; Name == git; Name == svn; Name == bzr ->
     case scm_client_vsn(Name) >= required_scm_client_vsn(Name) of
         true ->
@@ -449,3 +466,10 @@ has_vcs_dir(svn, Dir) ->
         orelse filelib:is_dir(filename:join(Dir, "_svn"));
 has_vcs_dir(_, _) ->
     true.
+
+print_source({git, Url})                   -> ?FMT("BRANCH ~s ~s", ["HEAD", Url]);
+print_source({git, Url, ""})               -> ?FMT("BRANCH ~s ~s", ["HEAD", Url]);
+print_source({git, Url, {branch, Branch}}) -> ?FMT("BRANCH ~s ~s", [Branch, Url]);
+print_source({git, Url, {tag, Tag}})       -> ?FMT("TAG ~s ~s", [Tag, Url]);
+print_source({_, Url, Rev})                -> ?FMT("REV ~s ~s", [Rev, Url]).
+

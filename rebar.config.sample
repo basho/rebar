@@ -16,7 +16,7 @@
 {erl_first_files, ["mymib1", "mymib2"]}.
 
 %% Erlang compiler options
-{erl_opts, [{i, "myinclude"}, {src_dirs, ["src1", "src2"]},
+{erl_opts, [no_debug_info, {i, "myinclude"}, {src_dirs, ["src1", "src2"]},
             {platform_define,
             "(linux|solaris|freebsd|darwin)", 'HAVE_SENDFILE'},
             {platform_define, "(linux|freebsd)", 'BACKLOG', 128},
@@ -35,8 +35,11 @@
 
 %% == Port Compiler ==
 
-%% List and wildcard list of files to be compiled. Default is `"c_src/*.c"'
-{port_sources, []}.
+%% List of filenames or wildcards to be compiled. May also contain a tuple
+%% consisting of a regular expression to be applied against the system
+%% architecture and a list of filenames or wildcards to include should the
+%% expression pass. Default is `"c_src/*.c"'
+{port_sources, ["c_src/*.c", {"R14", ["c_src/*.c"]}]}.
 
 %% Port compilation environment variables. See rebar_port_compiler.erl for
 %% more info. Default is `[]'
@@ -45,13 +48,16 @@
 %% Custom name of the port driver .so file. Defaults to `<Application>_drv.so'.
 {so_name, "driver.so"}.
 
+%% so_specs - useful for building multiple *.so files
+%%            from one or more object files
+{so_specs, [{"priv/so_name.so", ["c_src/object_file_name.o"]}]}.
+
 %% == LFE Compiler ==
 
 %% LFE files to compile before the rest
 {lfe_first_files, []}.
 
-%% Options for the LFE compiler
-{lfe_opts, []}.
+%% Options for the LFE compiler: reuse {erl_opts, []}
 
 %% == ErlyDTL Compiler ==
 
@@ -75,13 +81,10 @@
 %% Whether to print coverage report to console. Default is `false'
 {cover_print_enabled, false}.
 
-%% == Dialyzer ==
+%% == Common Test ==
 
-%% Options for running dialyzer
-%% {plt, PltFile}
-%% 'src': run Dialyzer on the source files as in 'dialyzer --src'
-%% {warnings, [WarnOpts]}: turn on/off Dialyzer warnings
-{dialyzer_opts, [{plt, PltFile}, {warnings, [WarnOpts]}, src]}.
+%% Option to pass extra parameters when launching Common Test
+{ct_extra_params, "-boot start_sasl -s myapp"}.
 
 %% == Cleanup ==
 
@@ -128,3 +131,9 @@
 {post_hooks, [{clean, "touch file1.out"},
               {eunit, "touch file2.out"},
               {compile, "touch postcompile.out"}]}.
+
+%% == xref ==
+
+{xref_warnings, false}.
+%% xref checks to run
+{xref_checks, [exports_not_used, undefined_function_calls]}.
