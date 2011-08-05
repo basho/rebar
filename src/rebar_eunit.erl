@@ -128,9 +128,24 @@ eunit(Config, AppFile) ->
     Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- BeamFiles],
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
 
+    Processes1 = erlang:processes(),
+    WasAlive = erlang:is_alive(),
+
     cover_init(Config, BeamFiles),
     EunitResult = perform_eunit(Config, Modules),
     perform_cover(Config, Modules, SrcModules),
+
+    IsAlive = erlang:is_alive(),
+    if not WasAlive andalso IsAlive ->
+            io:format(user, "KILL stopping net kernel....\n", []),
+            erl_epmd:stop(),
+            net_kernel:stop(),
+            timer:sleep(100);
+       true ->
+            ok
+    end,
+    Processes2 = erlang:processes(),
+    kill_extras(Processes2 -- Processes1),
 
     case EunitResult of
         ok ->
@@ -157,6 +172,8 @@ ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
 
 perform_eunit(Config, Modules) ->
+io:format(user, "Config ~p\n", [Config]),
+io:format(user, "Modules ~p\n", [Modules]),
     %% suite defined, so only specify the module that relates to the
     %% suite (if any). Suite can be a comma seperated list of modules to run.
     Suite = rebar_config:get_global(suite, undefined),
@@ -412,3 +429,35 @@ percentage(0, 0) ->
     "not executed";
 percentage(Cov, NotCov) ->
     integer_to_list(trunc((Cov / (Cov + NotCov)) * 100)) ++ "%".
+
+kill_extras(Pids) ->
+    KeepProcs = [cover_server, eunit_server, inet_gethost_native_sup,
+                 inet_gethost_native, timer_server,
+                 os_cmd_port_creator_MAYBE],
+    Killed = [begin
+                  Info = case erlang:process_info(Pid) of
+                             undefined -> [];
+                             Else      -> Else
+                         end,
+                  Keep = case proplists:get_value(registered_name, Info) of
+                             undefined ->
+                                 false;
+                             Name ->
+                                 lists:member(Name, KeepProcs)
+                         end,
+                  if Keep ->
+                          ok;
+                     true ->
+                          io:format(user, "KILL ~p ~p\n", [Pid, Info]),
+                          exit(Pid, kill),
+                          Pid
+                  end
+              end || Pid <- Pids],
+    case lists:usort(Killed) -- [ok] of
+        [] ->
+            io:format(user, "Nothing to KILL\n", []),
+            [];
+        Else ->
+            timer:sleep(10),                    % Let deaths really happen...
+            Else
+    end.
