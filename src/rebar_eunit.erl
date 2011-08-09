@@ -162,8 +162,6 @@ ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
 
 perform_eunit(Config, Modules) ->
-io:format(user, "Config ~p\n", [Config]),
-io:format(user, "Modules ~p\n", [Modules]),
     %% suite defined, so only specify the module that relates to the
     %% suite (if any). Suite can be a comma seperated list of modules to run.
     Suite = rebar_config:get_global(suite, undefined),
@@ -426,11 +424,6 @@ get_app_names() ->
 status_before_eunit() ->
     Apps = get_app_names(),
     AppEnvs = [{App, application:get_all_env(App)} || App <- Apps],
-    %% DELME!
-    %% AppEnvs = [{App, case application:get_all_env(App) of
-    %%                      undefined -> [];
-    %%                      Else      -> Else
-    %%                  end} || App <- Apps],
     {erlang:processes(), erlang:is_alive(), AppEnvs, ets:tab2list(ac_tab)}.
 
 cleanup_after_eunit({OldProcesses, WasAlive, OldAppEnvs, _OldACs}) ->
@@ -459,73 +452,6 @@ cleanup_after_eunit({OldProcesses, WasAlive, OldAppEnvs, _OldACs}) ->
             {K, _V} <- application:get_all_env(App)],
 
     reconstruct_app_env_vars(Apps),
-
-    %% %% OK, this works, except that it can't help for apps like sasl......
-    %% [begin
-    %%      OldKVs = proplists:get_value(App, OldAppEnvs, []),
-    %%      io:format(user, "XXX: app ~p OldKVs ~p\n", [App, OldKVs]),
-    %%      [application:set_env(App, K, V) || {K, V} <- OldKVs]
-    %%  end || App <- Apps],
-
-    %% DELME this is broken??? Screws up rebar_log:log/3???
-    %% case lists:member(sasl, Apps) of
-    %%     true ->
-    %%         case application:get_env(sasl, sasl_error_logger) of
-    %%             undefined ->
-    %%                 io:format(user, "XXX: reset tty\n", []),
-    %%                 application:setenv(sasl, sasl_error_logger, tty);
-    %%             _ ->
-    %%                 ok
-    %%         end;
-    %%     _ ->
-    %%         ok
-    %% end,
-
-    %% !@#$!@##$!@#$!#$%@#%$#!!@#$%!@#$% This doesn't work either:
-    %% Uncaught error in rebar_core: {'EXIT',{{badmatch,undefined},
-    %%                                       [{rebar_log,log,3},
-    %%                                        {rebar_core,process_dir,4},....
-    %% _ = application:unload(sasl),
-    %% _ = application:load(sasl),
-
-    %% %% Humbug ... this is what I get for not using slave to run the
-    %% %% eunit tests.  You cannot use application:load/1 to reset the
-    %% %% OTP application environment variables for an app unless the
-    %% %% application is first unload/1'ed ... but R14B03 (and perhaps
-    %% %% others) can arbitrarily kill the kernel application by
-    %% %% unloading some applications ... even when unloading an app not
-    %% %% included in Ericsson's Erlang/OTP distribution, such as
-    %% %% riak_core, !@#$!.
-
-    %% %% _ = application:which_applications(),
-    %% %% timer:sleep(1000),
-    %% %% _ = application:which_applications(),
-    %% [ets:delete(ac_tab, K) || {K, _V} <- OldACs],
-    %% [ets:insert(ac_tab, KV) || KV <- OldACs],
-    %% true = (lists:sort(OldACs) == lists:sort(ets:tab2list(ac_tab))),
-
-    %% %% BUGGY, delme?
-    %% %% [begin
-    %% %%      if App == kernel orelse App == stdlib ->
-    %% %%              io:format(user, "XXX: skip app ~p\n", [App]),
-    %% %%              ok;
-    %% %%         true ->
-    %% %%              io:format(user, "XXX: unload app ~p\n", [App]),
-    %% %%              application:unload(App)
-    %% %%      end,
-    %% %%      application:load(App)
-    %% %%  end || {App, _KVs} <- OldAppEnvs],
-    %% [begin
-    %%      OldKVs = proplists:get_value(App, OldAppEnvs, []),
-    %%      io:format(user, "app ~p OldKVs ~p\n", [App, OldKVs]),
-    %%      [application:set_env(App, K, V) || {K, V} <- OldKVs]
-    %%  end || App <- Apps],
-    %% [begin
-    %%      io:format(user, "XXX: Unloading ~p\n", [App]),
-    %%      catch application:unload(App)
-    %%  end || App <- Apps, not lists:member(
-    %%                            App, OldApps ++ [crypto, public_key, ssl])],
-
     ok.
 
 kill_extras(Pids) ->
@@ -563,7 +489,8 @@ kill_extras(Pids) ->
 reconstruct_app_env_vars([App|Apps]) ->
     CmdLine0 = proplists:get_value(App, init:get_arguments(), []),
     CmdVars = [{list_to_atom(K), list_to_atom(V)} || {K, V} <- CmdLine0],
-    AppFile = code:lib_dir(App) ++ "/ebin/" ++ atom_to_list(App) ++ ".app",
+    AppFile = (catch code:lib_dir(App) ++ 
+                   "/ebin/" ++ atom_to_list(App) ++ ".app"),
     AppVars = case file:consult(AppFile) of
                   {ok, [{application, App, Ps}]} ->
                       proplists:get_value(env, Ps, []);
