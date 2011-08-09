@@ -44,7 +44,6 @@
 -module(rebar_eunit).
 
 -export([eunit/2,
-reconstruct_app_env_vars/1,
          clean/2]).
 
 -include("rebar.hrl").
