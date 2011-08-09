@@ -44,6 +44,7 @@
 -module(rebar_eunit).
 
 -export([eunit/2,
+reconstruct_app_env_vars/1,
          clean/2]).
 
 -include("rebar.hrl").
@@ -128,24 +129,13 @@ eunit(Config, AppFile) ->
     Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- BeamFiles],
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
 
-    Processes1 = erlang:processes(),
-    WasAlive = erlang:is_alive(),
+    StatusBefore = status_before_eunit(),
 
     cover_init(Config, BeamFiles),
     EunitResult = perform_eunit(Config, Modules),
     perform_cover(Config, Modules, SrcModules),
 
-    IsAlive = erlang:is_alive(),
-    if not WasAlive andalso IsAlive ->
-            io:format(user, "KILL stopping net kernel....\n", []),
-            erl_epmd:stop(),
-            net_kernel:stop(),
-            timer:sleep(100);
-       true ->
-            ok
-    end,
-    Processes2 = erlang:processes(),
-    kill_extras(Processes2 -- Processes1),
+    cleanup_after_eunit(StatusBefore),
 
     case EunitResult of
         ok ->
@@ -430,6 +420,114 @@ percentage(0, 0) ->
 percentage(Cov, NotCov) ->
     integer_to_list(trunc((Cov / (Cov + NotCov)) * 100)) ++ "%".
 
+get_app_names() ->
+    [AppName || {AppName, _, _} <- application:loaded_applications()].
+
+status_before_eunit() ->
+    Apps = get_app_names(),
+    AppEnvs = [{App, application:get_all_env(App)} || App <- Apps],
+    %% DELME!
+    %% AppEnvs = [{App, case application:get_all_env(App) of
+    %%                      undefined -> [];
+    %%                      Else      -> Else
+    %%                  end} || App <- Apps],
+    {erlang:processes(), erlang:is_alive(), AppEnvs, ets:tab2list(ac_tab)}.
+
+cleanup_after_eunit({OldProcesses, WasAlive, OldAppEnvs, _OldACs}) ->
+    IsAlive = erlang:is_alive(),
+    if not WasAlive andalso IsAlive ->
+            io:format(user, "KILL stopping net kernel....\n", []),
+            erl_epmd:stop(),
+            net_kernel:stop(),
+            timer:sleep(100);
+       true ->
+            ok
+    end,
+
+    Processes = erlang:processes(),
+    kill_extras(Processes -- OldProcesses),
+
+    OldApps = [App || {App, _} <- OldAppEnvs],
+    Apps = get_app_names(),
+    [begin
+         case lists:member(App, OldApps) of
+             true  -> ok;
+             false -> application:stop(App)
+         end,
+         application:unset_env(App, K)
+     end || App <- Apps, App /= rebar,
+            {K, _V} <- application:get_all_env(App)],
+
+    reconstruct_app_env_vars(Apps),
+
+    %% %% OK, this works, except that it can't help for apps like sasl......
+    %% [begin
+    %%      OldKVs = proplists:get_value(App, OldAppEnvs, []),
+    %%      io:format(user, "XXX: app ~p OldKVs ~p\n", [App, OldKVs]),
+    %%      [application:set_env(App, K, V) || {K, V} <- OldKVs]
+    %%  end || App <- Apps],
+
+    %% DELME this is broken??? Screws up rebar_log:log/3???
+    %% case lists:member(sasl, Apps) of
+    %%     true ->
+    %%         case application:get_env(sasl, sasl_error_logger) of
+    %%             undefined ->
+    %%                 io:format(user, "XXX: reset tty\n", []),
+    %%                 application:setenv(sasl, sasl_error_logger, tty);
+    %%             _ ->
+    %%                 ok
+    %%         end;
+    %%     _ ->
+    %%         ok
+    %% end,
+
+    %% !@#$!@##$!@#$!#$%@#%$#!!@#$%!@#$% This doesn't work either:
+    %% Uncaught error in rebar_core: {'EXIT',{{badmatch,undefined},
+    %%                                       [{rebar_log,log,3},
+    %%                                        {rebar_core,process_dir,4},....
+    %% _ = application:unload(sasl),
+    %% _ = application:load(sasl),
+
+    %% %% Humbug ... this is what I get for not using slave to run the
+    %% %% eunit tests.  You cannot use application:load/1 to reset the
+    %% %% OTP application environment variables for an app unless the
+    %% %% application is first unload/1'ed ... but R14B03 (and perhaps
+    %% %% others) can arbitrarily kill the kernel application by
+    %% %% unloading some applications ... even when unloading an app not
+    %% %% included in Ericsson's Erlang/OTP distribution, such as
+    %% %% riak_core, !@#$!.
+
+    %% %% _ = application:which_applications(),
+    %% %% timer:sleep(1000),
+    %% %% _ = application:which_applications(),
+    %% [ets:delete(ac_tab, K) || {K, _V} <- OldACs],
+    %% [ets:insert(ac_tab, KV) || KV <- OldACs],
+    %% true = (lists:sort(OldACs) == lists:sort(ets:tab2list(ac_tab))),
+
+    %% %% BUGGY, delme?
+    %% %% [begin
+    %% %%      if App == kernel orelse App == stdlib ->
+    %% %%              io:format(user, "XXX: skip app ~p\n", [App]),
+    %% %%              ok;
+    %% %%         true ->
+    %% %%              io:format(user, "XXX: unload app ~p\n", [App]),
+    %% %%              application:unload(App)
+    %% %%      end,
+    %% %%      application:load(App)
+    %% %%  end || {App, _KVs} <- OldAppEnvs],
+    %% [begin
+    %%      OldKVs = proplists:get_value(App, OldAppEnvs, []),
+    %%      io:format(user, "app ~p OldKVs ~p\n", [App, OldKVs]),
+    %%      [application:set_env(App, K, V) || {K, V} <- OldKVs]
+    %%  end || App <- Apps],
+    %% [begin
+    %%      io:format(user, "XXX: Unloading ~p\n", [App]),
+    %%      catch application:unload(App)
+    %%  end || App <- Apps, not lists:member(
+    %%                            App, OldApps ++ [crypto, public_key, ssl])],
+
+    ok.
+
 kill_extras(Pids) ->
     KeepProcs = [cover_server, eunit_server, inet_gethost_native_sup,
                  inet_gethost_native, timer_server,
@@ -461,3 +559,20 @@ kill_extras(Pids) ->
             timer:sleep(10),                    % Let deaths really happen...
             Else
     end.
+
+reconstruct_app_env_vars([App|Apps]) ->
+    CmdLine0 = proplists:get_value(App, init:get_arguments(), []),
+    CmdVars = [{list_to_atom(K), list_to_atom(V)} || {K, V} <- CmdLine0],
+    AppFile = code:lib_dir(App) ++ "/ebin/" ++ atom_to_list(App) ++ ".app",
+    AppVars = case file:consult(AppFile) of
+                  {ok, [{application, App, Ps}]} ->
+                      proplists:get_value(env, Ps, []);
+                  _ ->
+                      []
+              end,
+    AllVars = CmdVars ++ AppVars,
+    io:format(user, "XXX: reconstruct ~p ~p\n", [App, AllVars]),
+    [application:set_env(App, K, V) || {K, V} <- AllVars],
+    reconstruct_app_env_vars(Apps);
+reconstruct_app_env_vars([]) ->
+    ok.
