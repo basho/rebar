@@ -429,7 +429,7 @@ status_before_eunit() ->
 cleanup_after_eunit({OldProcesses, WasAlive, OldAppEnvs, _OldACs}) ->
     IsAlive = erlang:is_alive(),
     if not WasAlive andalso IsAlive ->
-            io:format(user, "KILL stopping net kernel....\n", []),
+            ?DEBUG("Stopping net kernel....\n", []),
             erl_epmd:stop(),
             net_kernel:stop(),
             timer:sleep(100);
@@ -472,14 +472,14 @@ kill_extras(Pids) ->
                   if Keep ->
                           ok;
                      true ->
-                          io:format(user, "KILL ~p ~p\n", [Pid, Info]),
+                          ?DEBUG("Kill ~p ~p\n", [Pid, Info]),
                           exit(Pid, kill),
                           Pid
                   end
               end || Pid <- Pids],
     case lists:usort(Killed) -- [ok] of
         [] ->
-            io:format(user, "Nothing to KILL\n", []),
+            ?DEBUG("No processes to kill\n", []),
             [];
         Else ->
             timer:sleep(10),                    % Let deaths really happen...
@@ -498,7 +498,7 @@ reconstruct_app_env_vars([App|Apps]) ->
                       []
               end,
     AllVars = CmdVars ++ AppVars,
-    io:format(user, "XXX: reconstruct ~p ~p\n", [App, AllVars]),
+    ?DEBUG("Reconstruct ~p ~p\n", [App, AllVars]),
     [application:set_env(App, K, V) || {K, V} <- AllVars],
     reconstruct_app_env_vars(Apps);
 reconstruct_app_env_vars([]) ->
