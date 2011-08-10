@@ -1,4 +1,3 @@
-@rem Do not use "echo off" to not affect any child calls.
 @setlocal
 
 @set node_name={{nodeid}}
@@ -8,7 +7,7 @@
 
 @set releases_dir=%node_root%\releases
 
-@rem parse ERTS version and release version from start_erl.dat
+@rem Parse ERTS version and release version from start_erl.data
 @for /F "tokens=1,2" %%I in (%releases_dir%\start_erl.data) do @(
     @call :set_trim erts_version %%I
     @call :set_trim release_version %%J
@@ -23,8 +22,7 @@
 @if "%1"=="start" @goto start
 @if "%1"=="stop" @goto stop
 @if "%1"=="restart" @call :stop && @goto start
-@rem @if "%1"=="attach" @goto attach
-@rem TODO: ping, restart and reboot?
+@rem TODO: attach, ping, restart and reboot
 
 :usage
 @echo Usage: %0 {install|uninstall|start|stop|restart}
@@ -47,13 +45,6 @@
 @%erts_bin%\erlsrv.exe stop %service_name%
 @goto :EOF
 
-@rem this relies on a system install of Erlang to be on the PATH.
-@rem also, node-naming issues make this difficult to automate
-@rem :attach
-@rem @werl.exe -remsh %node_name%@localhost -setcookie %COOKIE% -sname console
-@rem @goto quit
-
 :set_trim
 @set %1=%2
 @goto :EOF
-
