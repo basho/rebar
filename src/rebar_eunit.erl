@@ -29,6 +29,15 @@
 %% <ul>
 %%   <li>eunit - runs eunit tests</li>
 %%   <li>clean - remove .eunit directory</li>
+%%   <li>reset_after_eunit::boolean() - default = true.
+%%       If true, try to "reset" VM state to approximate state prior to
+%%       running the EUnit tests:
+%%       <ul>
+%%          <li> Stop net_kernel if it was started </li>
+%%          <li> Stop OTP applications not running before EUnit tests were run </li>
+%%          <li> Kill processes not running before EUnit tests were run </li>
+%%          <li> Reset OTP application environment variables  </li>
+%%       </ul> </li>
 %% </ul>
 %% The following Global options are supported:
 %% <ul>
@@ -134,7 +143,13 @@ eunit(Config, AppFile) ->
     EunitResult = perform_eunit(Config, Modules),
     perform_cover(Config, Modules, SrcModules),
 
-    cleanup_after_eunit(StatusBefore),
+    case proplists:get_value(reset_after_eunit, get_eunit_opts(Config),
+                             true) of
+        true ->
+            reset_after_eunit(StatusBefore);
+        false ->
+            ok
+    end,
 
     case EunitResult of
         ok ->
@@ -425,7 +440,7 @@ status_before_eunit() ->
     AppEnvs = [{App, application:get_all_env(App)} || App <- Apps],
     {erlang:processes(), erlang:is_alive(), AppEnvs, ets:tab2list(ac_tab)}.
 
-cleanup_after_eunit({OldProcesses, WasAlive, OldAppEnvs, _OldACs}) ->
+reset_after_eunit({OldProcesses, WasAlive, OldAppEnvs, _OldACs}) ->
     IsAlive = erlang:is_alive(),
     if not WasAlive andalso IsAlive ->
             ?DEBUG("Stopping net kernel....\n", []),
@@ -455,8 +470,7 @@ cleanup_after_eunit({OldProcesses, WasAlive, OldAppEnvs, _OldACs}) ->
 
 kill_extras(Pids) ->
     KeepProcs = [cover_server, eunit_server, inet_gethost_native_sup,
-                 inet_gethost_native, timer_server,
-                 os_cmd_port_creator_MAYBE],
+                 inet_gethost_native, timer_server],
     Killed = [begin
                   Info = case erlang:process_info(Pid) of
                              undefined -> [];
