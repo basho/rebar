@@ -495,7 +495,7 @@ kill_extras(Pids) ->
             ?DEBUG("No processes to kill\n", []),
             [];
         Else ->
-            timer:sleep(10),                    % Let deaths really happen...
+            [wait_until_dead(Pid) || Pid <- Else],
             Else
     end.
 
@@ -515,4 +515,15 @@ reconstruct_app_env_vars([App|Apps]) ->
     [application:set_env(App, K, V) || {K, V} <- AllVars],
     reconstruct_app_env_vars(Apps);
 reconstruct_app_env_vars([]) ->
+    ok.
+
+wait_until_dead(Pid) when is_pid(Pid) ->
+    Ref = monitor(process, Pid),
+    receive
+        {'DOWN', Ref, process, _Obj, Info} ->
+            Info
+    after 10*1000 ->
+            exit({timeout_waiting_for, Pid})
+    end;
+wait_until_dead(_) ->
     ok.
