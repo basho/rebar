@@ -1,7 +1,6 @@
 Format: http://anonscm.debian.org/viewvc/dep/web/deps/dep5.mdwn?view=markup&pathrev=174
 Name: rebar
 Maintainer: Witold Barluk <baryluk@smp.if.uj.edu.pl>
-Upstream-Contact: 
 Source: https://github.com/basho/rebar
 
 Files: *
