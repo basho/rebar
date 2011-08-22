@@ -1,0 +1,22 @@
+Format: http://anonscm.debian.org/viewvc/dep/web/deps/dep5.mdwn?view=markup&pathrev=174
+Name: rebar
+Maintainer: Witold Barluk <baryluk@smp.if.uj.edu.pl>
+Upstream-Contact: 
+Source: https://github.com/basho/rebar
+
+Files: *
+Copyright: Copyright 2005-2011, Basho Team and other contributors
+License: Apache-2.0
+
+Files: debian/*
+Copyright: Copyright 2011, Witold Baryluk <baryluk@smp.if.uj.edu.pl>
+License: GAP
+
+License: Apache-2.0
+ On Debian systems, the full text of the Apache License (Version 2.0)
+ can be found in the file  `/usr/share/common-licenses/Apache-2.0' file.
+
+License: GAP
+ Copying and distribution of this package, with or without modification, are
+ permitted in any medium without royalty provided the copyright notice and this
+ notice are preserved.
