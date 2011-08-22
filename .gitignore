@@ -6,3 +6,8 @@ rebar
 rt.work
 .hgignore
 .eunit
+debian/debhelper.log
+debian/files
+debian/substvars
+debian/tmp
+debian/tmp/*
