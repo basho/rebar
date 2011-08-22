@@ -11,3 +11,5 @@ debian/files
 debian/substvars
 debian/tmp
 debian/tmp/*
+debian/rebar.debhelper.log
+debian/rebar.substvars
