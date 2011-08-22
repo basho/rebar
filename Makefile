@@ -5,7 +5,7 @@ all: build
 
 build: rebar
 
-rebar: bootstrap 
+rebar: bootstrap
 	./bootstrap
 
 clean:
