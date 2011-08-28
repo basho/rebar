@@ -71,4 +71,4 @@ idl_generated_files(SrcDir, Config) ->
     rebar_utils:find_files(Outdir, "^.*\$").
 
 get_backend_name(Opts) ->
-        atom_to_list(proplists:get_value(be, Opts, erl_plain)).
+        atom_to_list(proplists:get_value(be, Opts, erl_corba)).
