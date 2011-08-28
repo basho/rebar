@@ -16,6 +16,7 @@
 ** NIF driver
 ** SNMP MIBs
 ** ASN.1 files
+** IDL files
 
 * Misc. Notes
 ** Port/NIF driver compilation needs pre/post hook
