@@ -1,0 +1,5 @@
+rebar (1:20110821-1) unstable; urgency=low
+
+   * Initial release
+
+ -- Witold Baryluk <baryluk@smp.if.uj.edu.pl>  Mon, 22 Aug 2011 02:49:07 +0200
