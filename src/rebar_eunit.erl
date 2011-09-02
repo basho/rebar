@@ -195,6 +195,12 @@ perform_eunit(Config, Modules) ->
     Cwd = rebar_utils:get_cwd(),
     ok = file:set_cwd(?EUNIT_DIR),
 
+    %% Remove the rebar escript from the code path so that module lookup
+    %% during the test run doesn't result in spurious bad_central_directory
+    %% error reports from Erlang's zip loader.  The code path will be restored
+    %% as the last step of the eunit command.
+    code:del_path(rebar_config:get_global(escript, undefined)),
+
     EunitResult = perform_eunit(EunitOpts, Modules, Suite),
 
     %% Return to original working dir
