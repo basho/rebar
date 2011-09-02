@@ -144,7 +144,9 @@ compile(Config, AppFile) ->
     Deps = rebar_config:get_local(Config, deps, []),
     case find_deps(find, Deps) of
         {AvailDeps, []} ->
-            lists:foreach(fun(Dep) -> print_source(Dep) end, AvailDeps),
+            lists:foreach(fun(Dep) ->
+                                  ?CONSOLE("~s\n", [print_source(Dep#dep.source)])
+                          end, AvailDeps),
             ok;
         {_, MissingDeps} ->
             ?ABORT("Missing dependencies: ~p\n", [MissingDeps])
@@ -420,17 +422,17 @@ source_engine_avail(Source) ->
 
 source_engine_avail(Name, Source)
   when Name == hg; Name == git; Name == svn; Name == bzr ->
-    case vcs_client_vsn(Name) >= required_vcs_client_vsn(Name) of
+    case scm_client_vsn(Name) >= required_scm_client_vsn(Name) of
         true ->
             true;
         false ->
             ?ABORT("Rebar requires version ~p or higher of ~s to process ~p\n",
-                   [required_vcs_client_vsn(Name), Name, Source])
+                   [required_scm_client_vsn(Name), Name, Source])
     end.
 
-vcs_client_vsn(false, _VsnArg, _VsnRegex) ->
+scm_client_vsn(false, _VsnArg, _VsnRegex) ->
     false;
-vcs_client_vsn(Path, VsnArg, VsnRegex) ->
+scm_client_vsn(Path, VsnArg, VsnRegex) ->
     {ok, Info} = rebar_utils:sh(Path ++ VsnArg, [{env, [{"LANG", "C"}]},
                                                  {use_stdout, false}]),
     case re:run(Info, VsnRegex, [{capture, all_but_first, list}]) of
@@ -440,22 +442,22 @@ vcs_client_vsn(Path, VsnArg, VsnRegex) ->
             false
     end.
 
-required_vcs_client_vsn(hg)  -> {1, 1};
-required_vcs_client_vsn(git) -> {1, 5};
-required_vcs_client_vsn(bzr) -> {2, 0};
-required_vcs_client_vsn(svn) -> {1, 6}.
+required_scm_client_vsn(hg)  -> {1, 1};
+required_scm_client_vsn(git) -> {1, 5};
+required_scm_client_vsn(bzr) -> {2, 0};
+required_scm_client_vsn(svn) -> {1, 6}.
 
-vcs_client_vsn(hg) ->
-    vcs_client_vsn(rebar_utils:find_executable("hg"), " --version",
+scm_client_vsn(hg) ->
+    scm_client_vsn(rebar_utils:find_executable("hg"), " --version",
                    "version (\\d+).(\\d+)");
-vcs_client_vsn(git) ->
-    vcs_client_vsn(rebar_utils:find_executable("git"), " --version",
+scm_client_vsn(git) ->
+    scm_client_vsn(rebar_utils:find_executable("git"), " --version",
                    "git version (\\d+).(\\d+)");
-vcs_client_vsn(bzr) ->
-    vcs_client_vsn(rebar_utils:find_executable("bzr"), " --version",
+scm_client_vsn(bzr) ->
+    scm_client_vsn(rebar_utils:find_executable("bzr"), " --version",
                    "Bazaar \\(bzr\\) (\\d+).(\\d+)");
-vcs_client_vsn(svn) ->
-    vcs_client_vsn(rebar_utils:find_executable("svn"), " --version",
+scm_client_vsn(svn) ->
+    scm_client_vsn(rebar_utils:find_executable("svn"), " --version",
                    "svn, version (\\d+).(\\d+)").
 
 has_vcs_dir(git, Dir) ->
@@ -470,18 +472,9 @@ has_vcs_dir(svn, Dir) ->
 has_vcs_dir(_, _) ->
     true.
 
-print_source(#dep{app=App, source=Source}) ->
-    ?CONSOLE("~s~n", [format_source(App, Source)]).
+print_source({git, Url})                   -> ?FMT("BRANCH ~s ~s", ["HEAD", Url]);
+print_source({git, Url, ""})               -> ?FMT("BRANCH ~s ~s", ["HEAD", Url]);
+print_source({git, Url, {branch, Branch}}) -> ?FMT("BRANCH ~s ~s", [Branch, Url]);
+print_source({git, Url, {tag, Tag}})       -> ?FMT("TAG ~s ~s", [Tag, Url]);
+print_source({_, Url, Rev})                -> ?FMT("REV ~s ~s", [Rev, Url]).
 
-format_source(App, {git, Url}) ->
-    ?FMT("~p BRANCH ~s ~s", [App, "HEAD", Url]);
-format_source(App, {git, Url, ""}) ->
-    ?FMT("~p BRANCH ~s ~s", [App, "HEAD", Url]);
-format_source(App, {git, Url, {branch, Branch}}) ->
-    ?FMT("~p BRANCH ~s ~s", [App, Branch, Url]);
-format_source(App, {git, Url, {tag, Tag}}) ->
-    ?FMT("~p TAG ~s ~s", [App, Tag, Url]);
-format_source(App, {_, Url, Rev}) ->
-    ?FMT("~p REV ~s ~s", [App, Rev, Url]);
-format_source(App, undefined) ->
-    ?FMT("~p", [App]).
