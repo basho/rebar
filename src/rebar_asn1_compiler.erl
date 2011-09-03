@@ -67,8 +67,8 @@ asn_generated_files(AsnDir, SrcDir, IncDir) ->
     lists:foldl(
         fun(AsnFile, Acc) ->
                 Base = filename:rootname(filename:basename(AsnFile)),
-                filelib:wildcard(filename:join([SrcDir, Base ++ ".*"])) ++
-                    filelib:wildcard(filename:join([IncDir, Base ++ ".*"])) ++ Acc
+                [filename:join([IncDir, Base ++ ".hrl"])|
+					filelib:wildcard(filename:join([SrcDir, Base ++ ".*"]))] ++ Acc
         end,
         [],
         filelib:wildcard(filename:join([AsnDir, "*.asn1"]))
