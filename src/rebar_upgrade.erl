@@ -145,6 +145,14 @@ boot_files(TargetDir, Ver, Name) ->
     ok = file:make_dir(filename:join([".", Tmp])),
     ok = file:make_dir(filename:join([".", Tmp, "releases"])),
     ok = file:make_dir(filename:join([".", Tmp, "releases", Ver])),
+    %% Upgrades aren't aware of etc/app.config, and fail to apply
+    %% its overrides after reloading changed .app files.
+    %% They are, however, aware of sys.config - so we make it
+    %% point at app.config, producing the expected override
+    %% behaviour.
+    ok = file:write_file(
+           filename:join([".", Tmp, "releases", Ver, "sys.config"]),
+           "[\"etc/app.config\"]."),
     ok = file:make_symlink(
            filename:join(["start.boot"]),
            filename:join([".", Tmp, "releases", Ver, Name ++ ".boot"])),
