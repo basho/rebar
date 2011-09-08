@@ -65,7 +65,13 @@ new(ConfigFile) when is_list(ConfigFile) ->
             ?ABORT("Failed to load ~s: ~p~n", [ConfigFile, Other])
     end;
 new(_ParentConfig=#config{opts=Opts0})->
-    new(Opts0, "rebar.config").
+    BaseDir = rebar_config:get_global(base_dir, undefined),
+    case rebar_utils:get_cwd() of
+        BaseDir ->
+            new(Opts0, rebar_config:get_global(config, "rebar.config"));
+        _ ->
+            new(Opts0, "rebar.config")
+    end.
 
 new(Opts0, ConfName) ->
     %% Load terms from rebar.config, if it exists
