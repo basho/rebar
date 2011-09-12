@@ -330,7 +330,7 @@ gather_src([Dir|Rest], Srcs) ->
 src_dirs([]) ->
     ["src"];
 src_dirs(SrcDirs) ->
-    SrcDirs ++ src_dirs([]).
+    lists:usort(SrcDirs ++ src_dirs([])).
 
 -spec dirs(Dir::file:filename()) -> [file:filename()].
 dirs(Dir) ->
