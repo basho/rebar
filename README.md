@@ -69,7 +69,7 @@ Do not mix spaces and tabs.
 Do not introduce lines longer than 80 characters.
 
 [erlang-mode (emacs)](http://www.erlang.org/doc/man/erlang.el.html) indentation is preferred.
-vi-only users are encouraged to give [Vimpulse](http://www.emacswiki.org/emacs/Vimpulse) a try.
+vi-only users are encouraged to give [Vim emulation](http://emacswiki.org/emacs/Evil) ([more info](https://gitorious.org/evil/pages/Home)) a try.
 
 Writing Commit Messages
 -----------------------
@@ -110,16 +110,13 @@ Before you submit a patch check for discrepancies with
 [Dialyzer](http://www.erlang.org/doc/man/dialyzer.html):
 
 ```sh
-$ cd rebar
-$ ./bootstrap debug
-$ dialyzer ebin -Wunmatched_returns -Werror_handling -Wrace_conditions -Wunderspecs
+$ make check
 ```
 
 The following discrepancies are known and safe to ignore:
 
 ```
 rebar_utils.erl:147: Call to missing or unexported function escript:foldl/3
-rebar_utils.erl:180: The created fun has no local return
 ```
 
 It is **strongly recommended** to check the code with
