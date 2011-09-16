@@ -41,17 +41,14 @@
 %% Target is a single filename, directoryname or wildcard expression.
 -spec rm_rf(Target::string()) -> ok.
 rm_rf(Target) ->
+    Filelist = filelib:wildcard(Target),
+    Dirs = [F || F <- Filelist, filelib:is_dir(F)],
+    Files = Filelist -- Dirs,
+    ok = delete_each(Files),
     case os:type() of
         {unix, _} ->
-            EscTarget = escape_spaces(Target),
-            {ok, []} = rebar_utils:sh(?FMT("rm -rf ~s", [EscTarget]),
-                                      [{use_stdout, false}, return_on_error]),
-            ok;
+            ok = delete_each_dir_unix(Dirs);
         {win32, _} ->
-            Filelist = filelib:wildcard(Target),
-            Dirs = [F || F <- Filelist, filelib:is_dir(F)],
-            Files = Filelist -- Dirs,
-            ok = delete_each(Files),
             ok = delete_each_dir_win32(Dirs),
             ok
     end.
@@ -62,12 +59,7 @@ cp_r([], _Dest) ->
 cp_r(Sources, Dest) ->
     case os:type() of
         {unix, _} ->
-            EscSources = [escape_spaces(Src) || Src <- Sources],
-            SourceStr = string:join(EscSources, " "),
-            {ok, []} = rebar_utils:sh(?FMT("cp -R ~s \"~s\"",
-                                           [SourceStr, Dest]),
-                                      [{use_stdout, false}, return_on_error]),
-            ok;
+            ok = cp_r_unix(Sources, Dest);
         {win32, _} ->
             lists:foreach(fun(Src) -> ok = cp_r_win32(Src,Dest) end, Sources),
             ok
@@ -177,6 +169,56 @@ cp_r_win32(Source,Dest) ->
                           ok = cp_r_win32({filelib:is_dir(Src), Src}, Dst)
                   end, filelib:wildcard(Source)),
     ok.
+
+cp_r_unix([], _Dest) ->
+    ok;
+cp_r_unix([Source|Rest], Dest) ->
+    Filelist = filelib:wildcard(Source),
+    Dirs = [F || F <- Filelist, filelib:is_dir(F)],
+    Files = Filelist -- Dirs,
+    lists:foreach(fun(S) ->
+                inner_copy_file(S, Dest)
+        end, Files),
+    lists:foreach(fun(S) -> ok = inner_copy(S, Dest) end, Dirs),
+    ok = cp_r_unix(Rest, Dest).
+
+inner_copy(Source, Dest) ->
+    case filelib:is_dir(Source) of
+        true ->
+            NewDest = filename:join([Dest, filename:basename(Source)]),
+            ok = case file:make_dir(NewDest) of
+                {error, eexist} -> ok;
+                Other -> Other
+            end,
+            {ok, Filelist} = file:list_dir(Source),
+            ToCopy = [filename:join([Source, X]) || X <- Filelist],
+            lists:foreach(fun(T) -> ok = inner_copy(T, NewDest) end, ToCopy),
+            ok;
+        false ->
+            ok = inner_copy_file(Source, Dest),
+            ok
+    end.
+
+inner_copy_file(Source, Dest) ->
+    DestFile = case filelib:is_dir(Dest) of
+        true ->
+            filename:join([Dest, filename:basename(Source)]);
+        false ->
+            Dest
+    end,
+    {ok, _} = file:copy(Source, DestFile),
+    ok.
+
+delete_each_dir_unix([]) -> ok;
+delete_each_dir_unix([Dir | Rest]) ->
+    {ok, Filelist} = file:list_dir(Dir),
+    ToDelete = [filename:join(Dir, F) || F <- Filelist],
+    SubDirs = [F || F <- ToDelete, filelib:is_dir(F)],
+    Files = ToDelete -- SubDirs,
+    ok = delete_each(Files),
+    ok = delete_each_dir_unix(SubDirs),
+    ok = file:del_dir(Dir),
+    delete_each_dir_unix(Rest).
 
 escape_spaces(Str) ->
     re:replace(Str, " ", "\\\\ ", [global, {return, list}]).
