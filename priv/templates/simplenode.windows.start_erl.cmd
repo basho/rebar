@@ -20,15 +20,15 @@
 @set erl_exe=%node_root%\erts-%erts_version%\bin\erl.exe
 @set boot_file=%releases_dir%\%release_version%\%node_name%
 
-If Exist %releases_dir%\%release_version%\sys.config (
+@if exist %releases_dir%\%release_version%\sys.config (
     @set app_config=%releases_dir%\%release_version%\sys.config
-) Else (
+) @else (
     @set app_config=%node_root%\etc\app.config
 )
 
-If Exist %releases_dir%\%release_version%\vm.args (
+@if exist %releases_dir%\%release_version%\vm.args (
     @set vm_args=%releases_dir%\%release_version%\vm.args
-) Else (
+) @else (
     @set vm_args=%node_root%\etc\vm.args
 )
 
