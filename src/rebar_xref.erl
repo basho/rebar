@@ -134,7 +134,7 @@ filter_away_ignored(UnusedExports) ->
                 Ignore = kf(ignore_xref, Attrs),
                 Callbacks =
                     [B:behaviour_info(callbacks) || B <- kf(behaviour, Attrs)],
-                CFun = fun({F,A,C}) -> {F,A}; (C) -> C end,
+                CFun = fun({F,A,_}) -> {F,A}; (C) -> C end,
                 Callbacks2 = lists:map(CFun, lists:flatten(Callbacks)),
                 [{Mod, F, A} || {F, A} <- Ignore ++ Callbacks2]
         end,
