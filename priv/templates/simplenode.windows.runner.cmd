@@ -23,10 +23,11 @@
 @if "%1"=="start" @goto start
 @if "%1"=="stop" @goto stop
 @if "%1"=="restart" @call :stop && @goto start
+@if "%1"=="console" @goto console
 @rem TODO: attach, ping, restart and reboot
 
 :usage
-@echo Usage: %0 {install|uninstall|start|stop|restart}
+@echo Usage: %0 {install|uninstall|start|stop|restart|console}
 @goto :EOF
 
 :install
@@ -44,6 +45,10 @@
 
 :stop
 @%erts_bin%\erlsrv.exe stop %service_name%
+@goto :EOF
+
+:console
+@start %erts_bin%\werl.exe -boot %releases_dir%\%release_version%\%node_name%
 @goto :EOF
 
 :set_trim
