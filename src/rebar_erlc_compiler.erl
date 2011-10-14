@@ -133,7 +133,7 @@ doterl_compile(Config, OutDir, MoreSources) ->
     %% Support the src_dirs option allowing multiple directories to
     %% contain erlang source. This might be used, for example, should
     %% eunit tests be separated from the core application source.
-    SrcDirs = src_dirs(proplists:append_values(src_dirs, ErlOpts)),
+    SrcDirs = lists:usort(src_dirs(proplists:append_values(src_dirs, ErlOpts))),
     RestErls  = [Source || Source <- gather_src(SrcDirs, []) ++ MoreSources,
                            not lists:member(Source, FirstErls)],
 
