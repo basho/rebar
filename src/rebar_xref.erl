@@ -143,12 +143,7 @@ filter_away_ignored(UnusedExports) ->
 
 
 kf(Key, List) ->
-    case lists:keyfind(Key, 1, List) of
-        {Key, Value} ->
-            Value;
-        false ->
-            []
-    end.
+    lists:flatten(proplists:get_all_values(Key, List)).
 
 display_mfas([], _Message) ->
     ok;
