@@ -42,8 +42,12 @@ generate(Config, ReltoolFile) ->
     check_vsn(),
 
     %% Create symlinks to the current directory at the deps/ directory
-    %% to include the root application to the release.
-    maybe_symlink_root_dir(),
+    %% to include the root application to the release. Works for UNIX
+    %% systems only.
+    case os:type() of
+        {unix, _} -> maybe_symlink_root_dir();
+        _ -> ok
+    end,
 
     %% Load the reltool configuration from the file
     ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
