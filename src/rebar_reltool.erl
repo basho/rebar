@@ -41,6 +41,14 @@ generate(Config, ReltoolFile) ->
     %% Make sure we have decent version of reltool available
     check_vsn(),
 
+    %% Create symlinks to the current directory at the deps/ directory
+    %% to include the root application to the release. Works for UNIX
+    %% systems only.
+    case os:type() of
+        {unix, _} -> maybe_symlink_root_dir();
+        _ -> ok
+    end,
+
     %% Load the reltool configuration from the file
     ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
 
@@ -69,7 +77,11 @@ clean(_Config, ReltoolFile) ->
     ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
     TargetDir = rebar_rel_utils:get_target_dir(ReltoolConfig),
     rebar_file_utils:rm_rf(TargetDir),
-    rebar_file_utils:delete_each(["reltool.spec"]).
+    rebar_file_utils:delete_each(["reltool.spec"]),
+    case has_symlink_dir() of
+        {true, SymlinkDir} -> rebar_file_utils:rm_rf(SymlinkDir);
+        false -> ok
+    end.
 
 
 
@@ -330,4 +342,43 @@ create_RELEASES(TargetDir, RelName, RelVsn) ->
         {error, Reason} ->
             ?ABORT("Failed to create RELEASES file: ~p\n",
                    [Reason])
+    end.
+
+maybe_symlink_root_dir() ->
+    case rebar_app_utils:is_app_dir("..") of
+        {true, RootAppSrc} ->
+            RootApp = rebar_app_utils:app_name(RootAppSrc),
+            SymlinkDir = filename:join(["..", "deps", RootApp]),
+            case filelib:is_dir(SymlinkDir) of
+                false -> 
+                    rebar_utils:sh(?FMT("mkdir -p ~s", [SymlinkDir]), []);
+                true ->
+                    ok
+            end,
+            Files = [F || F <- filelib:wildcard("../*"), F =/= "../deps"],
+            [
+                begin
+                    Filename = filename:basename(File),
+                    Source = filename:absname(filename:join([File])),
+                    Target = filename:join([SymlinkDir, Filename]),
+                    rebar_utils:sh(?FMT("ln -Fhs ~s ~s", [Source, Target]), [])
+                end
+                 || File <- Files
+            ],
+            ok;
+        false ->
+            ok
+    end.
+
+has_symlink_dir() ->
+     case rebar_app_utils:is_app_dir("..") of
+        {true, RootAppSrc} ->
+            RootApp = rebar_app_utils:app_name(RootAppSrc),
+            SymlinkDir = filename:join(["..", "deps", RootApp]),
+            case filelib:is_dir(SymlinkDir) of
+                true -> {true, SymlinkDir};
+                false -> false
+            end;
+        false ->
+            false
     end.
