@@ -110,7 +110,11 @@ app_vsn(AppFile) ->
 %% ===================================================================
 
 load_app_file(Filename) ->
-    AppFile = {app_file, Filename},
+    AppFilename = case lists:suffix(".app.src", Filename) of
+        true -> app_src_to_app(Filename);
+        false -> Filename
+    end,
+    AppFile = {app_file, AppFilename},
     case erlang:get(AppFile) of
         undefined ->
             case file:consult(Filename) of
