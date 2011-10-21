@@ -108,6 +108,7 @@ process_overlay(ReltoolConfig) ->
     %% (that can get overwritten)
     OverlayVars0 =
         dict:from_list([{erts_vsn, "erts-" ++ erlang:system_info(version)},
+                        {core_lib_dir, code:lib_dir()},
                         {rel_vsn, BootRelVsn},
                         {target_dir, TargetDir}]),
 
@@ -257,10 +258,10 @@ execute_overlay([{mkdir, Out} | Rest], Vars, BaseDir, TargetDir) ->
     ok = filelib:ensure_dir(OutFile),
     ?DEBUG("Created dir ~s\n", [filename:dirname(OutFile)]),
     execute_overlay(Rest, Vars, BaseDir, TargetDir);
-execute_overlay([{copy, In} | Rest], _Vars, BaseDir, TargetDir) ->
+execute_overlay([{copy_absolute, In} | Rest], _Vars, BaseDir, TargetDir) ->
     execute_overlay([{copy, In, ""} | Rest], _Vars, BaseDir, TargetDir);
-execute_overlay([{copy, In, Out} | Rest], Vars, BaseDir, TargetDir) ->
-    InFile = rebar_templater:render(filename:join(BaseDir, In), Vars),
+execute_overlay([{copy_absolute, In, Out} | Rest], Vars, BaseDir, TargetDir) ->
+    InFile = rebar_templater:render(In, Vars),
     OutFile = rebar_templater:render(filename:join(TargetDir, Out), Vars),
     case filelib:is_dir(InFile) of
         true ->
@@ -270,6 +271,11 @@ execute_overlay([{copy, In, Out} | Rest], Vars, BaseDir, TargetDir) ->
     end,
     rebar_file_utils:cp_r([InFile], OutFile),
     execute_overlay(Rest, Vars, BaseDir, TargetDir);
+execute_overlay([{copy, In} | Rest], _Vars, BaseDir, TargetDir) ->
+    execute_overlay([{copy, In, ""} | Rest], _Vars, BaseDir, TargetDir);
+execute_overlay([{copy, In, Out} | Rest], Vars, BaseDir, TargetDir) ->
+    AbsIn = filename:join(BaseDir, In),
+    execute_overlay([{copy_absolute, AbsIn, Out} | Rest], Vars, BaseDir, TargetDir);
 execute_overlay([{template_wildcard, Wildcard, OutDir} | Rest], Vars, BaseDir, TargetDir) ->
     %% Generate a series of {template, In, Out} instructions from the wildcard
     %% that will get processed per normal
