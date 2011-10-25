@@ -267,7 +267,18 @@ perform_cover(Config, BeamFiles, SrcModules) ->
 perform_cover(false, _Config, _BeamFiles, _SrcModules) ->
     ok;
 perform_cover(true, Config, BeamFiles, SrcModules) ->
-    cover_analyze(Config, BeamFiles, SrcModules).
+    CoverOpts = rebar_config:get_list(Config, cover_opts, []),
+    {NewBeamFiles, NewSrcModules} = 
+    case proplists:get_value(excl_mods, CoverOpts) of
+        undefined ->
+            {BeamFiles, SrcModules};
+        ExclMods ->
+            {
+                [lists:delete(M, BeamFiles) || M <- ExclMods],
+                [lists:delete(M, SrcModules) || M <- ExclMods]
+            }       
+    end,    
+    cover_analyze(Config, NewBeamFiles, NewSrcModules).
 
 cover_analyze(_Config, [], _SrcModules) ->
     ok;
