@@ -366,7 +366,18 @@ cover_init(true, BeamFiles) ->
             OkOpen
     end;
 cover_init(Config, BeamFiles) ->
-    cover_init(rebar_config:get(Config, cover_enabled, false), BeamFiles).
+    CoverOpts = rebar_config:get_list(Config, cover_opts, []),
+    NewBeamFiles = case proplists:get_value(excl_mods, CoverOpts) of
+        undefined ->
+            BeamFiles;
+        ExclMods -> 
+            DelBeam = fun(B) ->
+                    M = list_to_atom(filename:basename(B, ".beam")),
+                    not lists:member(M, ExclMods)
+            end,
+            lists:filter(DelBeam, BeamFiles)
+    end, 
+    cover_init(rebar_config:get(Config, cover_enabled, false), NewBeamFiles).
 
 cover_analyze_mod(Module) ->
     case cover:analyze(Module, coverage, module) of
