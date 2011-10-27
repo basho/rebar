@@ -75,7 +75,7 @@ process_commands([Command | Rest], ParentConfig) ->
     %% Reset skip dirs
     lists:foreach(fun (D) -> erlang:erase({skip_dir, D}) end, skip_dirs()),
     Operations = erlang:get(operations),
-
+    
     %% Convert the code path so that all the entries are absolute paths.
     %% If not, code:set_path() may choke on invalid relative paths when trying
     %% to restore the code path from inside a subdirectory.
@@ -103,6 +103,23 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
             ?DEBUG("Entering ~s\n", [Dir]),
             ok = file:set_cwd(Dir),
             Config = maybe_load_local_config(Dir, ParentConfig),
+
+            %% Set/Reset skip_deps if explicitly configured to do so
+            case skip_deps_for_command(Command, ParentConfig) of
+                true ->
+                    ?DEBUG("Configured to skip_deps for ~p~n", [Command]),
+                    Skip = rebar_config:get_global(skip_deps, false),
+                    rebar_config:set_global(prev_skip_deps, Skip),
+                    rebar_config:set_global(skip_deps, "true");
+                false ->
+                    case rebar_config:get_global(prev_skip_deps, undefined) of
+                        undefined ->
+                            ok;
+                        PreviousSetting ->
+                            rebar_config:set_global(skip_deps, PreviousSetting),
+                            rebar_config:set_global(prev_skip_deps, undefined)
+                    end
+            end,
 
             %% Save the current code path and then update it with
             %% lib_dirs. Children inherit parents code path, but we
@@ -189,6 +206,11 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
             %% Return the updated dirset as our result
             DirSet4
     end.
+
+skip_deps_for_command(Command, Config) ->
+    GlobalSkip = rebar_config:get(Config, skip_dep_cmds, []),
+    LocalSkip = rebar_config:get_local(Config, skip_dep_cmds, GlobalSkip),
+    lists:member(Command, LocalSkip).
 
 maybe_load_local_config(Dir, ParentConfig) ->
     %% We need to ensure we don't overwrite custom
