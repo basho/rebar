@@ -60,7 +60,7 @@ new(ConfigFile) when is_list(ConfigFile) ->
     case consult_file(ConfigFile) of
         {ok, Opts} ->
             #config { dir = rebar_utils:get_cwd(),
-                      opts = Opts };
+                      opts = apply_imports_and_extend(Opts) };
         Other ->
             ?ABORT("Failed to load ~s: ~p~n", [ConfigFile, Other])
     end;
@@ -73,13 +73,14 @@ new(Opts0, ConfName) ->
     ConfigFile = filename:join([Dir, ConfName]),
     Opts = case consult_file(ConfigFile) of
                {ok, Terms} ->
+                   NewConfig = apply_imports_and_extend(Terms),
                    %% Found a config file with some terms. We need to
                    %% be able to distinguish between local definitions
                    %% (i.e. from the file in the cwd) and inherited
                    %% definitions. To accomplish this, we use a marker
                    %% in the proplist (since order matters) between
                    %% the new and old defs.
-                   Terms ++ [local] ++
+                   NewConfig ++ [local] ++
                        [Opt || Opt <- Opts0, Opt /= local];
                {error, enoent} ->
                    [local] ++
@@ -130,6 +131,62 @@ get_jobs() ->
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
+
+apply_imports_and_extend(Terms) ->
+    Imports = [ I || {import, _}=I <- Terms ],
+    Extends = [ E || {extend, _}=E <- Terms ],
+    Config = (Terms -- Imports) -- Extends,
+    WithImports = lists:foldl(fun maybe_apply_imports/2, Config, Imports),
+    lists:foldl(fun maybe_apply_imports/2, WithImports, Extends).
+
+maybe_apply_imports({extend, Location}, Acc) ->
+    apply_imports(fun extend/2, Location, Acc);
+maybe_apply_imports({import, Location}, Acc) ->
+    apply_imports(fun merge/2, Location, Acc).
+
+apply_imports(ImportFun, Location, Acc) ->
+    case consult_file(Location) of
+        {ok, Terms} ->
+            lists:foldl(ImportFun, Acc, apply_imports_and_extend(Terms));
+        Err ->
+            ?ABORT("Failed to import ~s: ~p~n", [Location, Err]),
+            Acc
+    end.
+
+merge(New, Existing) when is_tuple(New) ->
+    K = element(1, New),
+    case lists:keymember(K, 1, Existing) of
+        true ->
+            lists:keyreplace(K, 1, Existing, New);
+        false ->
+            [New|Existing]
+    end;
+merge(New, Existing) ->
+    append_if_missing(fun lists:member/2, New, Existing).
+
+extend({K, NewVal}=New, Existing) when is_list(NewVal) ->
+    case lists:keyfind(K, 1, Existing) of
+        {K, OldVal} when is_list(OldVal) ->
+            NewEntry = {K, lists:foldl(fun merge/2, OldVal, NewVal)},
+            lists:keyreplace(K, 1, Existing, NewEntry);
+        false ->
+            [New|Existing];
+        Other ->
+            ?ABORT("Cannot merge incoming config ~p with ~p~n", [New, Other])
+    end;
+extend({_, _}=New, Existing) ->
+    append_if_missing(fun({K, _}, Items) -> lists:keymember(K, 1, Items) end,
+                      New, Existing);
+extend(New, Existing) ->
+    merge(New, Existing).
+
+append_if_missing(LookupFun, New, Existing) ->
+    case LookupFun(New, Existing) of
+        true ->
+            Existing;
+        false ->
+            [New|Existing]
+    end.
 
 consult_file(File) ->
     ?DEBUG("Consult config file ~p~n", [File]),
