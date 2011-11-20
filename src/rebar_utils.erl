@@ -43,7 +43,8 @@
          prop_check/3,
          expand_code_path/0,
          deprecated/5,
-         expand_env_variable/3]).
+         expand_env_variable/3,
+         vcs_vsn/2]).
 
 -include("rebar.hrl").
 
@@ -200,6 +201,18 @@ expand_env_variable(InStr, VarName, RawVarValue) ->
     end.
 
 
+%%
+%% Use the version control system to extract a version number
+%%
+vcs_vsn({cmd, Cmd}, Dir) ->
+    {ok, VsnString} = rebar_utils:sh(Cmd, [{cd, Dir}, {use_stdout, false}]),
+    string:strip(VsnString, right, $\n);
+vcs_vsn(Vcs, Dir) when is_atom(Vcs) ->
+    vcs_vsn({cmd, vcs_vsn_cmd(Vcs)}, Dir);
+vcs_vsn(Version, _Dir) ->
+    Version.
+
+
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
@@ -297,3 +310,22 @@ deprecated(Key, Old, New, Opts, When) ->
         false ->
             ok
     end.
+
+vcs_vsn_cmd(git) ->
+    %% Explicitly git-describe a committish to accommodate for projects
+    %% in subdirs which don't have a GIT_DIR. In that case we will
+    %% get a description of the last commit that touched the subdir.
+    case os:type() of
+        {win32, nt} ->
+            "for /f \"usebackq tokens=* delims=\" %i in "
+            "(`git log -n 1 \"--pretty=format:%h\" .`) do "
+            "@git describe --always --tags %i";
+        _ ->
+            "git describe --always --tags `git log -n 1 --pretty=format:%h .`"
+    end;
+vcs_vsn_cmd(hg)  -> "hg identify -i";
+vcs_vsn_cmd(bzr) -> "bzr revno";
+vcs_vsn_cmd(svn) -> "svnversion";
+vcs_vsn_cmd({cmd, Command}) -> Command;
+vcs_vsn_cmd(Unknown) ->
+    ?ABORT("Unknown revision control system: ~p\n", [Unknown]).
