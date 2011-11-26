@@ -159,6 +159,23 @@ get_target_dir(ReltoolConfig) ->
             filename:absname(TargetDir)
     end.
 
+%%
+%% Look for {root_dir, RootDir} in the reltool config file; if none is
+%% found, use the name of the release as the default target directory.
+%%
+get_root_dir(ReltoolConfig) ->
+    case rebar_config:get_global(root_dir, undefined) of
+        undefined ->
+            case lists:keyfind(root_dir, 1, ReltoolConfig) of
+                {root_dir, RootDir} ->
+                    filename:absname(RootDir);
+                false ->
+                    code:root_dir()
+            end;
+        RootDir ->
+            filename:absname(RootDir)
+    end.
+
 get_target_parent_dir(ReltoolConfig) ->
     TargetDir = get_target_dir(ReltoolConfig),
     case lists:reverse(tl(lists:reverse(filename:split(TargetDir)))) of
