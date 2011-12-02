@@ -164,8 +164,15 @@ run_reltool(Server, _Config, ReltoolConfig) ->
             %% Dump the spec, if necessary
             dump_spec(Spec),
 
+            %% Erlang root dir
+            ErlRoot = case rebar_config:get_global(erl_root, undefined) of
+                Dir when is_list(Dir) -> Dir;
+                _ -> code:root_dir()
+            end,
+            ?DEBUG("erl_root=~p\n", [ErlRoot]),
+
             %% Have reltool actually run
-            case reltool:eval_target_spec(Spec, code:root_dir(), TargetDir) of
+            case reltool:eval_target_spec(Spec, ErlRoot, TargetDir) of
                 ok ->
                     ok;
                 {error, Reason} ->
