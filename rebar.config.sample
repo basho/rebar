@@ -81,6 +81,10 @@
 %% Whether to print coverage report to console. Default is `false'
 {cover_print_enabled, false}.
 
+%% Additional cover options
+%% currently supported: excl_mods
+{cover_opts, [{excl_mods, [module_to_exclude]}]}.
+
 %% == Common Test ==
 
 %% Option to pass extra parameters when launching Common Test
