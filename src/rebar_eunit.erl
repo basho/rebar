@@ -111,10 +111,10 @@ eunit(Config, _AppFile) ->
     Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- ModuleBeamFiles],
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
 
-    case proplists:get_value(nosasl, get_eunit_opts(Config), false) of
+    case proplists:get_value(no_sasl, get_eunit_opts(Config), false) of
         true -> 
-            application:stop(sasl),
-            error_logger:delete_report_handler(error_logger_tty_h);
+            {error_logger_tty_h, error_logger} =
+                error_logger:delete_report_handler(error_logger_tty_h);
         false ->
             ok
     end,
