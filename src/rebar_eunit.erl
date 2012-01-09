@@ -112,13 +112,13 @@ eunit(Config, _AppFile) ->
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
 
     EunitOpts = get_eunit_opts(Config),
-    NoSasl = proplists:get_value(no_sasl, EunitOpts, false),
+    NoVerboseErrors = proplists:get_value(no_verbose_errors, EunitOpts, false),
 
-    TTYErrorClearResult = case NoSasl of
+    TTYErrorClearResult = case NoVerboseErrors of
         true -> 
             error_logger:delete_report_handler(error_logger_tty_h);
         false ->
-            sasl_on
+            errors_on
     end,
 
     {ok, CoverLog} = cover_init(Config, ModuleBeamFiles),
@@ -153,8 +153,8 @@ eunit(Config, _AppFile) ->
         {error, _} ->
             ok;
 
-        %% Option no_sasl is set to false, do nothing
-        sasl_on ->
+        %% Option no_verbose_errors is set to false, do nothing
+        errors_on ->
             ok
     end,
 
