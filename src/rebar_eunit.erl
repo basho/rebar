@@ -111,16 +111,25 @@ eunit(Config, _AppFile) ->
     Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- ModuleBeamFiles],
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
 
+    EunitOpts = get_eunit_opts(Config),
+    NoVerboseErrors = proplists:get_value(no_verbose_errors, EunitOpts, false),
+
+    TTYErrorClearResult = case NoVerboseErrors of
+        true -> 
+            error_logger:delete_report_handler(error_logger_tty_h);
+        false ->
+            errors_on
+    end,
+
     {ok, CoverLog} = cover_init(Config, ModuleBeamFiles),
 
     StatusBefore = status_before_eunit(),
-    EunitResult = perform_eunit(Config, Modules),
+    EunitResult = perform_eunit(EunitOpts, Modules),
     perform_cover(Config, Modules, SrcModules),
 
     cover_close(CoverLog),
 
-    case proplists:get_value(reset_after_eunit, get_eunit_opts(Config),
-                             true) of
+    case proplists:get_value(reset_after_eunit, EunitOpts, true) of
         true ->
             reset_after_eunit(StatusBefore);
         false ->
@@ -132,6 +141,21 @@ eunit(Config, _AppFile) ->
             ok;
         _ ->
             ?ABORT("One or more eunit tests failed.~n", [])
+    end,
+
+    case TTYErrorClearResult of
+
+        %% Error logger has been deleted successfully, reinstall it
+        {error_logger_tty_h, error_logger} ->
+            error_logger:add_report_handler(error_logger_tty_h);
+
+        %% Error logger has not been deleted for some reason, do nothing
+        {error, _} ->
+            ok;
+
+        %% Option no_verbose_errors is set to false, do nothing
+        errors_on ->
+            ok
     end,
 
     %% Restore code path
@@ -151,11 +175,10 @@ eunit_dir() ->
 ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
 
-perform_eunit(Config, Modules) ->
+perform_eunit(EunitOpts, Modules) ->
     %% suite defined, so only specify the module that relates to the
     %% suite (if any). Suite can be a comma seperated list of modules to run.
     Suite = rebar_config:get_global(suite, undefined),
-    EunitOpts = get_eunit_opts(Config),
 
     %% Move down into ?EUNIT_DIR while we run tests so any generated files
     %% are created there (versus in the source dir)
