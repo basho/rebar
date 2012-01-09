@@ -114,12 +114,11 @@ eunit(Config, _AppFile) ->
     EunitOpts = get_eunit_opts(Config),
     NoSasl = proplists:get_value(no_sasl, EunitOpts, false),
 
-    case NoSasl of
+    TTYErrorClearResult = case NoSasl of
         true -> 
-            {error_logger_tty_h, error_logger} =
-                error_logger:delete_report_handler(error_logger_tty_h);
+            error_logger:delete_report_handler(error_logger_tty_h);
         false ->
-            ok
+            sasl_on
     end,
 
     {ok, CoverLog} = cover_init(Config, ModuleBeamFiles),
@@ -144,10 +143,18 @@ eunit(Config, _AppFile) ->
             ?ABORT("One or more eunit tests failed.~n", [])
     end,
 
-    case NoSasl of
-        true ->
+    case TTYErrorClearResult of
+
+        %% Error logger has been deleted successfully, reinstall it
+        {error_logger_tty_h, error_logger} ->
             error_logger:add_report_handler(error_logger_tty_h);
-        false ->
+
+        %% Error logger has not been deleted for some reason, do nothing
+        {error, _} ->
+            ok;
+
+        %% Option no_sasl is set to false, do nothing
+        sasl_on ->
             ok
     end,
 
