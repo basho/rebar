@@ -96,18 +96,16 @@ eunit(Config, _AppFile) ->
     %% Get the full path to a file that was previously copied in ?EUNIT_DIR
     ToCleanUp = fun(F, Acc) ->
         [_|F2] = string:tokens(F, "/"),
-        F3 = lists:flatten(?EUNIT_DIR ++ "/" ++ F2),
+        F3 = filename:join([?EUNIT_DIR, F2]),
         case filelib:is_file(F3) of
            true -> Acc ++ [F3];
            false -> Acc
         end
     end,
 
-    CleanUpTestErls = lists:foldl(ToCleanUp, [], TestErls),
-    CleanUpSrcErls = lists:foldl(ToCleanUp, [], SrcErls),
+    ok = rebar_file_utils:delete_each(lists:foldl(ToCleanUp, [], TestErls)),
+    ok = rebar_file_utils:delete_each(lists:foldl(ToCleanUp, [], SrcErls)),
     
-    ok = rebar_file_utils:delete_each(CleanUpTestErls ++ CleanUpSrcErls),
-
     ok = rebar_file_utils:cp_r(SrcErls ++ TestErls, ?EUNIT_DIR),
 
     %% Compile erlang code to ?EUNIT_DIR, using a tweaked config
