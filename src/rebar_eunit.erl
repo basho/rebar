@@ -98,7 +98,7 @@ eunit(Config, _AppFile) ->
         F2 = filename:basename(F),
         F3 = filename:join([?EUNIT_DIR, F2]),
         case filelib:is_regular(F3) of
-           true -> Acc ++ [F3];
+           true -> [F3|Acc];
            false -> Acc
         end
     end,
