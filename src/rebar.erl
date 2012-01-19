@@ -68,7 +68,6 @@ run(RawArgs) ->
     %% Parse out command line arguments -- what's left is a list of commands to
     %% run -- and start running commands
     Args = parse_args(RawArgs),
-
     case rebar_config:get_global(enable_profiling, false) of
         true ->
             io:format("Profiling!\n"),
@@ -260,7 +259,8 @@ generate-upgrade  previous_release=path  Build an upgrade package
 
 generate-appups   previous_release=path  Generate appup files
 
-eunit       [suite=foo]              Run eunit [test/foo_tests.erl] tests
+eunit         [suite=foo]            Run eunit [test/foo_tests.erl] tests
+eunit-compile [suite=foo]            Build eunit [test/foo_tests.erl] tests
 ct          [suites=] [case=]        Run common_test suites in ./test
 
 xref                                 Run cross reference analysis
@@ -319,9 +319,9 @@ filter_flags([Item | Rest], Commands) ->
 
 command_names() ->
     ["check-deps", "clean", "compile", "create", "create-app", "create-node",
-     "ct", "delete-deps", "doc", "eunit", "generate", "generate-appups",
-     "generate-upgrade", "get-deps", "help", "list-deps", "list-templates",
-     "update-deps", "overlay", "version", "xref"].
+     "ct", "delete-deps", "doc", "eunit", "eunit-compile", "generate",
+     "generate-appups", "generate-upgrade", "get-deps", "help", "list-deps",
+     "list-templates", "update-deps", "overlay", "version", "xref"].
 
 unabbreviate_command_names([]) ->
     [];
