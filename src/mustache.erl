@@ -169,6 +169,10 @@ get(Key, Ctx, Mod) when is_list(Key) ->
   get(list_to_atom(Key), Ctx, Mod);
 get(Key, Ctx, Mod) ->
   case dict:find(Key, Ctx) of
+    {ok, true} ->
+      true;
+    {ok, false} ->
+      false;
     {ok, Val} ->
       % io:format("From Ctx {~p, ~p}~n", [Key, Val]),
       to_s(Val);
