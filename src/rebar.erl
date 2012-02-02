@@ -123,6 +123,9 @@ run_aux(Commands) ->
                    end,
     BaseConfig = rebar_config:base_config(GlobalConfig),
 
+    %% Publish the originally given commands
+    rebar_config:set_global(issued_commands, CommandAtoms),
+
     %% Process each command, resetting any state between each one
     rebar_core:process_commands(CommandAtoms, BaseConfig).
 
