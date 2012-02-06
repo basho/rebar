@@ -24,13 +24,13 @@ main(Args) ->
         ["ping"] ->
             %% If we got this far, the node already responsed to a ping, so just dump
             %% a "pong"
-            io:format("pong\n");
+            io:format("~p pong\n", [TargetNode]);
         ["stop"] ->
-            io:format("~p\n", [rpc:call(TargetNode, init, stop, [], 60000)]);
+            io:format("~p stop ~p\n", [TargetNode, rpc:call(TargetNode, init, stop, [], 60000)]);
         ["restart"] ->
-            io:format("~p\n", [rpc:call(TargetNode, init, restart, [], 60000)]);
+            io:format("~p restart ~p\n", [TargetNode, rpc:call(TargetNode, init, restart, [], 60000)]);
         ["reboot"] ->
-            io:format("~p\n", [rpc:call(TargetNode, init, reboot, [], 60000)]);
+            io:format("~p reboot ~p\n", [TargetNode, rpc:call(TargetNode, init, reboot, [], 60000)]);
         ["rpc", Module, Function | RpcArgs] ->
             case rpc:call(TargetNode, list_to_atom(Module), list_to_atom(Function),
                           [RpcArgs], 60000) of
