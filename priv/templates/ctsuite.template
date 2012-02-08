@@ -1,2 +1,4 @@
+%% -*-Erlang-*-
 {variables, [{testmod, "mymodule"}]}.
 {template, "ctsuite.erl", "test/{{testmod}}_SUITE.erl"}.
+%% vim: set filetype=erlang:

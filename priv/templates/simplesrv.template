@@ -1,2 +1,4 @@
+%% -*-Erlang-*-
 {variables, [{srvid, "myserver"}]}.
 {template, "simplesrv.erl", "src/{{srvid}}.erl"}.
+%% vim: set filetype=erlang:
