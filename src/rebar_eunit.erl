@@ -555,12 +555,64 @@ reconstruct_app_env_vars([App|Apps]) ->
                   _ ->
                       []
               end,
-    AllVars = CmdVars ++ AppVars,
+
+    %% App vars specified in config files override those in the .app file.
+    %% Config files later in the args list override earlier ones.
+    AppVars1 = case init:get_argument(config) of
+                   {ok, Files} ->
+                       lists:foldl(
+                         fun(File, Acc) ->
+                                 File1 = ensure_config_extension(File),
+                                 merge_app_env_from_config(App, File1, Acc)
+                         end, AppVars, Files);
+                   error ->
+                       AppVars
+               end,
+    AllVars = CmdVars ++ AppVars1,
     ?DEBUG("Reconstruct ~p ~p\n", [App, AllVars]),
     lists:foreach(fun({K, V}) -> application:set_env(App, K, V) end, AllVars),
     reconstruct_app_env_vars(Apps);
 reconstruct_app_env_vars([]) ->
     ok.
+
+ensure_config_extension(File) ->
+    %% config files must end with .config on disk but when specifying them
+    %% via the -config option the extension is optional
+    BaseFileName = filename:basename(File, ".config"),
+    DirName = filename:dirname(File),
+    filename:join(DirName, BaseFileName ++ ".config").
+
+merge_app_env_from_config(App, File, AppVars) ->
+    case file:consult(File) of
+        {ok, [Env]} ->
+            AppEnvVars = proplists:get_value(App, Env, []),
+            merge_app_env(AppVars, AppEnvVars);
+        _ ->
+            AppVars
+    end.
+
+%% Borrowed from OTP application_controller. Env2 overrides Env1
+merge_app_env(Env1, Env2) ->
+    merge_app_env(Env1, Env2, []).
+merge_app_env([{Key, Val} | T], Env2, Res) ->
+    case get_env_key(Key, Env2) of
+        {value, NewVal, RestEnv} ->
+            merge_app_env(T, RestEnv, [{Key, NewVal}|Res]);
+        _ ->
+            merge_app_env(T, Env2, [{Key, Val} | Res])
+    end;
+merge_app_env([], Env2, Res) ->
+    Env2 ++ Res.
+
+%% Also borrowed from OTP application_controller
+get_env_key(Key, Env) ->
+     get_env_key(Env, Key, []).
+get_env_key([{Key, Val} | T], Key, Res) ->
+    {value, Val, T ++ Res};
+get_env_key([H | T], Key, Res) ->
+    get_env_key(T, Key, [H | Res]);
+get_env_key([], _Key, Res) -> Res.
+
 
 wait_until_dead(Pid) when is_pid(Pid) ->
     Ref = erlang:monitor(process, Pid),
