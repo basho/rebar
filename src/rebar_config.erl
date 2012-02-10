@@ -133,8 +133,20 @@ get_jobs() ->
 %% ===================================================================
 
 consult_file(File) ->
-    ?DEBUG("Consult config file ~p~n", [File]),
-    file:consult(File).
+    case filename:extension(File) of
+        ".script" ->
+            file:script(File, [{'SCRIPT', File}]);
+        _ ->
+            Script = File ++ ".script",
+            case file:read_file_info(Script) of
+                {ok, _} ->
+                    ?DEBUG("Evaluating config script ~p~n", [Script]),
+                    file:script(Script, [{'SCRIPT', Script}]);
+                _ ->
+                    ?DEBUG("Consult config file ~p~n", [File]),
+                    file:consult(File)
+            end
+    end.
 
 local_opts([], Acc) ->
     lists:reverse(Acc);
