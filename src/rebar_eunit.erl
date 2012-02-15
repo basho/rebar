@@ -560,7 +560,10 @@ reconstruct_app_env_vars([App|Apps]) ->
     %% Config files later in the args list override earlier ones.
     AppVars1 = case init:get_argument(config) of
                    {ok, ConfigFiles} ->
-                       merge_app_vars(ConfigFiles, App, AppVars);
+                       {App, MergedAppVars} = lists:foldl(fun merge_app_vars/2,
+                                                          {App, AppVars},
+                                                          ConfigFiles),
+                       MergedAppVars;
                    error ->
                        AppVars
                end,
@@ -571,17 +574,13 @@ reconstruct_app_env_vars([App|Apps]) ->
 reconstruct_app_env_vars([]) ->
     ok.
 
-merge_app_vars([], _App, AppVars) ->
-    AppVars;
-merge_app_vars(ConfigFiles, App, AppVars) ->
-    [H|T] = ConfigFiles,
-    File = ensure_config_extension(H),
+merge_app_vars(ConfigFile, {App, AppVars}) ->
+    File = ensure_config_extension(ConfigFile),
     FileAppVars = app_vars_from_config_file(File, App),
     Dict1 = dict:from_list(AppVars),
     Dict2 = dict:from_list(FileAppVars),
     Dict3 = dict:merge(fun(_Key, _Value1, Value2) -> Value2 end, Dict1, Dict2),
-    AppVarsOut = dict:to_list(Dict3),
-    merge_app_vars(T, App, AppVarsOut).
+    {App, dict:to_list(Dict3)}.
 
 ensure_config_extension(File) ->
     %% config files must end with .config on disk but when specifying them
