@@ -137,6 +137,7 @@ ensure_dir(Path) ->
 -spec abort(string(), [term()]) -> no_return().
 abort(String, Args) ->
     ?ERROR(String, Args),
+    timer:sleep(1),
     halt(1).
 
 %% TODO: Rename emulate_escript_foldl to escript_foldl and remove
