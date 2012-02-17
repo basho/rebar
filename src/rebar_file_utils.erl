@@ -157,16 +157,18 @@ cp_r_win32({true, SourceDir},{false,DestDir}) ->
             %% From Directory to file? This shouldn't happen
             {error,[{rebar_file_utils,cp_r_win32},
                         {directory_to_file_makes_no_sense,
-                            {source,SourceDir},{dest,DestDir}}]};
+                            [{source,SourceDir},{dest,DestDir}]}]};
         false ->
             %% Specifying a target directory that doesn't currently exist.
             %% So Let's attempt to create this directory
-            %% Will not recursively create parent directories
-            ok = case file:make_dir(DestDir) of
-                     {error, eexist} -> ok;
-                     Other -> Other
-                 end,
-            ok = xcopy_win32(SourceDir, DestDir)
+            case filelib:ensure_dir(filename:join(DestDir,"dummy")) of
+                ok -> 
+                    ok = xcopy_win32(SourceDir, DestDir);
+                {error, Reason} -> 
+                    {error,[{rebar_file_utils,cp_r_win32},
+                        {failed_ensuring_target_dir,[{reason,Reason},
+                            {source,SourceDir},{dest,DestDir}]}]}
+            end
     end;
 cp_r_win32(Source,Dest) ->
     Dst = {filelib:is_dir(Dest), Dest},
