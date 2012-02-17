@@ -155,9 +155,9 @@ cp_r_win32({true, SourceDir},{false,DestDir}) ->
     case IsFile of
         true -> 
             %% From Directory to file? This shouldn't happen
-            {error,[{rebar_file_utils,cp_r_win32},
-                        {directory_to_file_makes_no_sense,
-                            [{source,SourceDir},{dest,DestDir}]}]};
+            {error, lists:flatten(
+                      io_lib:format("Cannot copy dir (~p) to file (~p)\n",
+                                  [SourceDir,DestDir]))};
         false ->
             %% Specifying a target directory that doesn't currently exist.
             %% So Let's attempt to create this directory
@@ -165,9 +165,9 @@ cp_r_win32({true, SourceDir},{false,DestDir}) ->
                 ok -> 
                     ok = xcopy_win32(SourceDir, DestDir);
                 {error, Reason} -> 
-                    {error,[{rebar_file_utils,cp_r_win32},
-                        {failed_ensuring_target_dir,[{reason,Reason},
-                            {source,SourceDir},{dest,DestDir}]}]}
+                    {error, lists:flatten(
+                              io_lib:format("Unable to create dir ~p: ~p\n",
+                                          [DestDir,Reason]))}
             end
     end;
 cp_r_win32(Source,Dest) ->
