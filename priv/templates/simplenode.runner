@@ -76,7 +76,8 @@ case "$1" in
         export HEART_COMMAND
         mkdir -p $PIPE_DIR
         shift # remove $1
-        $ERTS_PATH/run_erl -daemon $PIPE_DIR $RUNNER_LOG_DIR "exec $RUNNER_BASE_DIR/bin/$SCRIPT console $@" 2>&1
+        ARGS=$@
+        $ERTS_PATH/run_erl -daemon $PIPE_DIR $RUNNER_LOG_DIR "exec $RUNNER_BASE_DIR/bin/$SCRIPT console $ARGS" 2>&1
         ;;
 
     stop)
