@@ -26,7 +26,7 @@
 %% -------------------------------------------------------------------
 -module(rebar_config).
 
--export([new/0, new/1, base_config/1,
+-export([new/0, new/1, base_config/1, consult_file/1,
          get/3, get_local/3, get_list/3,
          get_all/2,
          set/3,
@@ -128,10 +128,6 @@ is_verbose() ->
 get_jobs() ->
     get_global(jobs, 3).
 
-%% ===================================================================
-%% Internal functions
-%% ===================================================================
-
 consult_file(File) ->
     case filename:extension(File) of
         ".script" ->
@@ -147,6 +143,10 @@ consult_file(File) ->
                     file:consult(File)
             end
     end.
+
+%% ===================================================================
+%% Internal functions
+%% ===================================================================
 
 local_opts([], Acc) ->
     lists:reverse(Acc);
