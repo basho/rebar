@@ -219,6 +219,12 @@ expand_version(ReltoolConfig, Dir) ->
     end.
 
 expand_rel_version({rel, Name, Version, Apps}, Dir) ->
-    {rel, Name, rebar_utils:vcs_vsn(Version, Dir), Apps};
+    UseDir = case rebar_config:get_global(skip_deps, false) of
+                 "true" ->
+                     rebar_config:get_global(base_dir, Dir);
+                 _ ->
+                     Dir
+             end,
+    {rel, Name, rebar_utils:vcs_vsn(Version, UseDir), Apps};
 expand_rel_version(Other, _Dir) ->
     Other.
