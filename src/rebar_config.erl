@@ -138,11 +138,11 @@ consult_file(File) ->
             file:script(File, [{'SCRIPT', File}]);
         _ ->
             Script = File ++ ".script",
-            case file:read_file_info(Script) of
-                {ok, _} ->
+            case filelib:is_regular(Script) of
+                true ->
                     ?DEBUG("Evaluating config script ~p~n", [Script]),
                     file:script(Script, [{'SCRIPT', Script}]);
-                _ ->
+                false ->
                     ?DEBUG("Consult config file ~p~n", [File]),
                     file:consult(File)
             end
