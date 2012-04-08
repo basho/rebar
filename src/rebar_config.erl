@@ -131,18 +131,43 @@ get_jobs() ->
 consult_file(File) ->
     case filename:extension(File) of
         ".script" ->
-            file:script(File, [{'SCRIPT', File}]);
+            ?DEBUG("Evaluating config script ~p~n", [File]),
+            ConfigData = try_consult(remove_script_ext(File)),
+            ?DEBUG("ConfigData = ~p~n", [ConfigData]),
+            file:script(File, bs([{'CONFIG', ConfigData}, {'SCRIPT', File}]));
         _ ->
             Script = File ++ ".script",
             case filelib:is_regular(Script) of
                 true ->
                     ?DEBUG("Evaluating config script ~p~n", [Script]),
-                    file:script(Script, [{'SCRIPT', Script}]);
+                    ConfigData = try_consult(File),
+                    ?DEBUG("ConfigData = ~p~n", [ConfigData]),
+                    file:script(Script, bs([{'CONFIG', ConfigData},
+                                            {'SCRIPT', Script}]));
                 false ->
                     ?DEBUG("Consult config file ~p~n", [File]),
                     file:consult(File)
             end
     end.
+
+remove_script_ext(F) ->
+    "tpircs." ++ Rev = lists:reverse(F),
+    lists:reverse(Rev).
+
+try_consult(File) ->
+    case file:consult(File) of
+        {ok, Terms} ->
+            ?DEBUG("Consult config file ~p~n", [File]),
+            Terms;
+        {error, enoent}  -> [];
+        {error, Reason} ->
+            ?ABORT("Failed to read config file ~s: ~p~n", [File, Reason])
+    end.
+
+bs(Vars) ->
+    lists:foldl(fun({K,V}, Bs) ->
+                        erl_eval:add_binding(K, V, Bs)
+                end, erl_eval:new_bindings(), Vars).
 
 %% ===================================================================
 %% Internal functions
