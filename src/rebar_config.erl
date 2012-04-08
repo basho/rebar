@@ -131,24 +131,27 @@ get_jobs() ->
 consult_file(File) ->
     case filename:extension(File) of
         ".script" ->
-            ?DEBUG("Evaluating config script ~p~n", [File]),
-            ConfigData = try_consult(remove_script_ext(File)),
-            ?DEBUG("ConfigData = ~p~n", [ConfigData]),
-            file:script(File, bs([{'CONFIG', ConfigData}, {'SCRIPT', File}]));
+            consult_and_eval(remove_script_ext(File), File);
         _ ->
             Script = File ++ ".script",
             case filelib:is_regular(Script) of
                 true ->
-                    ?DEBUG("Evaluating config script ~p~n", [Script]),
-                    ConfigData = try_consult(File),
-                    ?DEBUG("ConfigData = ~p~n", [ConfigData]),
-                    file:script(Script, bs([{'CONFIG', ConfigData},
-                                            {'SCRIPT', Script}]));
+                    consult_and_eval(File, Script);
                 false ->
                     ?DEBUG("Consult config file ~p~n", [File]),
                     file:consult(File)
             end
     end.
+
+%% ===================================================================
+%% Internal functions
+%% ===================================================================
+
+consult_and_eval(File, Script) ->
+    ?DEBUG("Evaluating config script ~p~n", [Script]),
+    ConfigData = try_consult(File),
+    file:script(File, bs([{'CONFIG', ConfigData}, {'SCRIPT', File}])).
+
 
 remove_script_ext(F) ->
     "tpircs." ++ Rev = lists:reverse(F),
@@ -169,9 +172,6 @@ bs(Vars) ->
                         erl_eval:add_binding(K, V, Bs)
                 end, erl_eval:new_bindings(), Vars).
 
-%% ===================================================================
-%% Internal functions
-%% ===================================================================
 
 local_opts([], Acc) ->
     lists:reverse(Acc);
