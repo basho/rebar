@@ -223,6 +223,7 @@ run_reltool(Server, _Config, ReltoolConfig) ->
 
 
 mk_target_dir(TargetDir) ->
+    ok = filelib:ensure_dir(filename:join(TargetDir,"foo")),
     case file:make_dir(TargetDir) of
         ok ->
             ok;
