@@ -1,3 +1,4 @@
+%% -*-Erlang-*-
 {variables, [{nodeid, "mynode"}]}.
 {template, "simplenode.reltool.config", "reltool.config"}.
 {file, "simplenode.erl.script", "files/erl"}.
@@ -10,3 +11,4 @@
 {template, "simplenode.vm.args", "files/vm.args"}.
 {template, "simplenode.windows.runner.cmd", "files/{{nodeid}}.cmd"}.
 {file, "simplenode.windows.start_erl.cmd", "files/start_erl.cmd"}.
+%% vim: set filetype=erlang:

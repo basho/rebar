@@ -1,3 +1,4 @@
+%% -*-Erlang-*-
 {application, {{appid}},
  [
   {description, ""},
@@ -10,3 +11,4 @@
   {mod, { {{appid}}_app, []}},
   {env, []}
  ]}.
+%% vim: set filetype=erlang:

@@ -68,7 +68,8 @@ case "$1" in
     start)
         # Make sure there is not already a node running
         RES=`$NODETOOL ping`
-        if [ "$RES" = "pong" ]; then
+        ES=$?
+        if [ "$ES" -ne 0 ]; then
             echo "Node is already running!"
             exit 1
         fi
