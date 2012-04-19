@@ -376,17 +376,20 @@ download_source(AppDir, {git, Url}) ->
     download_source(AppDir, {git, Url, {branch, "HEAD"}});
 download_source(AppDir, {git, Url, ""}) ->
     download_source(AppDir, {git, Url, {branch, "HEAD"}});
-download_source(AppDir, {git, Url, {branch, Branch}}) ->
+download_source(AppDir, {git, UrlIn, {branch, Branch}}) ->
+    Url = proxy_friendly_github_url(UrlIn),
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
                    [{cd, filename:dirname(AppDir)}]),
     rebar_utils:sh(?FMT("git checkout -q origin/~s", [Branch]), [{cd, AppDir}]);
-download_source(AppDir, {git, Url, {tag, Tag}}) ->
+download_source(AppDir, {git, UrlIn, {tag, Tag}}) ->
+    Url = proxy_friendly_github_url(UrlIn),
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
                    [{cd, filename:dirname(AppDir)}]),
     rebar_utils:sh(?FMT("git checkout -q ~s", [Tag]), [{cd, AppDir}]);
-download_source(AppDir, {git, Url, Rev}) ->
+download_source(AppDir, {git, UrlIn, Rev}) ->
+    Url = proxy_friendly_github_url(UrlIn),
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
                    [{cd, filename:dirname(AppDir)}]),
@@ -520,3 +523,19 @@ format_source(App, {_, Url, Rev}) ->
     ?FMT("~p REV ~s ~s", [App, Rev, Url]);
 format_source(App, undefined) ->
     ?FMT("~p", [App]).
+
+%% Replace git:// with https:// on the front of github urls so they work behind
+%% a restrictive corporate proxy
+proxy_friendly_github_url(Url) ->
+    case rebar_config:get_global(proxy_friendly_github_urls, false) of
+        "true" ->
+            Old = "git://github.com",
+            New = "https://github.com",
+            RegExp = "\\Q" ++ Old ++ "\\E",
+            Result = re:replace(Url, RegExp, New, [multiline, {return, list}]),
+            io:format("Replacing ~p with ~p~n", [Url, Result]),
+            Result;
+        _ -> 
+            Url
+    end.
+
