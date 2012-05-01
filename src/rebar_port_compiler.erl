@@ -563,14 +563,6 @@ target_type1(".dll") -> drv;
 target_type1("")     -> exe;
 target_type1(".exe") -> exe.
 
-erl_interface_dir(Subdir) ->
-    case code:lib_dir(erl_interface, Subdir) of
-        {error, bad_name} ->
-            throw({error, {erl_interface,Subdir,"code:lib_dir(erl_interface)"
-                           "is unable to find the erl_interface library."}});
-        Dir -> Dir
-    end.
-
 default_env() ->
     [
      {"CC" , "cc"},
@@ -591,15 +583,13 @@ default_env() ->
      {"DRV_LDFLAGS", "-shared $ERL_LDFLAGS"},
      {"EXE_CFLAGS" , "-g -Wall -fPIC $ERL_CFLAGS"},
      {"EXE_LDFLAGS", "$ERL_LDFLAGS"},
-
-     {"ERL_CFLAGS", lists:concat([" -I", erl_interface_dir(include),
-                                  " -I", filename:join(erts_dir(), "include"),
-                                  " "])},
-     {"ERL_EI_LIBDIR", erl_interface_dir(lib)},
-     {"ERL_LDFLAGS"  , " -L$ERL_EI_LIBDIR -lerl_interface -lei"},
      {"ERLANG_ARCH"  , rebar_utils:wordsize()},
-     {"ERLANG_TARGET", rebar_utils:get_arch()},
-
+     {"ERLANG_TARGET", rebar_utils:get_arch()}
+    ] 
+    %% if erl_interface is available, populate ERL_CFLAGS, ERL_LDFLAGS and
+    %% ERL_EI_LIBDIR appropriate, otherwise leave their libdirs out
+    ++ erl_interface_flags() ++
+    [
      {"darwin", "DRV_LDFLAGS",
       "-bundle -flat_namespace -undefined suppress $ERL_LDFLAGS"},
 
@@ -623,3 +613,26 @@ default_env() ->
      {"darwin11.*-32", "CXXFLAGS", "-m32 $CXXFLAGS"},
      {"darwin11.*-32", "LDFLAGS", "-arch i386 $LDFLAGS"}
     ].
+
+erl_interface_flags() ->
+    try
+        [
+         {"ERL_CFLAGS", lists:concat([" -I", erl_interface_dir(include),
+                                  " -I", filename:join(erts_dir(), "include"),
+                                  " "])},
+         {"ERL_EI_LIBDIR", erl_interface_dir(lib)},
+         {"ERL_LDFLAGS"  , " -L$ERL_EI_LIBDIR -lerl_interface -lei"}
+        ]
+    catch throw:{error, {erl_interface, _, _}} ->
+        [
+         {"ERL_CFLAGS", lists:concat([filename:join(erts_dir(), "include"), " "])}       
+        ]
+    end.
+
+erl_interface_dir(Subdir) ->
+    case code:lib_dir(erl_interface, Subdir) of
+        {error, bad_name} ->
+            throw({error, {erl_interface,Subdir,"code:lib_dir(erl_interface)"
+                           "is unable to find the erl_interface library."}});
+        Dir -> Dir
+    end.
