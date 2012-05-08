@@ -178,8 +178,9 @@ setup_env(_Config) ->
 %% need all deps in same dir and should be the one set by the root rebar.config
 %% Sets a default if root config has no deps_dir set
 set_global_deps_dir(Config, []) ->
-    rebar_config:set_global(deps_dir,
-                            rebar_config:get_local(Config, deps_dir, "deps"));
+    ExistingGlobalDepsDir = rebar_config:get(Config, deps_dir, "deps"),
+    rebar_config:set_global(deps_dir, rebar_config:get_local(
+        Config, deps_dir, ExistingGlobalDepsDir));
 set_global_deps_dir(_Config, _DepsDir) ->
     ok.
 
@@ -190,6 +191,21 @@ get_deps_dir(App) ->
     BaseDir = rebar_config:get_global(base_dir, []),
     DepsDir = rebar_config:get_global(deps_dir, "deps"),
     {true, filename:join([BaseDir, DepsDir, App])}.
+
+check_deps_dir(App) ->
+    %% we want to allow for forms such as "<appname>-<vsn>"
+    {true, BasePath} = get_deps_dir(App),
+    case filelib:is_dir(BasePath) of
+        true ->
+            {true, BasePath};
+        false ->
+            case filelib:wildcard(BasePath ++ "*") of
+                [Dir|_] ->
+                    {true, Dir};
+                _ ->
+                    {false, BasePath}
+            end
+    end.
 
 get_lib_dir(App) ->
     %% Find App amongst the reachable lib directories
@@ -271,7 +287,7 @@ find_dep(Dep, _Source) ->
     %% _Source is defined.  Regardless of what it is, we must find it
     %% locally satisfied or fetch it from the original source
     %% into the project's deps
-    find_dep_in_dir(Dep, get_deps_dir(Dep#dep.app)).
+    find_dep_in_dir(Dep, check_deps_dir(Dep#dep.app)).
 
 find_dep_in_dir(_Dep, {false, Dir}) ->
     {missing, Dir};
