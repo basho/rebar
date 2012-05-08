@@ -44,8 +44,8 @@
 %% ===================================================================
 
 'create-app'(Config, File) ->
-    %% Alias for create w/ template=simpleapp
-    rebar_config:set_global(template, "simpleapp"),
+    %% Alias for create w/ template=standardapp
+    rebar_config:set_global(template, "standardapp"),
     create(Config, File).
 
 'create-node'(Config, File) ->
