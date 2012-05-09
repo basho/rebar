@@ -432,7 +432,12 @@ vcs_vsn_cmd(git) ->
                 "(`git log -n 1 \"--pretty=format:%h\" .`) do "
                 "@git describe --always --tags %i";
         _ ->
-            "git describe --always --tags `git log -n 1 --pretty=format:%h .`"
+            case rebar_rel_utils:is_rel_dir() of
+                {true, _} ->
+                    "git describe --always --tags";
+                false ->
+                    "git describe --always --tags `git log -n 1 --pretty=format:%h .`"
+            end
     end;
 vcs_vsn_cmd(hg)  -> "hg identify -i";
 vcs_vsn_cmd(bzr) -> "bzr revno";
