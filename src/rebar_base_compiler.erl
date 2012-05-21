@@ -125,7 +125,7 @@ compile_each([], _Config, _CompileFn) ->
 compile_each([Source | Rest], Config, CompileFn) ->
     case compile(Source, Config, CompileFn) of
         ok ->
-            ?CONSOLE("Compiled ~s\n", [Source]);
+            ?CONSOLE_GREEN("Compiled ~s\n", [Source]);
         skipped ->
             ?INFO("Skipped ~s\n", [Source])
     end,
@@ -152,7 +152,7 @@ compile_queue(Pids, Targets) ->
             ?FAIL;
 
         {compiled, Source} ->
-            ?CONSOLE("Compiled ~s\n", [Source]),
+            ?CONSOLE_GREEN("Compiled ~s\n", [Source]),
             compile_queue(Pids, Targets);
 
         {skipped, Source} ->
