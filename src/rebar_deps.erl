@@ -398,7 +398,7 @@ update_source(Dep) ->
     {true, AppDir} = get_deps_dir(Dep#dep.app),
     case has_vcs_dir(element(1, Dep#dep.source), AppDir) of
         true ->
-            ?CONSOLE("Updating ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
+            ?CONSOLE_MAGENTA("Updating ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
             require_source_engine(Dep#dep.source),
             update_source(AppDir, Dep#dep.source),
             Dep;
