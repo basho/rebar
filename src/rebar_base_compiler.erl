@@ -149,7 +149,11 @@ compile_queue(Pids, Targets) ->
 
         {fail, Error} ->
             ?DEBUG("Worker compilation failed: ~p\n", [Error]),
-            ?FAIL;
+            ?CONSOLE("Compile failed: ~s\n",
+                     [proplists:get_value(source, Error, "unknown")]),
+            rebar_utils:maybe_delayed_fail(fun() ->
+                                                   compile_queue(Pids, Targets)
+                                           end);
 
         {compiled, Source} ->
             ?CONSOLE("Compiled ~s\n", [Source]),
@@ -183,7 +187,7 @@ compile_worker(QueuePid, Config, CompileFn) ->
                 Error ->
                     QueuePid ! {fail, [{error, Error},
                                        {source, Source}]},
-                    ok
+                    compile_worker(QueuePid, Config, CompileFn)
             end;
 
         empty ->

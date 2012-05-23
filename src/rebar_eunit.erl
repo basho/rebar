@@ -49,6 +49,8 @@
 %% implementation, and for the unit tests, then the following
 %% <code>rebar.config</code> option can be provided:
 %% <code>{eunit_compile_opts, [{src_dirs, ["dir"]}]}.</code>.
+%% A further addition is that now the flag -k(--keep-going) can be supplied that
+%% will cause eunit to continue even there are failures in the test suite.
 %% @copyright 2009, 2010 Dave Smith
 %% -------------------------------------------------------------------
 -module(rebar_eunit).
@@ -153,7 +155,8 @@ eunit(Config, _AppFile) ->
         ok ->
             ok;
         _ ->
-            ?ABORT("One or more eunit tests failed.~n", [])
+            rebar_utils:maybe_delayed_fail(
+              "One or more eunit tests failed.~n", [], ok)
     end,
 
     %% Restore code path
