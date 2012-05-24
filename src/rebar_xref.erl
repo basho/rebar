@@ -90,7 +90,7 @@ xref(Config, _) ->
 
     case lists:member(false, [ExportsNoWarn, UndefNoWarn, QueryNoWarn]) of
         true ->
-            ?FAIL;
+            rebar_utils:maybe_delayed_fail(fun() -> ok end);
         false ->
             ok
     end.
