@@ -201,14 +201,14 @@ vcs_vsn(Vcs, Dir) ->
             VsnString
     end.
 
-vcs_vsn_1(Vcs, Dir) ->
-    case vcs_vsn_cmd(Vcs) of
+vcs_vsn_1(VcsTerm, Dir) ->
+    case vcs_vsn_cmd(VcsTerm) of
         {unknown, VsnString} ->
-            ?DEBUG("vcs_vsn: Unknown VCS atom in vsn field: ~p\n", [Vcs]),
+            ?DEBUG("vcs_vsn: Unknown VCS term in vsn field: ~p\n", [VcsTerm]),
             VsnString;
         {cmd, CmdString} ->
             vcs_vsn_invoke(CmdString, Dir);
-        Cmd ->
+        {Vcs, Cmd} ->
             %% If there is a valid VCS directory in the application directory,
             %% use that version info
             Extension = lists:concat([".", Vcs]),
@@ -425,17 +425,20 @@ emulate_escript_foldl(Fun, Acc, File) ->
 vcs_vsn_cmd(git) ->
     %% git describe the last commit that touched CWD
     %% required for correct versioning of apps in subdirs, such as apps/app1
-    case os:type() of
+    Cmd = case os:type() of
         {win32,nt} ->
             "FOR /F \"usebackq tokens=* delims=\" %i in "
                 "(`git log -n 1 \"--pretty=format:%h\" .`) do "
                 "@git describe --always --tags %i";
         _ ->
             "git describe --always --tags `git log -n 1 --pretty=format:%h .`"
-    end;
-vcs_vsn_cmd(hg)  -> "hg identify -i";
-vcs_vsn_cmd(bzr) -> "bzr revno";
-vcs_vsn_cmd(svn) -> "svnversion";
+    end,
+    {git, Cmd};
+vcs_vsn_cmd(hg)  -> {hg, "hg identify -i"};
+vcs_vsn_cmd(bzr) -> {bzr, "bzr revno"};
+vcs_vsn_cmd(svn) -> {svn, "svnversion"};
+vcs_vsn_cmd({git_format, Format}) ->
+    {git, "git log -n1 \"--pretty=format:" ++ Format ++ "%n\" ."};
 vcs_vsn_cmd({cmd, _Cmd}=Custom) -> Custom;
 vcs_vsn_cmd(Version) -> {unknown, Version}.
 
