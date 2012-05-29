@@ -108,7 +108,7 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
 
             case ShouldPrintDir of
                 true ->
-                    ?CONSOLE("==> Entering directory `~s'\n", [AbsDir]);
+                    ?INFO("==> Entering directory `~s'\n", [AbsDir]);
                 _ ->
                     ok
             end,
@@ -132,7 +132,7 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
 
             case ShouldPrintDir of
                 true ->
-                    ?CONSOLE("==> Leaving directory `~s'\n", [AbsDir]);
+                    ?INFO("==> Leaving directory `~s'\n", [AbsDir]);
                 false ->
                     ok
             end,
