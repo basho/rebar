@@ -225,7 +225,8 @@ new_env() ->
     dict:new().
 
 get_formats(Config) ->
-    get_list(Config, rebar_config_formats, []) ++ default_formats().
+    lists:flatten(get_all(Config, rebar_config_formats))
+        ++ default_formats().
 
 default_formats() ->
     [

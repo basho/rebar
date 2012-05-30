@@ -232,7 +232,8 @@ find_config(Dir, [{ File, _ }|T]) ->
 find_config(_Dir, []) -> false.
 
 get_formats(Config) ->
-    rebar_config:get_list(Config, reltool_config_formats, []) ++ default_formats().
+    lists:flatten(rebar_config:get_all(Config, reltool_config_formats))
+        ++ default_formats().
 
 default_formats() ->
     [
