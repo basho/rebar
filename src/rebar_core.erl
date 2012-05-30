@@ -126,7 +126,7 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
             %% CWD to see if it's a fit -- if it is, use that set of modules
             %% to process this dir.
             {ok, AvailModuleSets} = application:get_env(rebar, modules),
-            ModuleSet = choose_module_set(AvailModuleSets, Dir),
+            ModuleSet = choose_module_set(AvailModuleSets, Config, Dir),
             Res = maybe_process_dir(ModuleSet, Config, CurrentCodePath,
                                     Dir, Command, DirSet),
 
@@ -302,21 +302,21 @@ process_each([Dir | Rest], Command, Config, ModuleSetFile, DirSet) ->
 %% Given a list of module sets from rebar.app and a directory, find
 %% the appropriate subset of modules for this directory
 %%
-choose_module_set([], _Dir) ->
+choose_module_set([], _Config, _Dir) ->
     {[], undefined};
-choose_module_set([{Type, Modules} | Rest], Dir) ->
-    case is_dir_type(Type, Dir) of
+choose_module_set([{Type, Modules} | Rest], Config, Dir) ->
+    case is_dir_type(Type, Config, Dir) of
         {true, File} ->
             {Modules, File};
         false ->
-            choose_module_set(Rest, Dir)
+            choose_module_set(Rest, Config, Dir)
     end.
 
-is_dir_type(app_dir, Dir) ->
-    rebar_app_utils:is_app_dir(Dir);
-is_dir_type(rel_dir, Dir) ->
-    rebar_rel_utils:is_rel_dir(Dir);
-is_dir_type(_, _) ->
+is_dir_type(app_dir, Config, Dir) ->
+    rebar_app_utils:is_app_dir(Config, Dir);
+is_dir_type(rel_dir, Config, Dir) ->
+    rebar_rel_utils:is_rel_dir(Config, Dir);
+is_dir_type(_, _, _) ->
     false.
 
 execute_pre(Command, Modules, Config, ModuleFile, Env) ->
