@@ -27,6 +27,8 @@
 -module(rebar).
 
 -export([main/1,
+         run/2,
+         start/0,
          help/0,
          parse_args/1,
          version/0]).
@@ -45,8 +47,9 @@
 %% Public API
 %% ====================================================================
 
+%% Command line entry-point
 main(Args) ->
-    case catch(run(Args)) of
+    case catch(run_from_script(Args)) of
         ok ->
             ok;
         {error, failed} ->
@@ -58,38 +61,33 @@ main(Args) ->
             halt(1)
     end.
 
-%% ====================================================================
-%% Internal functions
-%% ====================================================================
-
-run(RawArgs) ->
-    %% Pre-load the rebar app so that we get default configuration
-    ok = application:load(rebar),
-    %% Parse out command line arguments -- what's left is a list of commands to
-    %% run -- and start running commands
+%% API available to invoke rebar from inside
+%% Erlang code. It receives an extra set of
+%% options in the same format as rebar.config.
+%% Useful to pass extra plugins. Requires
+%% rebar to be first started via rebar:start().
+run(RawArgs, Opts) ->
+    %% Parse out command line arguments -- what's left is a list of
+    %% commands to run -- and start running commands
     Args = parse_args(RawArgs),
 
     case rebar_config:get_global(enable_profiling, false) of
         true ->
             io:format("Profiling!\n"),
             try
-                fprof:apply(fun(A) -> run_aux(A) end, [Args])
+                fprof:apply(fun(A, O) -> run_aux(A, O) end, [Args, Opts])
             after
                 fprof:profile(),
                 fprof:analyse([{dest, "fprof.analysis"}])
             end;
         _ ->
-            run_aux(Args)
+            run_aux(Args, Opts)
     end.
 
-run_aux(["help"]) ->
-    help(),
-    ok;
-run_aux(["version"]) ->
-    %% Display vsn and build time info
-    version(),
-    ok;
-run_aux(Commands) ->
+start() ->
+    %% Pre-load the rebar app so that we get default configuration
+    ok = application:load(rebar),
+
     %% Make sure crypto is running
     ok = crypto:start(),
 
@@ -99,14 +97,33 @@ run_aux(Commands) ->
     %% Initialize vsn cache
     _VsnCacheTab = ets:new(rebar_vsn_cache,[named_table, public]),
 
-    %% Convert command strings to atoms
-    CommandAtoms = [list_to_atom(C) || C <- Commands],
+    ok.
+
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
+
+run_from_script(Args) ->
+    start(),
 
     %% Determine the location of the rebar executable; important for pulling
     %% resources out of the escript
     rebar_config:set_global(escript, filename:absname(escript:script_name())),
     ?DEBUG("Rebar location: ~p\n",
            [rebar_config:get_global(escript, undefined)]),
+
+    run(Args, []).
+
+run_aux(["help"], _) ->
+    help(),
+    ok;
+run_aux(["version"], _) ->
+    %% Display vsn and build time info
+    version(),
+    ok;
+run_aux(Commands, Opts) ->
+    %% Convert command strings to atoms
+    CommandAtoms = [list_to_atom(C) || C <- Commands],
 
     %% Note the top-level directory for reference
     rebar_config:set_global(base_dir, filename:absname(rebar_utils:get_cwd())),
@@ -115,15 +132,7 @@ run_aux(Commands) ->
     erlang:put(operations, 0),
 
     %% If $HOME/.rebar/config exists load and use as global config
-    GlobalConfigFile = filename:join([os:getenv("HOME"), ".rebar", "config"]),
-    GlobalConfig = case filelib:is_regular(GlobalConfigFile) of
-                       true ->
-                           ?DEBUG("Load global config file ~p~n",
-                                  [GlobalConfigFile]),
-                           rebar_config:new(GlobalConfigFile);
-                       false ->
-                           rebar_config:new()
-                   end,
+    GlobalConfig = rebar_config:global_config(Opts),
     BaseConfig = rebar_config:base_config(GlobalConfig),
 
     %% Process each command, resetting any state between each one

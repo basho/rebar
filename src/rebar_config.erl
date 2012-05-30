@@ -26,7 +26,7 @@
 %% -------------------------------------------------------------------
 -module(rebar_config).
 
--export([new/0, new/1, base_config/1, consult_file/1,
+-export([new/0, new/1, base_config/1, global_config/1, consult_file/1,
          get/3, get_local/3, get_list/3,
          get_all/2,
          set/3,
@@ -54,17 +54,22 @@ base_config(#config{opts=Opts0}) ->
     ConfName = rebar_config:get_global(config, "rebar.config"),
     new(Opts0, ConfName).
 
+global_config(ExtraOpts) ->
+  ConfigFile = filename:join([os:getenv("HOME"), ".rebar", "config"]),
+
+  Opts = case consult_file(ConfigFile) of
+      {ok, GlobalOpts} ->
+          ?DEBUG("Load global config file ~p~n", [ConfigFile]),
+          ExtraOpts ++ GlobalOpts;
+      _Other ->
+          ExtraOpts
+  end,
+
+  #config { dir = rebar_utils:get_cwd(), opts = Opts }.
+
 new() ->
     #config{dir = rebar_utils:get_cwd()}.
 
-new(ConfigFile) when is_list(ConfigFile) ->
-    case consult_file(ConfigFile) of
-        {ok, Opts} ->
-            #config { dir = rebar_utils:get_cwd(),
-                      opts = Opts };
-        Other ->
-            ?ABORT("Failed to load ~s: ~p~n", [ConfigFile, Other])
-    end;
 new(_ParentConfig=#config{opts=Opts0})->
     new(Opts0, "rebar.config").
 
