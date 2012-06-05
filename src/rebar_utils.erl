@@ -118,7 +118,7 @@ find_files(Dir, Regex) ->
 
 find_files(Dir, Regex, Recursive) ->
     filelib:fold_files(Dir, Regex, Recursive,
-                       fun(F, Acc) -> [F | Acc] end, []).
+                       fun(F, Acc) -> [filename:absname(F) | Acc] end, []).
 
 now_str() ->
     {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:local_time(),
