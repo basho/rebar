@@ -48,6 +48,7 @@
          get_deprecated_global/3,
          get_deprecated_list/4, get_deprecated_list/5,
          get_deprecated_local/4, get_deprecated_local/5,
+         maybe_delayed_fail/1, maybe_delayed_fail/3,
          delayed_halt/1]).
 
 -include("rebar.hrl").
@@ -135,6 +136,29 @@ ensure_dir(Path) ->
             ok;
         Error ->
             Error
+    end.
+
+-spec maybe_delayed_fail(function()) -> no_return() | _.
+maybe_delayed_fail(Cont) when is_function(Cont, 0) ->
+    case rebar_config:get_global(keep_going, false) of
+        true ->
+            rebar_config:set_global(delayed_failure, true),
+            ?DEBUG("Delayed failure set\n", []),
+            Cont();
+        false ->
+            ?FAIL
+    end.
+
+-spec maybe_delayed_fail(string(), [term()], _) -> no_return() | _.
+maybe_delayed_fail(String, Args, Value) ->
+    case rebar_config:get_global(keep_going, false) of
+        true ->
+            rebar_config:set_global(delayed_failure, true),
+            ?ERROR(String, Args),
+            ?DEBUG("Delayed failure set\n", []),
+            Value;
+        false ->
+            abort(String, Args)
     end.
 
 -spec abort(string(), [term()]) -> no_return().
