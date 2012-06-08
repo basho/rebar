@@ -26,8 +26,8 @@
 %% -------------------------------------------------------------------
 -module(rebar_rel_utils).
 
--export([is_rel_dir/0,
-         is_rel_dir/1,
+-export([is_rel_dir/1,
+         is_rel_dir/2,
          get_reltool_release_info/1,
          get_rel_release_info/1,
          get_rel_release_info/2,
@@ -35,7 +35,7 @@
          get_rel_apps/2,
          get_previous_release_path/0,
          get_rel_file_path/2,
-         load_config/1,
+         load_config/2,
          get_sys_tuple/1,
          get_target_dir/1,
          get_root_dir/1,
@@ -43,23 +43,11 @@
 
 -include("rebar.hrl").
 
-is_rel_dir() ->
-    is_rel_dir(rebar_utils:get_cwd()).
+is_rel_dir(Config) ->
+    is_rel_dir(Config, rebar_utils:get_cwd()).
 
-is_rel_dir(Dir) ->
-    Fname = filename:join([Dir, "reltool.config"]),
-    Scriptname = Fname ++ ".script",
-    Res = case filelib:is_regular(Scriptname) of
-              true ->
-                  {true, Scriptname};
-              false ->
-                  case filelib:is_regular(Fname) of
-                      true ->
-                          {true, Fname};
-                      false ->
-                          false
-                  end
-          end,
+is_rel_dir(Config, Dir) ->
+    Res = find_config(Dir, get_formats(Config)),
     ?DEBUG("is_rel_dir(~s) -> ~p~n", [Dir, Res]),
     Res.
 
@@ -123,10 +111,13 @@ get_previous_release_path() ->
 %%
 %% Load terms from reltool.config
 %%
-load_config(ReltoolFile) ->
-    case rebar_config:consult_file(ReltoolFile) of
+load_config(Config, ReltoolFile) ->
+    Dir = filename:dirname(ReltoolFile),
+    Format = lists:keyfind(filename:basename(ReltoolFile), 1, get_formats(Config)),
+
+    case rebar_config:consult_files(Dir, [Format]) of
         {ok, Terms} ->
-            expand_version(Terms, filename:dirname(ReltoolFile));
+            expand_version(Terms, Dir);
         Other ->
             ?ABORT("Failed to load expected config from ~s: ~p\n",
                    [ReltoolFile, Other])
@@ -230,3 +221,22 @@ expand_rel_version({rel, Name, Version, Apps}, Dir) ->
     {rel, Name, rebar_utils:vcs_vsn(Version, Dir), Apps};
 expand_rel_version(Other, _Dir) ->
     Other.
+
+find_config(Dir, [{ File, _ }|T]) ->
+    Full = filename:join([Dir, File]),
+    case filelib:is_regular(Full) of
+        true  -> { true, Full };
+        false -> find_config(Dir, T)
+    end;
+
+find_config(_Dir, []) -> false.
+
+get_formats(Config) ->
+    lists:flatten(rebar_config:get_all(Config, reltool_config_formats))
+        ++ default_formats().
+
+default_formats() ->
+    [
+        { "reltool.config.script", { rebar_config, consult_script } },
+        { "reltool.config", { file, consult } }
+    ].

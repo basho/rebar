@@ -27,6 +27,7 @@
 -module(rebar_config).
 
 -export([new/0, new/1, base_config/1, consult_file/1,
+         consult_script/1, consult_files/2,
          get/3, get_local/3, get_list/3,
          get_all/2,
          set/3,
@@ -50,29 +51,35 @@
 %% Public API
 %% ===================================================================
 
-base_config(#config{opts=Opts0}) ->
-    ConfName = rebar_config:get_global(config, "rebar.config"),
-    new(Opts0, ConfName).
+base_config(Parent = #config{opts=Opts0}) ->
+    case rebar_config:get_global(config, undefined) of
+        undefined ->
+            new(Opts0, get_formats(Parent));
+        ConfName ->
+            %% Someone passed a custom config file,
+            %% so we get all formats that ends up
+            %% with the same extension.
+            new(Opts0, best_format_match(ConfName, Parent))
+    end.
 
 new() ->
     #config{dir = rebar_utils:get_cwd()}.
 
-new(ConfigFile) when is_list(ConfigFile) ->
-    case consult_file(ConfigFile) of
+new(ConfigDir) when is_list(ConfigDir) ->
+    case consult_files(ConfigDir, default_formats()) of
         {ok, Opts} ->
             #config { dir = rebar_utils:get_cwd(),
                       opts = Opts };
-        Other ->
-            ?ABORT("Failed to load ~s: ~p~n", [ConfigFile, Other])
+        _ ->
+            new()
     end;
-new(_ParentConfig=#config{opts=Opts0})->
-    new(Opts0, "rebar.config").
+new(Parent=#config{opts=Opts0})->
+    new(Opts0, get_formats(Parent)).
 
-new(Opts0, ConfName) ->
+new(Opts0, Formats) ->
     %% Load terms from rebar.config, if it exists
-    Dir = rebar_utils:get_cwd(),
-    ConfigFile = filename:join([Dir, ConfName]),
-    Opts = case consult_file(ConfigFile) of
+    Dir  = rebar_utils:get_cwd(),
+    Opts = case consult_files(Dir, Formats) of
                {ok, Terms} ->
                    %% Found a config file with some terms. We need to
                    %% be able to distinguish between local definitions
@@ -84,9 +91,7 @@ new(Opts0, ConfName) ->
                        [Opt || Opt <- Opts0, Opt /= local];
                {error, enoent} ->
                    [local] ++
-                       [Opt || Opt <- Opts0, Opt /= local];
-               Other ->
-                   ?ABORT("Failed to load ~s: ~p\n", [ConfigFile, Other])
+                       [Opt || Opt <- Opts0, Opt /= local]
            end,
 
     #config{dir = Dir, opts = Opts}.
@@ -129,15 +134,44 @@ is_verbose() ->
 get_jobs() ->
     get_global(jobs, 3).
 
+%% Search the given filenames in the given directory
+%% invoking the first one that exists passing the
+%% full file path as argument.
+%%
+%% The invoked callbacks must return { ok, Terms } or
+%% { error, Reason }.
+consult_files(Dir, [{ File, { Mod, Fun } }|T]) ->
+    Full = filename:join([Dir, File]),
+    case filelib:is_regular(Full) of
+        true  ->
+            case apply(Mod, Fun, [Full]) of
+                { error, Reason } ->
+                    ?ABORT("Failed to load ~s: ~p\n", [Full, Reason]);
+                Ok -> Ok
+            end;
+        false -> consult_files(Dir, T)
+    end;
+
+consult_files(_Dir, []) ->
+    { error, enoent }.
+
+consult_script(File) ->
+    consult_and_eval(remove_script_ext(File), File).
+
+%% consult_file considering if it is a script or not.
+%% If so, uses consult_script otherwise fallbacks to
+%% file:consult.
+%%
+%% TODO Consider deprecating it in favor of consult_files.
 consult_file(File) ->
     case filename:extension(File) of
         ".script" ->
-            consult_and_eval(remove_script_ext(File), File);
+            consult_script(File);
         _ ->
             Script = File ++ ".script",
             case filelib:is_regular(Script) of
                 true ->
-                    consult_and_eval(File, Script);
+                    consult_script(Script);
                 false ->
                     ?DEBUG("Consult config file ~p~n", [File]),
                     file:consult(File)
@@ -160,7 +194,6 @@ consult_and_eval(File, Script) ->
     ?DEBUG("Evaluating config script ~p~n", [Script]),
     ConfigData = try_consult(File),
     file:script(Script, bs([{'CONFIG', ConfigData}, {'SCRIPT', Script}])).
-
 
 remove_script_ext(F) ->
     "tpircs." ++ Rev = lists:reverse(F),
@@ -190,3 +223,18 @@ local_opts([Item | Rest], Acc) ->
 
 new_env() ->
     dict:new().
+
+get_formats(Config) ->
+    lists:flatten(get_all(Config, rebar_config_formats))
+        ++ default_formats().
+
+default_formats() ->
+    [
+        { "rebar.config.script", { ?MODULE, consult_script } },
+        { "rebar.config", { file, consult } }
+    ].
+
+best_format_match(Given, Config) ->
+    Ext = filename:extension(Given),
+    [{ Given, Loc } || { File, Loc } <- get_formats(Config),
+        filename:extension(File) == Ext].

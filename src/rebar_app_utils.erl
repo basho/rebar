@@ -26,7 +26,7 @@
 %% -------------------------------------------------------------------
 -module(rebar_app_utils).
 
--export([is_app_dir/0, is_app_dir/1,
+-export([is_app_dir/1, is_app_dir/2,
          is_app_src/1,
          app_src_to_app/1,
          app_name/1,
@@ -42,10 +42,10 @@
 %% Public API
 %% ===================================================================
 
-is_app_dir() ->
-    is_app_dir(rebar_utils:get_cwd()).
+is_app_dir(Config) ->
+    is_app_dir(Config,  rebar_utils:get_cwd()).
 
-is_app_dir(Dir) ->
+is_app_dir(_Config, Dir) ->
     SrcDir = filename:join([Dir, "src"]),
     AppSrc = filename:join([SrcDir, "*.app.src"]),
     case filelib:wildcard(AppSrc) of

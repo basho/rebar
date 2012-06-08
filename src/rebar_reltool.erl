@@ -42,7 +42,7 @@ generate(Config, ReltoolFile) ->
     check_vsn(),
 
     %% Load the reltool configuration from the file
-    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
+    ReltoolConfig = rebar_rel_utils:load_config(Config, ReltoolFile),
 
     Sys = rebar_rel_utils:get_sys_tuple(ReltoolConfig),
 
@@ -64,13 +64,13 @@ generate(Config, ReltoolFile) ->
             ?FAIL
     end.
 
-overlay(_Config, ReltoolFile) ->
+overlay(Config, ReltoolFile) ->
     %% Load the reltool configuration from the file
-    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
+    ReltoolConfig = rebar_rel_utils:load_config(Config, ReltoolFile),
     process_overlay(ReltoolConfig).
 
-clean(_Config, ReltoolFile) ->
-    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
+clean(Config, ReltoolFile) ->
+    ReltoolConfig = rebar_rel_utils:load_config(Config, ReltoolFile),
     TargetDir = rebar_rel_utils:get_target_dir(ReltoolConfig),
     rebar_file_utils:rm_rf(TargetDir),
     rebar_file_utils:delete_each(["reltool.spec"]).

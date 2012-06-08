@@ -119,15 +119,8 @@ run_aux(Commands) ->
     erlang:put(operations, 0),
 
     %% If $HOME/.rebar/config exists load and use as global config
-    GlobalConfigFile = filename:join([os:getenv("HOME"), ".rebar", "config"]),
-    GlobalConfig = case filelib:is_regular(GlobalConfigFile) of
-                       true ->
-                           ?DEBUG("Load global config file ~p~n",
-                                  [GlobalConfigFile]),
-                           rebar_config:new(GlobalConfigFile);
-                       false ->
-                           rebar_config:new()
-                   end,
+    GlobalConfigDir = filename:join([os:getenv("HOME"), ".rebar"]),
+    GlobalConfig = rebar_config:new(GlobalConfigDir),
     BaseConfig = rebar_config:base_config(GlobalConfig),
 
     %% Process each command, resetting any state between each one
