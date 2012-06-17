@@ -43,7 +43,10 @@
 %% The following Global options are supported:
 %% <ul>
 %%   <li>verbose=1 - show extra output from the eunit test</li>
-%%   <li>suite="foo"" - runs test/foo_tests.erl</li>
+%%   <li>suite="foo" - runs test/foo_tests.erl</li>
+%%   <li>generator="myapp_mymod_tests:myfunc_test_" -
+%%       runs single generator test myapp_mymod_tests:myfunc_test_/0
+%%   </li>
 %% </ul>
 %% Additionally, for projects that have separate folders for the core
 %% implementation, and for the unit tests, then the following
@@ -174,9 +177,18 @@ ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
 
 perform_eunit(Config, Modules) ->
-    %% suite defined, so only specify the module that relates to the
-    %% suite (if any). Suite can be a comma seperated list of modules to run.
-    Suite = rebar_config:get_global(suite, undefined),
+    %% suite or generator defined, so only specify the module that relates to the
+    %% suite/generator (if any). Suite/Generator can be a comma seperated list of
+    %% modules to run.
+    TestInfo = case rebar_config:get_global(suite, undefined) of
+        undefined ->
+            case rebar_config:get_global(generator, undefined) of
+                undefined -> undefined;
+                Generators -> {generators, Generators}
+            end;
+        Suites ->
+            {suites, Suites}
+    end,
     EunitOpts = get_eunit_opts(Config),
 
     %% Move down into ?EUNIT_DIR while we run tests so any generated files
@@ -184,7 +196,7 @@ perform_eunit(Config, Modules) ->
     Cwd = rebar_utils:get_cwd(),
     ok = file:set_cwd(?EUNIT_DIR),
 
-    EunitResult = perform_eunit(EunitOpts, Modules, Suite),
+    EunitResult = perform_eunit(EunitOpts, Modules, TestInfo),
 
     %% Return to original working dir
     ok = file:set_cwd(Cwd),
@@ -193,9 +205,13 @@ perform_eunit(Config, Modules) ->
 
 perform_eunit(EunitOpts, Modules, undefined) ->
     (catch eunit:test(Modules, EunitOpts));
-perform_eunit(EunitOpts, _Modules, Suites) ->
+perform_eunit(EunitOpts, _Modules, {suites, Suites}) ->
     (catch eunit:test([list_to_atom(Suite) ||
-                          Suite <- string:tokens(Suites, ",")], EunitOpts)).
+                          Suite <- string:tokens(Suites, ",")], EunitOpts));
+perform_eunit(EunitOpts, _Modules, {generators, Generators}) ->
+    (catch eunit:test([{generator, list_to_atom(GeneratorMod), list_to_atom(GeneratorFun)} ||
+        [GeneratorMod, GeneratorFun] <- [string:tokens(Generator, ":") ||
+        Generator <- string:tokens(Generators, ",")]], EunitOpts)).
 
 get_eunit_opts(Config) ->
     %% Enable verbose in eunit if so requested..
