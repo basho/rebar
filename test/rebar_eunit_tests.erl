@@ -59,6 +59,21 @@ eunit_test_() ->
                ?_assert(string:str(RebarOut, "All 2 tests passed") =/= 0)}]
      end}.
 
+eunit_with_generator_test_() ->
+    {"Ensure EUnit runs with tests in a 'test' dir and a defined generator",
+     setup, fun() -> setup_basic_generator_project(), rebar("-v eunit generator=myapp_mymod_tests:myfunc_test_") end,
+     fun teardown/1,
+     fun(RebarOut) ->
+             [{"Specific module is found and run",
+               ?_assert(string:str(RebarOut, "myapp_mymod_tests:") =/= 0)},
+
+              {"Specific test is found and run",
+               ?_assert(string:str(RebarOut, "myfunc_test_") =/= 0)},
+
+              {"Single test is run",
+               ?_assert(string:str(RebarOut, "Test passed") =/= 0)}]
+     end}.
+
 cover_test_() ->
     {"Ensure Cover runs with tests in a test dir and no defined suite",
      setup, fun() -> setup_cover_project(), rebar("-v eunit") end,
@@ -155,6 +170,12 @@ basic_setup_test_() ->
          "-include_lib(\"eunit/include/eunit.hrl\").\n",
          "myfunc_test() -> ?assertMatch(ok, myapp_mymod:myfunc()).\n"]).
 
+-define(myapp_mymod_generator_tests,
+        ["-module(myapp_mymod_tests).\n",
+         "-compile([export_all]).\n",
+         "-include_lib(\"eunit/include/eunit.hrl\").\n",
+         "myfunc_test_() -> [?_assertMatch(ok, myapp_mymod:myfunc())].\n"]).
+
 -define(mysuite,
         ["-module(mysuite).\n",
          "-export([all_test_/0]).\n",
@@ -181,6 +202,14 @@ setup_basic_project() ->
     ok = file:make_dir("ebin"),
     ok = file:make_dir("test"),
     ok = file:write_file("test/myapp_mymod_tests.erl", ?myapp_mymod_tests),
+    ok = file:write_file("src/myapp_mymod.erl", ?myapp_mymod).
+
+setup_basic_generator_project() ->
+    setup_environment(),
+    rebar("create-app appid=myapp"),
+    ok = file:make_dir("ebin"),
+    ok = file:make_dir("test"),
+    ok = file:write_file("test/myapp_mymod_tests.erl", ?myapp_mymod_generator_tests),
     ok = file:write_file("src/myapp_mymod.erl", ?myapp_mymod).
 
 setup_cover_project() ->
