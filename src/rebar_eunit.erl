@@ -149,10 +149,14 @@ eunit(Config, _AppFile) ->
             ok
     end,
 
-    case EunitResult of
-        ok ->
+    KeepGoing = rebar_config:get_global(keep_going, false),
+
+    case {EunitResult, KeepGoing} of
+        {ok, _} ->
             ok;
-        _ ->
+        {_, true} ->
+            ok;
+        {_, false} ->
             ?ABORT("One or more eunit tests failed.~n", [])
     end,
 
