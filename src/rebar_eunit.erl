@@ -289,8 +289,12 @@ cover_analyze(Config, Modules, SrcModules) ->
     %% Export coverage data, if configured
     case rebar_config:get(Config, cover_export_enabled, false) of
         true ->
-            ?CONSOLE("Coverdata export: ~s\n", [ExportCoverageFile]),
-            cover:export(ExportCoverageFile); 
+	    case cover:export(ExportCoverageFile) of
+		ok ->
+                    ?CONSOLE("Coverdata export: ~s\n", [ExportCoverageFile]);
+		{error,Reason} ->
+                    ?CONSOLE("Coverdata export faild reason: ~p\n", [Reason])
+	    end;
         false ->
             ok
     end,
