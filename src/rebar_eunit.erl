@@ -294,7 +294,7 @@ cover_analyze(Config, Modules, SrcModules) ->
                     ?CONSOLE("Coverdata export: ~s\n", [ExportCoverageFile]);
                 {error,Reason} ->
                     ?CONSOLE("Coverdata export faild reason: ~p\n", [Reason])
-	    end;
+            end;
         false ->
             ok
     end,
