@@ -52,6 +52,8 @@ preprocess(Config, _) ->
     %% Side effect to set deps_dir globally for all dependencies from
     %% top level down. Means the root deps_dir is honoured or the default
     %% used globally since it will be set on the first time through here
+    %% We also set a shared_deps_dir. If set, we use this to download
+    %% dependencies and then symlink from deps_dir to shared_deps_dir
     set_global_deps_dir(Config, rebar_config:get_global(deps_dir, [])),
 
     %% Get the list of deps for the current working directory and identify those
@@ -110,6 +112,13 @@ setup_env(_Config) ->
                        {"ERL_LIBS", DepsDir ++ Separator ++ PrevValue}
                end,
     [{"REBAR_DEPS_DIR", DepsDir}, ERL_LIBS].
+
+%% Set symlinks from DEPS dir to SHARED_DEPS dir
+%% This only works for Linux-based OS!
+'symlink-shared-deps-to-deps'(DownloadDir, TargetDir) ->
+    LinkResult = os:cmd("ln -s " ++ DownloadDir ++ " " ++ TargetDir),
+    ?DEBUG("Symlinked ~1000p to ~1000p, result: ~1000s\n", [DownloadDir, TargetDir, LinkResult]),
+    ok.
 
 'check-deps'(Config, _) ->
     %% Get the list of immediate (i.e. non-transitive) deps that are missing
@@ -177,9 +186,12 @@ setup_env(_Config) ->
 %% Added because of trans deps,
 %% need all deps in same dir and should be the one set by the root rebar.config
 %% Sets a default if root config has no deps_dir set
+%% shared_deps_dir by default is undefined
 set_global_deps_dir(Config, []) ->
     rebar_config:set_global(deps_dir,
-                            rebar_config:get_local(Config, deps_dir, "deps"));
+                            rebar_config:get_local(Config, deps_dir, "deps")),
+    rebar_config:set_global(shared_deps_dir,
+                            rebar_config:get_local(Config, shared_deps_dir, undefined));
 set_global_deps_dir(_Config, _DepsDir) ->
     ok.
 
@@ -188,9 +200,20 @@ get_deps_dir() ->
 
 get_deps_dir(App) ->
     BaseDir = rebar_config:get_global(base_dir, []),
-    DepsDir = rebar_config:get_global(deps_dir, "deps"),
+    DepsDir = rebar_config:get_global(deps_dir, "deps"),                 
     {true, filename:join([BaseDir, DepsDir, App])}.
 
+get_shared_deps_dir(App) ->
+    BaseDir = rebar_config:get_global(base_dir, []),
+    SharedDepsDir = rebar_config:get_global(shared_deps_dir, undefined),
+    SharedDepsDirPath = case SharedDepsDir of
+                            undefined ->
+                                undefined;
+                            _ ->
+                                filename:join([BaseDir, SharedDepsDir, App])
+                        end,                        
+    {true, SharedDepsDirPath}.
+    
 get_lib_dir(App) ->
     %% Find App amongst the reachable lib directories
     %% Returns either the found path or a tagged tuple with a boolean
@@ -360,13 +383,79 @@ use_source(Dep, Count) ->
                            "with reason:~n~p.\n", [Dep#dep.dir, Reason])
             end;
         false ->
-            ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
-            require_source_engine(Dep#dep.source),
+            %% The shared deps dir might already exist, in that case we only
+            %% need to symlink. So construct the download dir and check if it
+            %% already exists.
             {true, TargetDir} = get_deps_dir(Dep#dep.app),
-            download_source(TargetDir, Dep#dep.source),
+            {true, SharedTargetDir} = get_shared_deps_dir(Dep#dep.app),
+            {AppDir, UseVersionedDir} = case SharedTargetDir of
+                                undefined ->
+                                    {TargetDir, false};
+                                _ ->
+                                    {SharedTargetDir, true}
+                            end,  
+                        
+            Version = parse_version(Dep#dep.source),
+            DownloadDir = get_download_dir(AppDir, Version, UseVersionedDir),
+            
+            %% If the (possibly versioned) downloads dir already exists, just
+            %% skip downloading the source
+            case filelib:is_dir(DownloadDir) of
+                true ->
+                    ok;
+                false ->
+                    ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
+                    require_source_engine(Dep#dep.source),
+                    download_source(DownloadDir, Dep#dep.source)
+            end,
+
+            %% If we used the shared dir, we need to symlink from the shared
+            %% dir to the regular deps dir, so it becomes available in deps_dir
+            case SharedTargetDir of
+                undefined ->
+                    ok;
+                _ ->
+                    'symlink-shared-deps-to-deps'(DownloadDir, TargetDir)
+            end,
+            
+            %% Recurse so we check the downloaded versions
             use_source(Dep#dep { dir = TargetDir }, Count-1)
     end.
 
+
+%% Helper creates a versioned download
+get_download_dir(AppDir, _, false) ->
+    AppDir;
+get_download_dir(AppDir, {branch, "HEAD"}, true) ->
+    AppDir;
+get_download_dir(AppDir, {branch, Branch}, true) ->
+    AppDir ++ "-branch-" ++ Branch;
+get_download_dir(AppDir, {tag, Tag}, true) ->
+    AppDir ++ "-tag-" ++ Tag;
+get_download_dir(AppDir, {rev, Rev}, true) ->
+    AppDir ++ "-rev-" ++ Rev.
+
+
+%% Parse the version to a uniform format
+parse_version({hg, _, Rev}) ->
+    {rev, Rev};
+parse_version({git, Url}) ->
+    parse_version({git, Url, {branch, "HEAD"}});
+parse_version({git, Url, ""}) ->
+    parse_version({git, Url, {branch, "HEAD"}});
+parse_version({git, _, {branch, Branch}}) ->
+    {branch, Branch};
+parse_version({git, _, {tag, Tag}}) ->
+    {tag, Tag};
+parse_version({git, _, Rev}) ->
+    {rev, Rev};
+parse_version({bzr, _, Rev}) ->
+    {rev, Rev};
+parse_version({svn, _, Rev}) ->
+    {rev, Rev}.
+
+
+%% Downloads the source and returns the directory containing the source.
 download_source(AppDir, {hg, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("hg clone -U ~s ~s", [Url, filename:basename(AppDir)]),
