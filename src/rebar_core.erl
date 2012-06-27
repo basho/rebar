@@ -64,35 +64,51 @@ skip_dirs() ->
 %% ===================================================================
 
 process_commands([], _ParentConfig) ->
-    case erlang:get(operations) of
-        0 ->
-            %% none of the commands had an effect
-            ?FAIL;
+    AbortTrapped = rebar_config:get_global(abort_trapped, false),
+    case {erlang:get(operations), AbortTrapped} of
+        {0, _} ->
+            %% None of the commands had any effect
+            ?ABORT;
+        {_, true} ->
+            %% An abort was previously trapped
+            ?ABORT;
         _ ->
             ok
     end;
 process_commands([Command | Rest], ParentConfig) ->
-    %% Reset skip dirs
-    lists:foreach(fun (D) -> erlang:erase({skip_dir, D}) end, skip_dirs()),
-    Operations = erlang:get(operations),
+    try
+        %% Reset skip dirs
+        lists:foreach(fun (D) -> erlang:erase({skip_dir, D}) end, skip_dirs()),
+        Operations = erlang:get(operations),
 
-    %% Convert the code path so that all the entries are absolute paths.
-    %% If not, code:set_path() may choke on invalid relative paths when trying
-    %% to restore the code path from inside a subdirectory.
-    true = rebar_utils:expand_code_path(),
-    _ = process_dir(rebar_utils:get_cwd(), ParentConfig,
-                    Command, sets:new()),
-    case erlang:get(operations) of
-        Operations ->
-            %% This command didn't do anything
-            ?CONSOLE("Command '~p' not understood or not applicable~n",
-                     [Command]);
-        _ ->
-            ok
+        %% Convert the code path so that all the entries are absolute paths.
+        %% If not, code:set_path() may choke on invalid relative paths when
+        %% trying to restore the code path from inside a subdirectory.
+        true = rebar_utils:expand_code_path(),
+        _ = process_dir(rebar_utils:get_cwd(), ParentConfig,
+                        Command, sets:new()),
+        case erlang:get(operations) of
+            Operations ->
+                %% This command didn't do anything
+                ?CONSOLE("Command '~p' not understood or not applicable~n",
+                         [Command]);
+            _ ->
+                ok
+        end,
+        %% Wipe out vsn cache to avoid invalid hits when
+        %% dependencies are updated
+        ets:delete_all_objects(rebar_vsn_cache)
+    catch
+        throw:rebar_abort ->
+            case rebar_config:get_global(keep_going, false) of
+                false ->
+                    ?ABORT;
+                true ->
+                    ?WARN("Continuing on after abort: ~p\n", [Rest]),
+                    rebar_config:set_global(abort_trapped, true),
+                    ok
+            end
     end,
-    %% Wipe out vsn cache to avoid invalid hits when
-    %% dependencies are updated
-    ets:delete_all_objects(rebar_vsn_cache),
     process_commands(Rest, ParentConfig).
 
 
@@ -103,14 +119,6 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
             DirSet;
 
         true ->
-            AbsDir = filename:absname(Dir),
-            case processing_base_dir(Dir) of
-                false ->
-                    ?CONSOLE("==> Entering directory `~s'\n", [AbsDir]);
-                true ->
-                    ok
-            end,
-
             ok = file:set_cwd(Dir),
             Config = maybe_load_local_config(Dir, ParentConfig),
 
@@ -125,17 +133,8 @@ process_dir(Dir, ParentConfig, Command, DirSet) ->
             %% to process this dir.
             {ok, AvailModuleSets} = application:get_env(rebar, modules),
             ModuleSet = choose_module_set(AvailModuleSets, Dir),
-            Res = maybe_process_dir(ModuleSet, Config, CurrentCodePath,
-                                    Dir, Command, DirSet),
-
-            case processing_base_dir(Dir) of
-                false ->
-                    ?CONSOLE("==> Leaving directory `~s'\n", [AbsDir]);
-                true ->
-                    ok
-            end,
-
-            Res
+            maybe_process_dir(ModuleSet, Config, CurrentCodePath,
+                              Dir, Command, DirSet)
     end.
 
 maybe_process_dir({[], undefined}=ModuleSet, Config, CurrentCodePath,
@@ -254,7 +253,8 @@ remember_cwd_subdir(Cwd, Subdirs) ->
     Store = fun(Dir, Dict) ->
                     case dict:find(Dir, Dict) of
                         error ->
-                            ?DEBUG("Associate sub_dir ~s with ~s~n", [Dir, Cwd]),
+                            ?DEBUG("Associate sub_dir ~s with ~s~n",
+                                   [Dir, Cwd]),
                             dict:store(Dir, Cwd, Dict);
                         {ok, Existing} ->
                             ?ABORT("Internal consistency assertion failed.~n"
@@ -360,7 +360,7 @@ execute(Command, Modules, Config, ModuleFile, Env) ->
                     apply_hooks(post_hooks, Config, Command, Env),
                     ok;
                 {error, failed} ->
-                    ?FAIL;
+                    ?ABORT;
                 {Module, {error, _} = Other} ->
                     ?ABORT("~p failed while processing ~s in module ~s: ~s\n",
                            [Command, Dir, Module,
@@ -496,11 +496,13 @@ plugin_modules(Config, SubdirAssoc, Modules) ->
 plugin_modules(_Config, _SubdirAssoc, FoundModules, []) ->
     {ok, FoundModules};
 plugin_modules(Config, SubdirAssoc, FoundModules, MissingModules) ->
-    {Loaded, NotLoaded} = load_plugin_modules(Config, SubdirAssoc, MissingModules),
+    {Loaded, NotLoaded} = load_plugin_modules(Config, SubdirAssoc,
+                                              MissingModules),
     AllViablePlugins = FoundModules ++ Loaded,
     case NotLoaded =/= [] of
         true ->
-            %% NB: we continue to ignore this situation, as did the original code
+            %% NB: we continue to ignore this situation, as did the
+            %% original code
             ?WARN("Missing plugins: ~p\n", [NotLoaded]);
         false ->
             ?DEBUG("Loaded plugins: ~p~n", [AllViablePlugins]),

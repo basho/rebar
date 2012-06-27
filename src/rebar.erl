@@ -41,6 +41,10 @@
 -define(VCS_INFO, "undefined").
 -endif.
 
+-ifndef(OTP_INFO).
+-define(OTP_INFO, "undefined").
+-endif.
+
 %% ====================================================================
 %% Public API
 %% ====================================================================
@@ -49,13 +53,13 @@ main(Args) ->
     case catch(run(Args)) of
         ok ->
             ok;
-        {error, failed} ->
-            halt(1);
+        rebar_abort ->
+            rebar_utils:delayed_halt(1);
         Error ->
             %% Nothing should percolate up from rebar_core;
             %% Dump this error to console
             io:format("Uncaught error in rebar_core: ~p\n", [Error]),
-            halt(1)
+            rebar_utils:delayed_halt(1)
     end.
 
 %% ====================================================================
@@ -158,6 +162,10 @@ parse_args(Args) ->
             rebar_config:set_global(enable_profiling,
                                     proplists:get_bool(profile, Options)),
 
+            %% Setup flag to keep running after a single command fails
+            rebar_config:set_global(keep_going,
+                                    proplists:get_bool(keep_going, Options)),
+
             %% Set global variables based on getopt options
             set_log_level(Options),
             set_global_flag(Options, force),
@@ -182,7 +190,7 @@ parse_args(Args) ->
         {error, {Reason, Data}} ->
             ?ERROR("~s ~p~n~n", [Reason, Data]),
             help(),
-            halt(1)
+            rebar_utils:delayed_halt(1)
     end.
 
 %%
@@ -202,8 +210,8 @@ set_log_level(Options) ->
 %%
 version() ->
     {ok, Vsn} = application:get_key(rebar, vsn),
-    ?CONSOLE("rebar version: ~s date: ~s vcs: ~s\n",
-             [Vsn, ?BUILD_TIME, ?VCS_INFO]).
+    ?CONSOLE("rebar ~s ~s ~s ~s\n",
+             [Vsn, ?OTP_INFO, ?BUILD_TIME, ?VCS_INFO]).
 
 
 %%
@@ -229,7 +237,7 @@ show_info_maybe_halt(Opts, NonOptArgs) ->
         [] ->
             ?CONSOLE("No command to run specified!~n",[]),
             help(),
-            halt(1);
+            rebar_utils:delayed_halt(1);
         _ ->
             ok
     end.
@@ -271,8 +279,8 @@ generate-upgrade  previous_release=path  Build an upgrade package
 
 generate-appups   previous_release=path  Generate appup files
 
-eunit       [suite=foo]              Run eunit [test/foo_tests.erl] tests
-ct          [suites=] [case=]        Run common_test suites in ./test
+eunit       [suites=foo]             Run eunit [test/foo_tests.erl] tests
+ct          [suites=] [case=]        Run common_test suites
 
 xref                                 Run cross reference analysis
 
@@ -300,7 +308,9 @@ option_spec_list() ->
      {defines,  $D, undefined,  string,    "Define compiler macro"},
      {jobs,     $j, "jobs",     integer,   JobsHelp},
      {config,   $C, "config",   string,    "Rebar config file to use"},
-     {profile,  $p, "profile",  undefined, "Profile this run of rebar"}
+     {profile,  $p, "profile",  undefined, "Profile this run of rebar"},
+     {keep_going, $k, "keep-going", undefined,
+      "Keep running after a command fails"}
     ].
 
 %%

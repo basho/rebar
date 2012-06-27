@@ -28,7 +28,8 @@
 
 -include("rebar.hrl").
 
--export([run/4, run/7, run/8]).
+-export([run/4, run/7, run/8,
+         ok_tuple/2, error_tuple/4]).
 
 
 %% ===================================================================
@@ -79,6 +80,11 @@ run(Config, FirstFiles, SourceDir, SourceExt, TargetDir, TargetExt,
                 simple_compile_wrapper(S, Target, Compile3Fn, C, CheckLastMod)
         end).
 
+ok_tuple(Source, Ws) ->
+    {ok, format_warnings(Source, Ws)}.
+
+error_tuple(Source, Es, Ws, Opts) ->
+    {error, format_errors(Source, Es), format_warnings(Source, Ws, Opts)}.
 
 %% ===================================================================
 %% Internal functions
@@ -116,9 +122,10 @@ compile(Source, Config, CompileFn) ->
         ok ->
             ok;
         skipped ->
-            skipped
+            skipped;
+        Error ->
+            Error
     end.
-
 
 compile_each([], _Config, _CompileFn) ->
     ok;
@@ -126,12 +133,17 @@ compile_each([Source | Rest], Config, CompileFn) ->
     case compile(Source, Config, CompileFn) of
         ok ->
             ?CONSOLE("Compiled ~s\n", [Source]);
+        {ok, Warnings} ->
+            report(Warnings),
+            ?CONSOLE("Compiled ~s\n", [Source]);
         skipped ->
-            ?INFO("Skipped ~s\n", [Source])
+            ?INFO("Skipped ~s\n", [Source]);
+        Error ->
+            maybe_report(Error),
+            ?DEBUG("Compilation failed: ~p\n", [Error]),
+            ?ABORT
     end,
     compile_each(Rest, Config, CompileFn).
-
-
 
 compile_queue([], []) ->
     ok;
@@ -148,8 +160,14 @@ compile_queue(Pids, Targets) ->
             end;
 
         {fail, Error} ->
+            maybe_report(Error),
             ?DEBUG("Worker compilation failed: ~p\n", [Error]),
-            ?FAIL;
+            ?ABORT;
+
+        {compiled, Source, Warnings} ->
+            report(Warnings),
+            ?CONSOLE("Compiled ~s\n", [Source]),
+            compile_queue(Pids, Targets);
 
         {compiled, Source} ->
             ?CONSOLE("Compiled ~s\n", [Source]),
@@ -166,7 +184,7 @@ compile_queue(Pids, Targets) ->
 
         {'DOWN', _Mref, _, _Pid, Info} ->
             ?DEBUG("Worker failed: ~p\n", [Info]),
-            ?FAIL
+            ?ABORT
     end.
 
 compile_worker(QueuePid, Config, CompileFn) ->
@@ -174,6 +192,9 @@ compile_worker(QueuePid, Config, CompileFn) ->
     receive
         {compile, Source} ->
             case catch(compile(Source, Config, CompileFn)) of
+                {ok, Ws} ->
+                    QueuePid ! {compiled, Source, Ws},
+                    compile_worker(QueuePid, Config, CompileFn);
                 ok ->
                     QueuePid ! {compiled, Source},
                     compile_worker(QueuePid, Config, CompileFn);
@@ -189,3 +210,42 @@ compile_worker(QueuePid, Config, CompileFn) ->
         empty ->
             ok
     end.
+
+format_errors(Source, Errors) ->
+    format_errors(Source, "", Errors).
+
+format_warnings(Source, Warnings) ->
+    format_warnings(Source, Warnings, []).
+
+format_warnings(Source, Warnings, Opts) ->
+    Prefix = case lists:member(warnings_as_errors, Opts) of
+                 true -> "";
+                 false -> "Warning: "
+             end,
+    format_errors(Source, Prefix, Warnings).
+
+maybe_report([{error, {error, _Es, _Ws}=ErrorsAndWarnings}, {source, _}]) ->
+    maybe_report(ErrorsAndWarnings);
+maybe_report({error, Es, Ws}) ->
+    report(Es),
+    report(Ws);
+maybe_report(_) ->
+    ok.
+
+report(Messages) ->
+    lists:foreach(fun(Msg) -> io:format("~s", [Msg]) end, Messages).
+
+format_errors(Source, Extra, Errors) ->
+    AbsSource = filename:absname(Source),
+    [[format_error(AbsSource, Extra, Desc) || Desc <- Descs]
+     || {_, Descs} <- Errors].
+
+format_error(AbsSource, Extra, {{Line, Column}, Mod, Desc}) ->
+    ErrorDesc = Mod:format_error(Desc),
+    ?FMT("~s:~w:~w: ~s~s~n", [AbsSource, Line, Column, Extra, ErrorDesc]);
+format_error(AbsSource, Extra, {Line, Mod, Desc}) ->
+    ErrorDesc = Mod:format_error(Desc),
+    ?FMT("~s:~w: ~s~s~n", [AbsSource, Line, Extra, ErrorDesc]);
+format_error(AbsSource, Extra, {Mod, Desc}) ->
+    ErrorDesc = Mod:format_error(Desc),
+    ?FMT("~s: ~s~s~n", [AbsSource, Extra, ErrorDesc]).

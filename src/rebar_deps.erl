@@ -123,7 +123,7 @@ setup_env(_Config) ->
                                   ?CONSOLE("Dependency not available: "
                                            "~p-~s (~p)\n", [App, Vsn, Src])
                           end, MissingDeps),
-            ?FAIL
+            ?ABORT
     end.
 
 'get-deps'(Config, _) ->
@@ -229,29 +229,14 @@ find_deps(Mode, [App | Rest], Acc) when is_atom(App) ->
 find_deps(Mode, [{App, VsnRegex} | Rest], Acc) when is_atom(App) ->
     find_deps(Mode, [{App, VsnRegex, undefined} | Rest], Acc);
 find_deps(Mode, [{App, VsnRegex, Source} | Rest], Acc) ->
-    find_deps(Mode, [{App, VsnRegex, Source, []} | Rest], Acc);
-find_deps(Mode, [{App, VsnRegex, Source, Opts} | Rest], Acc) ->
     Dep = #dep { app = App,
                  vsn_regex = VsnRegex,
-                 source = get_source(Source, Opts) },
+                 source = Source },
     {Availability, FoundDir} = find_dep(Dep),
     find_deps(Mode, Rest, acc_deps(Mode, Availability, Dep, FoundDir, Acc));
 find_deps(_Mode, [Other | _Rest], _Acc) ->
     ?ABORT("Invalid dependency specification ~p in ~s\n",
            [Other, rebar_utils:get_cwd()]).
-
-get_source(undefined, _Opts) ->
-    undefined;
-get_source(Source, Opts) ->
-    setelement(2, Source, dep_url(element(2, Source), Opts)).
-
-dep_url(Url, Opts) ->
-    case rebar_config:get_global(alt_urls, "false") of
-        "true" ->
-            proplists:get_value(alt_url, Opts, Url);
-        "false" ->
-            Url
-    end.
 
 find_dep(Dep) ->
     %% Find a dep based on its source,
@@ -401,7 +386,10 @@ download_source(AppDir, {svn, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("svn checkout -r ~s ~s ~s",
                         [Rev, Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]).
+                   [{cd, filename:dirname(AppDir)}]);
+download_source(AppDir, {rsync, Url}) ->
+    ok = filelib:ensure_dir(AppDir),
+    rebar_utils:sh(?FMT("rsync -az --delete ~s/ ~s", [Url, AppDir]), []).
 
 update_source(Dep) ->
     %% It's possible when updating a source, that a given dep does not have a
@@ -442,7 +430,10 @@ update_source(AppDir, {svn, _Url, Rev}) ->
 update_source(AppDir, {hg, _Url, Rev}) ->
     rebar_utils:sh(?FMT("hg pull -u -r ~s", [Rev]), [{cd, AppDir}]);
 update_source(AppDir, {bzr, _Url, Rev}) ->
-    rebar_utils:sh(?FMT("bzr update -r ~s", [Rev]), [{cd, AppDir}]).
+    rebar_utils:sh(?FMT("bzr update -r ~s", [Rev]), [{cd, AppDir}]);
+update_source(AppDir, {rsync, Url}) ->
+    rebar_utils:sh(?FMT("rsync -az --delete ~s/ ~s",[Url,AppDir]),[]).
+
 
 
 
@@ -455,7 +446,7 @@ source_engine_avail(Source) ->
     source_engine_avail(Name, Source).
 
 source_engine_avail(Name, Source)
-  when Name == hg; Name == git; Name == svn; Name == bzr ->
+  when Name == hg; Name == git; Name == svn; Name == bzr; Name == rsync ->
     case vcs_client_vsn(Name) >= required_vcs_client_vsn(Name) of
         true ->
             true;
@@ -476,10 +467,11 @@ vcs_client_vsn(Path, VsnArg, VsnRegex) ->
             false
     end.
 
-required_vcs_client_vsn(hg)  -> {1, 1};
-required_vcs_client_vsn(git) -> {1, 5};
-required_vcs_client_vsn(bzr) -> {2, 0};
-required_vcs_client_vsn(svn) -> {1, 6}.
+required_vcs_client_vsn(hg)    -> {1, 1};
+required_vcs_client_vsn(git)   -> {1, 5};
+required_vcs_client_vsn(bzr)   -> {2, 0};
+required_vcs_client_vsn(svn)   -> {1, 6};
+required_vcs_client_vsn(rsync) -> {2, 0}.
 
 vcs_client_vsn(hg) ->
     vcs_client_vsn(rebar_utils:find_executable("hg"), " --version",
@@ -492,7 +484,10 @@ vcs_client_vsn(bzr) ->
                    "Bazaar \\(bzr\\) (\\d+).(\\d+)");
 vcs_client_vsn(svn) ->
     vcs_client_vsn(rebar_utils:find_executable("svn"), " --version",
-                   "svn, version (\\d+).(\\d+)").
+                   "svn, version (\\d+).(\\d+)");
+vcs_client_vsn(rsync) ->
+    vcs_client_vsn(rebar_utils:find_executable("rsync"), " --version",
+                   "rsync  version (\\d+).(\\d+)").
 
 has_vcs_dir(git, Dir) ->
     filelib:is_dir(filename:join(Dir, ".git"));
@@ -503,6 +498,8 @@ has_vcs_dir(bzr, Dir) ->
 has_vcs_dir(svn, Dir) ->
     filelib:is_dir(filename:join(Dir, ".svn"))
         orelse filelib:is_dir(filename:join(Dir, "_svn"));
+has_vcs_dir(rsync, _) ->
+    true;
 has_vcs_dir(_, _) ->
     true.
 
