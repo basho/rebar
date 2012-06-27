@@ -57,5 +57,6 @@ check_single_constraints_test_() ->
 
 check_multiple_constraints_test_() ->
     [
-        ?_assertEqual(true, rebar_version:check_constraints("1.2.3", [">= 1.0.0", "<= 2.0.0"]))                                
+        ?_assertEqual(true, rebar_version:check_constraints("1.2.3", [">= 1.0.0", "<= 2.0.0"])),
+        ?_assertEqual(false, rebar_version:check_constraints("1.2.3", [">= 1.0.0", "< 1.2.0"]))                                
     ].

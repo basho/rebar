@@ -35,9 +35,24 @@
 
 %% For testing:
 -export([compare/2, check_constraints/2]).
-         
+   
+-type version() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.       % {Major, Minor, Patch}
+-type comparator() :: string().                                                     % ">" | ">=" | "=" | "<=" | "<" .
+-type constraint() :: {comparator(), version()}.
+-type constraints() :: [constraint()].
+
+
+%% ====================================================================
+%% Public API
+%% ====================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
 %% New detailed version support
 %% example: [ ">= 1.0.0", "< 2.0.0" ]
+-spec check(string(), [string()] | string()) -> boolean().
+%% @end
+%%--------------------------------------------------------------------
 check(Vsn, [Constraint|_] = VsnConstraints) when not is_integer(Constraint) andalso length(Constraint) > 1 ->
     case check_constraints(Vsn, VsnConstraints) of
         true ->
@@ -56,10 +71,91 @@ check(Vsn, VsnRegex) ->
     end.
 
 
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Check if all constraints are satisfied. 
+-spec check_constraints(string(), [string()]) -> boolean().
+%% @end
+%%--------------------------------------------------------------------
+check_constraints(Vsn, Constraints) ->
+    %TODO implement actual constraint checks
+    ParsedVersion = parse_version(Vsn),
+    ParsedConstraints = parse_constraints(Constraints),
+    verify_constraints(ParsedVersion, ParsedConstraints, true).
+ 
+verify_constraints(_, _, false) ->
+    false;
+verify_constraints(_, [], Result) ->
+    Result;
+verify_constraints(Vsn, [{Comparator, ConstraintVsn}|Tail], _) ->
+    Comparison = compare(Vsn, ConstraintVsn),
+    Result = case Comparator of 
+                ">" -> Comparison > 0; 
+                ">=" -> Comparison >= 0;
+                "=" -> Comparison =:= 0;
+                "<=" -> Comparison =< 0;
+                "<" -> Comparison < 0     
+            end,
+    verify_constraints(Vsn, Tail, Result).
+
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Parsing each constraint into a comparator and a version.
+-spec parse_constraints([string()]) -> constraints().
+%% @end
+%%--------------------------------------------------------------------
+parse_constraints(VsnConstraints) ->
+    parse_constraints(VsnConstraints, []).
+
+parse_constraints([], Acc) ->
+    Acc;
+parse_constraints([H|T], Acc) ->
+    parse_constraints(T, [ parse_constraint(H) | Acc]).
+
+parse_constraint(Constraint) ->
+    case string:tokens(Constraint, " .") of
+        [Comparator, Major, Minor, Patch | _] ->
+            {Comparator, {list_to_integer(Major),
+                                list_to_integer(Minor),
+                                list_to_integer(Patch)
+                                }};
+        _ ->
+            ?ABORT("Invalid version constraint : ~p .\n", [Constraint])
+    end.
+
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Parsing the version (only allows X.Y.Z format)
+-spec parse_version(string()) -> version().
+%% @end
+%%--------------------------------------------------------------------
+parse_version(Vsn) ->
+    case string:tokens(Vsn, ".") of
+        [Major, Minor, Patch | _] ->
+            {list_to_integer(Major),
+            list_to_integer(Minor),
+            list_to_integer(Patch)
+            };
+        _ ->
+            ?ABORT("Invalid version for comparison with constraints : ~p .\n", [Vsn])
+    end.
+
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Compare two versions, 
 %% returns:  0 if equal
 %%          -1 if left is smaller
 %%           1 if left is bigger
+-spec compare(version(), version()) -> -1 | 0 | 1.
+%% @end
+%%--------------------------------------------------------------------
 compare({MajorA,MinorA,PatchA}, {MajorB,MinorB,PatchB}) ->
     if
         MajorA =:= MajorB andalso MinorA =:= MinorB andalso PatchA =:= PatchB ->
@@ -85,61 +181,4 @@ compare({MajorA,MinorA,PatchA}, {MajorB,MinorB,PatchB}) ->
                 true ->
                     1
             end
-    end.
-
-
-check_constraints(Vsn, Constraints) ->
-    %TODO implement actual constraint checks
-    ParsedVersion = parse_version(Vsn),
-    ParsedConstraints = parse_constraints(Constraints),
-    verify_constraints(ParsedVersion, ParsedConstraints, true).
- 
-verify_constraints(_, _, false) ->
-    false;
-verify_constraints(_, [], Result) ->
-    Result;
-verify_constraints(Vsn, [{Comparator, ConstraintVsn}|Tail], _) ->
-    Comparison = compare(Vsn, ConstraintVsn),
-    Result = case Comparator of 
-                ">" -> Comparison > 0; 
-                ">=" -> Comparison >= 0;
-                "=" -> Comparison =:= 0;
-                "<=" -> Comparison =< 0;
-                "<" -> Comparison < 0     
-            end,
-    verify_constraints(Vsn, Tail, Result).
-
-
-%% Parsing the constraints. Supported comparators are:
-%% >= > = <= and <
-%% Example:  [ ">= 1.0.8", "< 1.1.0" ]
-parse_constraints(VsnConstraints) ->
-    parse_constraints(VsnConstraints, []).
-
-parse_constraints([], Acc) ->
-    Acc;
-parse_constraints([H|T], Acc) ->
-    parse_constraints(T, [ parse_constraint(H) | Acc]).
-
-parse_constraint(Constraint) ->
-    case string:tokens(Constraint, " .") of
-        [Comparator, Major, Minor, Patch | _] ->
-            {Comparator, {list_to_integer(Major),
-                                list_to_integer(Minor),
-                                list_to_integer(Patch)
-                                }};
-        _ ->
-            ?ABORT("Invalid version constraint : ~p .\n", [Constraint])
-    end.
-
-%% Parsing the version (only allows X.Y.Z format)
-parse_version(Vsn) ->
-    case string:tokens(Vsn, ".") of
-        [Major, Minor, Patch | _] ->
-            {list_to_integer(Major),
-            list_to_integer(Minor),
-            list_to_integer(Patch)
-            };
-        _ ->
-            ?ABORT("Invalid version for comparison with constraints : ~p .\n", [Vsn])
     end.
