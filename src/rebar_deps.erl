@@ -127,6 +127,9 @@ setup_env(_Config) ->
     end.
 
 'get-deps'(Config, _) ->
+    %% Make Config available
+    erlang:put({?MODULE, config}, Config),
+    
     %% Determine what deps are available and missing
     Deps = rebar_config:get_local(Config, deps, []),
     {_AvailableDeps, MissingDeps} = find_deps(find, Deps),
@@ -137,6 +140,9 @@ setup_env(_Config) ->
     %% Add each pulled dep to our list of dirs for post-processing. This yields
     %% the necessary transitivity of the deps
     erlang:put(?MODULE, [D#dep.dir || D <- PulledDeps]),
+    
+    erlang:put({?MODULE, config}, undefined),
+    
     ok.
 
 'update-deps'(Config, _) ->
@@ -470,17 +476,20 @@ update_source(AppDir, {rsync, Url}) ->
 
 %% Remember downloaded dependencies
 memoize_dependency(App, VsnCheck) ->
-    PreviousAppVersionRestrictions = rebar_config:get_global({dep,App}, []),
-    NewAppVersionRestrictions = [VsnCheck] ++ PreviousAppVersionRestrictions,
+    PreviousAppVersionRestrictions = rebar_config:get_global({dep,App}, []), 
+    Config = erlang:get({?MODULE, config}),
+    Dir = rebar_config:get_dir(Config),
+    NewAppVersionRestrictions = [{Dir, VsnCheck}] ++ PreviousAppVersionRestrictions, 
     rebar_config:set_global({dep,App}, NewAppVersionRestrictions).
 
 %% Check if we can resolve this new dependency
 can_resolve_dependency(App, VsnCheck) ->
-    AppVersionRestrictions = rebar_config:get_global({dep,App}, []), 
-    Res = check_dependencies(VsnCheck, AppVersionRestrictions, true),
+    AppDepConstraints = rebar_config:get_global({dep,App}, []), 
+    VsnConstraints = [ Constraint || {_, Constraint} <- AppDepConstraints],
+    Res = check_dependencies(VsnCheck, VsnConstraints, true),
     case Res of
         false ->
-            {false, {reason, {cannot_satisfy, AppVersionRestrictions}}};     
+            {false, {reason, {cannot_satisfy, AppDepConstraints}}};     
         true ->
             true
     end.
