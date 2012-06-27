@@ -311,10 +311,12 @@ is_app_available(App, VsnCheck, Path) ->
                                     %% a new version available in the directory
                                     rebar_app_utils:app_vsn_reset(AppFile),
                                     {false, resolvable_version_mismatch};  
-                                false ->     
+                                {false, Reason} ->     
                                     {false, {version_mismatch,
                                              {AppFile,
-                                              {expected, VsnCheck}, {has, Vsn}}}}
+                                              {wanted, VsnCheck}, 
+                                               {has, Vsn}, 
+                                               Reason}}}
                             end
                     end;
                 OtherApp ->
@@ -474,10 +476,14 @@ memoize_dependency(App, VsnCheck) ->
 
 %% Check if we can resolve this new dependency
 can_resolve_dependency(App, VsnCheck) ->
-    AppVersionRestrictions = rebar_config:get_global({dep,App}, []),  
+    AppVersionRestrictions = rebar_config:get_global({dep,App}, []), 
     Res = check_dependencies(VsnCheck, AppVersionRestrictions, true),
-    ?INFO("\n\n******rebar_version check: ~s  <->  ~p : ~p\n", [ VsnCheck, AppVersionRestrictions, Res ]),
-    Res.
+    case Res of
+        false ->
+            {false, {reason, {cannot_satisfy, AppVersionRestrictions}}};     
+        true ->
+            true
+    end.
 
 check_dependencies(_, _, false) ->
     false;
