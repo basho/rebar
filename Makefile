@@ -14,6 +14,9 @@ check: debug xref dialyzer
 xref:
 	@./rebar xref
 
+eunit: all
+	./rebar -v eunit
+
 dialyzer: dialyzer_warnings
 	@diff -U0 dialyzer_reference dialyzer_warnings
 

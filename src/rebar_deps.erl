@@ -303,24 +303,24 @@ require_source_engine(Source) ->
     true = source_engine_avail(Source),
     ok.
 
-is_app_available(App, VsnRegex, Path) ->
+is_app_available(App, VsnCheck, Path) ->
     ?DEBUG("is_app_available, looking for App ~p with Path ~p~n", [App, Path]),
     case rebar_app_utils:is_app_dir(Path) of
         {true, AppFile} ->
             case rebar_app_utils:app_name(AppFile) of
-                App ->
+                App ->    
                     Vsn = rebar_app_utils:app_vsn(AppFile),
-                    ?INFO("Looking for ~s-~s ; found ~s-~s at ~s\n",
-                          [App, VsnRegex, App, Vsn, Path]),
-                    case re:run(Vsn, VsnRegex, [{capture, none}]) of
-                        match ->
+                    ?INFO("Looking for ~s ~1000p ; found ~s-~s at ~s\n",
+                            [App, VsnCheck, App, Vsn, Path]),
+                    case rebar_version:check(Vsn, VsnCheck) of
+                        true ->
                             {true, Path};
-                        nomatch ->
-                            ?WARN("~s has version ~p; requested regex was ~s\n",
-                                  [AppFile, Vsn, VsnRegex]),
+                        _ ->
+                            ?WARN("~s has version ~p; requested was ~1000p\n",
+                                [AppFile, Vsn, VsnCheck]),
                             {false, {version_mismatch,
                                      {AppFile,
-                                      {expected, VsnRegex}, {has, Vsn}}}}
+                                      {expected, VsnCheck}, {has, Vsn}}}}
                     end;
                 OtherApp ->
                     ?WARN("~s has application id ~p; expected ~p\n",
@@ -333,6 +333,7 @@ is_app_available(App, VsnRegex, Path) ->
                   "but no .app found.\n", [Path]),
             {false, {missing_app_file, Path}}
     end.
+          
 
 use_source(Dep) ->
     use_source(Dep, 3).
