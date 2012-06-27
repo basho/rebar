@@ -43,7 +43,7 @@
 %% The following Global options are supported:
 %% <ul>
 %%   <li>verbose=1 - show extra output from the eunit test</li>
-%%   <li>suite="foo"" - runs test/foo_tests.erl</li>
+%%   <li>suites="foo,bar" - runs test/foo_tests.erl and test/bar_tests.erl</li>
 %% </ul>
 %% Additionally, for projects that have separate folders for the core
 %% implementation, and for the unit tests, then the following
@@ -132,12 +132,14 @@ eunit(Config, _AppFile) ->
     ModuleBeamFiles = BeamFiles ++ OtherBeamFiles,
     Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- ModuleBeamFiles],
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
+    Suites = get_suites(),
+    FilteredModules = filtered_modules(Modules, Suites),
 
     {ok, CoverLog} = cover_init(Config, ModuleBeamFiles),
 
     StatusBefore = status_before_eunit(),
-    EunitResult = perform_eunit(Config, Modules),
-    perform_cover(Config, Modules, SrcModules),
+    EunitResult = perform_eunit(Config, FilteredModules),
+    perform_cover(Config, FilteredModules, SrcModules),
 
     cover_close(CoverLog),
 
@@ -173,10 +175,16 @@ eunit_dir() ->
 ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
 
-perform_eunit(Config, Modules) ->
-    %% suite defined, so only specify the module that relates to the
-    %% suite (if any). Suite can be a comma seperated list of modules to run.
-    Suite = rebar_config:get_global(suite, undefined),
+get_suites() ->
+    Suites = rebar_utils:get_deprecated_global(suite, suites, [], "soon"),
+    [list_to_atom(Suite) || Suite <- string:tokens(Suites, ",")].
+
+filtered_modules(Modules, []) ->
+    Modules;
+filtered_modules(Modules, Suites) ->
+    [M || M <- Modules, lists:member(M, Suites)].
+
+perform_eunit(Config, FilteredModules) ->
     EunitOpts = get_eunit_opts(Config),
 
     %% Move down into ?EUNIT_DIR while we run tests so any generated files
@@ -184,18 +192,12 @@ perform_eunit(Config, Modules) ->
     Cwd = rebar_utils:get_cwd(),
     ok = file:set_cwd(?EUNIT_DIR),
 
-    EunitResult = perform_eunit(EunitOpts, Modules, Suite),
+    EunitResult = (catch eunit:test(FilteredModules, EunitOpts)),
 
     %% Return to original working dir
     ok = file:set_cwd(Cwd),
 
     EunitResult.
-
-perform_eunit(EunitOpts, Modules, undefined) ->
-    (catch eunit:test(Modules, EunitOpts));
-perform_eunit(EunitOpts, _Modules, Suites) ->
-    (catch eunit:test([list_to_atom(Suite) ||
-                          Suite <- string:tokens(Suites, ",")], EunitOpts)).
 
 get_eunit_opts(Config) ->
     %% Enable verbose in eunit if so requested..
@@ -260,15 +262,7 @@ perform_cover(true, Config, BeamFiles, SrcModules) ->
 
 cover_analyze(_Config, [], _SrcModules) ->
     ok;
-cover_analyze(Config, Modules, SrcModules) ->
-    %% suite can be a comma seperated list of modules to test
-    Suite = [list_to_atom(S) ||
-                S <- string:tokens(rebar_config:get_global(suite, ""), ",")],
-    FilteredModules = case Suite of
-                          [] -> Modules;
-                          _  -> [M || M <- Modules, lists:member(M, Suite)]
-                      end,
-
+cover_analyze(Config, FilteredModules, SrcModules) ->
     %% Generate coverage info for all the cover-compiled modules
     Coverage = lists:flatten([cover_analyze_mod(M) || M <- FilteredModules]),
 
@@ -329,7 +323,7 @@ cover_init(true, BeamFiles) ->
         [] ->
             %% No modules compiled successfully...fail
             ?ERROR("Cover failed to compile any modules; aborting.~n", []),
-            ?FAIL;
+            ?ABORT;
         _ ->
             %% At least one module compiled successfully
 

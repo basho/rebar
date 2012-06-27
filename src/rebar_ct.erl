@@ -83,7 +83,7 @@ clear_log(RawLog) ->
             ok = file:write_file(RawLog, LogHeader);
         {error, Reason} ->
             ?ERROR("Could not create log dir - ~p\n", [Reason]),
-            ?FAIL
+            ?ABORT
     end.
 
 %% calling ct with erl does not return non-zero on failure - have to check
@@ -98,12 +98,12 @@ check_log(RawLog) ->
         MakeFailed ->
             show_log(RawLog),
             ?ERROR("Building tests failed\n",[]),
-            ?FAIL;
+            ?ABORT;
 
         RunFailed ->
             show_log(RawLog),
             ?ERROR("One or more tests failed\n",[]),
-            ?FAIL;
+            ?ABORT;
 
         true ->
             ?CONSOLE("DONE.\n~s\n", [Msg])
@@ -145,33 +145,33 @@ make_cmd(TestDir, Config) ->
               undefined ->
                   ?FMT("erl " % should we expand ERL_PATH?
                        " -noshell -pa ~s ~s"
-                       " -name test@~s"
+                       " ~s"
                        " -logdir \"~s\""
                        " -env TEST_DIR \"~s\""
                        " ~s"
                        " -s ct_run script_start -s erlang halt",
                        [CodePathString,
                         Include,
-                        net_adm:localhost(),
+                        build_name(Config),
                         LogDir,
                         filename:join(Cwd, TestDir),
                         get_extra_params(Config)]) ++
                       get_cover_config(Config, Cwd) ++
                       get_ct_config_file(TestDir) ++
                       get_config_file(TestDir) ++
-                      get_suite(TestDir) ++
+                      get_suites(TestDir) ++
                       get_case();
               SpecFlags ->
                   ?FMT("erl " % should we expand ERL_PATH?
                        " -noshell -pa ~s ~s"
-                       " -name test@~s"
+                       " ~s"
                        " -logdir \"~s\""
                        " -env TEST_DIR \"~s\""
                        " ~s"
                        " -s ct_run script_start -s erlang halt",
                        [CodePathString,
                         Include,
-                        net_adm:localhost(),
+                        build_name(Config),
                         LogDir,
                         filename:join(Cwd, TestDir),
                         get_extra_params(Config)]) ++
@@ -179,6 +179,12 @@ make_cmd(TestDir, Config) ->
           end,
     RawLog = filename:join(LogDir, "raw.log"),
     {Cmd, RawLog}.
+
+build_name(Config) ->
+    case rebar_config:get_local(Config, ct_use_short_names, false) of
+        true -> "-sname test";
+        false -> " -name test@" ++ net_adm:localhost()
+    end.
 
 get_extra_params(Config) ->
     rebar_config:get_local(Config, ct_extra_params, "").
@@ -242,7 +248,7 @@ get_config_file(TestDir) ->
             " -config " ++ Config
     end.
 
-get_suite(TestDir) ->
+get_suites(TestDir) ->
     case rebar_utils:get_deprecated_global(suite, suites, "soon") of
         undefined ->
             " -dir " ++ TestDir;
@@ -257,7 +263,7 @@ find_suite_path(Suite, TestDir) ->
     case filelib:is_regular(Path) of
         false ->
             ?ERROR("Suite ~s not found\n", [Suite]),
-            ?FAIL;
+            ?ABORT;
         true ->
             Path
     end.

@@ -51,9 +51,14 @@ escriptize(Config, AppFile) ->
     InclBeams = get_app_beams(
                   rebar_config:get_local(Config, escript_incl_apps, []), []),
 
+    %% Look for a list extra files to include in the output file.
+    %% For internal rebar-private use only. Do not use outside rebar.
+    InclExtra = get_extra(Config),
+
     %% Construct the archive of everything in ebin/ dir -- put it on the
     %% top-level of the zip file so that code loading works properly.
-    Files = load_files("*", "ebin") ++ InclBeams,
+    Files = load_files("*", "ebin") ++ InclBeams ++ InclExtra,
+
     case zip:create("mem", Files, [memory]) of
         {ok, {"mem", ZipBin}} ->
             %% Archive was successfully created. Prefix that binary with our
@@ -69,12 +74,12 @@ escriptize(Config, AppFile) ->
                 {error, WriteError} ->
                     ?ERROR("Failed to write ~p script: ~p\n",
                            [AppName, WriteError]),
-                    ?FAIL
+                    ?ABORT
             end;
         {error, ZipError} ->
             ?ERROR("Failed to construct ~p escript: ~p\n",
                    [AppName, ZipError]),
-            ?FAIL
+            ?ABORT
     end,
 
     %% Finally, update executable perms for our script
@@ -90,7 +95,6 @@ clean(Config, AppFile) ->
     %% Get the output filename for the escript -- this may include dirs
     Filename = rebar_config:get_local(Config, escript_name, AppName),
     rebar_file_utils:delete_each([Filename]).
-
 
 %% ===================================================================
 %% Internal functions
@@ -109,6 +113,12 @@ get_app_beams([App | Rest], Acc) ->
                        F <- filelib:wildcard("*", Path)],
             get_app_beams(Rest, Acc2 ++ Acc)
     end.
+
+get_extra(Config) ->
+    Extra = rebar_config:get_local(Config, escript_incl_extra, []),
+    lists:foldl(fun({Wildcard, Dir}, Files) ->
+                        load_files(Wildcard, Dir) ++ Files
+                end, [], Extra).
 
 load_files(Wildcard, Dir) ->
     [read_file(Filename, Dir) || Filename <- filelib:wildcard(Wildcard, Dir)].

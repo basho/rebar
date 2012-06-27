@@ -202,22 +202,23 @@ inspect(Source, IncludePath) ->
 inspect_epp(Epp, Source, Module, Includes) ->
     case epp:parse_erl_form(Epp) of
         {ok, {attribute, _, module, ModInfo}} ->
-            case ModInfo of
-                %% Typical module name, single atom
-                ActualModule when is_atom(ActualModule) ->
-                    ActualModuleStr = atom_to_list(ActualModule);
-                %% Packag-ized module name, list of atoms
-                ActualModule when is_list(ActualModule) ->
-                    ActualModuleStr = string:join([atom_to_list(P) ||
-                                                      P <- ActualModule], ".");
-                %% Parameterized module name, single atom
-                {ActualModule, _} when is_atom(ActualModule) ->
-                    ActualModuleStr = atom_to_list(ActualModule);
-                %% Parameterized and packagized module name, list of atoms
-                {ActualModule, _} when is_list(ActualModule) ->
-                    ActualModuleStr = string:join([atom_to_list(P) ||
-                                                      P <- ActualModule], ".")
-            end,
+            ActualModuleStr =
+                case ModInfo of
+                    %% Typical module name, single atom
+                    ActualModule when is_atom(ActualModule) ->
+                        atom_to_list(ActualModule);
+                    %% Packag-ized module name, list of atoms
+                    ActualModule when is_list(ActualModule) ->
+                        string:join([atom_to_list(P) ||
+                                        P <- ActualModule], ".");
+                    %% Parameterized module name, single atom
+                    {ActualModule, _} when is_atom(ActualModule) ->
+                        atom_to_list(ActualModule);
+                    %% Parameterized and packagized module name, list of atoms
+                    {ActualModule, _} when is_list(ActualModule) ->
+                        string:join([atom_to_list(P) ||
+                                        P <- ActualModule], ".")
+                end,
             inspect_epp(Epp, Source, ActualModuleStr, Includes);
         {ok, {attribute, 1, file, {Module, 1}}} ->
             inspect_epp(Epp, Source, Module, Includes);
@@ -256,12 +257,14 @@ internal_erl_compile(Source, Config, Outdir, ErlOpts) ->
     case needs_compile(Source, Target, Hrls) of
         true ->
             Opts = [{outdir, filename:dirname(Target)}] ++
-                ErlOpts ++ [{i, "include"}, report],
+                ErlOpts ++ [{i, "include"}, return],
             case compile:file(Source, Opts) of
-                {ok, _} ->
+                {ok, _Mod} ->
                     ok;
-                _ ->
-                    ?FAIL
+                {ok, _Mod, Ws} ->
+                    rebar_base_compiler:ok_tuple(Source, Ws);
+                {error, Es, Ws} ->
+                    rebar_base_compiler:error_tuple(Source, Es, Ws, Opts)
             end;
         false ->
             skipped
@@ -282,7 +285,7 @@ compile_mib(Source, Target, Config) ->
             rebar_file_utils:mv(Hrl_filename, "include"),
             ok;
         {error, compilation_failed} ->
-            ?FAIL
+            ?ABORT
     end.
 
 -spec compile_xrl(Source::file:filename(), Target::file:filename(),
@@ -302,11 +305,13 @@ compile_yrl(Source, Target, Config) ->
 compile_xrl_yrl(Source, Target, Opts, Mod) ->
     case needs_compile(Source, Target, []) of
         true ->
-            case Mod:file(Source, Opts) of
+            case Mod:file(Source, Opts ++ [{return, true}]) of
                 {ok, _} ->
                     ok;
-                _X ->
-                    ?FAIL
+                {ok, _Mod, Ws} ->
+                    rebar_base_compiler:ok_tuple(Source, Ws);
+                {error, Es, Ws} ->
+                    rebar_base_compiler:error_tuple(Source, Es, Ws, Opts)
             end;
         false ->
             skipped
