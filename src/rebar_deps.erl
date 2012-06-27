@@ -299,13 +299,23 @@ is_app_available(App, VsnCheck, Path) ->
                             [App, VsnCheck, App, Vsn, Path]),
                     case rebar_version:check(Vsn, VsnCheck) of
                         true ->
+                            memoize_dependency(App, VsnCheck),
                             {true, Path};
                         _ ->
                             ?WARN("~s has version ~p; requested was ~1000p\n",
                                 [AppFile, Vsn, VsnCheck]),
-                            {false, {version_mismatch,
-                                     {AppFile,
-                                      {expected, VsnCheck}, {has, Vsn}}}}
+                            case can_resolve_dependency(App, VsnCheck) of
+                                true ->
+                                    %% We need to clear the cache of the app_vsn
+                                    %% Because in a next round we probably have
+                                    %% a new version available in the directory
+                                    rebar_app_utils:app_vsn_reset(AppFile),
+                                    {false, resolvable_version_mismatch};  
+                                false ->     
+                                    {false, {version_mismatch,
+                                             {AppFile,
+                                              {expected, VsnCheck}, {has, Vsn}}}}
+                            end
                     end;
                 OtherApp ->
                     ?WARN("~s has application id ~p; expected ~p\n",
@@ -321,37 +331,58 @@ is_app_available(App, VsnCheck, Path) ->
           
 
 use_source(Dep) ->
-    use_source(Dep, 3).
+    use_source(Dep, 3, false).
 
-use_source(Dep, 0) ->
+use_source(Dep, 0, Force) ->
     ?ABORT("Failed to acquire source from ~p after 3 tries.\n",
            [Dep#dep.source]);
-use_source(Dep, Count) ->
-    case filelib:is_dir(Dep#dep.dir) of
+use_source(Dep, Count, Force) ->
+    case Force of
         true ->
-            %% Already downloaded -- verify the versioning matches the regex
-            case is_app_available(Dep#dep.app,
-                                  Dep#dep.vsn_regex, Dep#dep.dir) of
-                {true, _} ->
-                    Dir = filename:join(Dep#dep.dir, "ebin"),
-                    ok = filelib:ensure_dir(filename:join(Dir, "dummy")),
-                    %% Available version matches up -- we're good to go;
-                    %% add the app dir to our code path
-                    true = code:add_patha(Dir),
-                    Dep;
-                {false, Reason} ->
-                    %% The app that was downloaded doesn't match up (or had
-                    %% errors or something). For the time being, abort.
-                    ?ABORT("Dependency dir ~s failed application validation "
-                           "with reason:~n~p.\n", [Dep#dep.dir, Reason])
-            end;
-        false ->
-            ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
-            require_source_engine(Dep#dep.source),
-            {true, TargetDir} = get_deps_dir(Dep#dep.app),
-            download_source(TargetDir, Dep#dep.source),
-            use_source(Dep#dep { dir = TargetDir }, Count-1)
+            %% When forcing the retrieve, we need to make sure the directory
+            %% does not already exist
+            case filelib:is_dir(Dep#dep.dir) of
+                true ->
+                    rebar_file_utils:rm_rf(Dep#dep.dir);
+                false ->
+                    ok
+            end,
+            retrieve_source_and_retry(Dep, Count);
+        _ ->
+            case filelib:is_dir(Dep#dep.dir) of
+                true ->
+                    %% Already downloaded -- verify the versioning matches the regex
+                    case is_app_available(Dep#dep.app,
+                                          Dep#dep.vsn_regex, Dep#dep.dir) of
+                        {false, resolvable_version_mismatch} ->
+                            ?WARN("Dependency dir ~s failed version-check, but able to resolve.\n", 
+                                   [Dep#dep.dir]),
+                            use_source(Dep, Count, true); 
+                        {true, _} ->
+                            Dir = filename:join(Dep#dep.dir, "ebin"),
+                            ok = filelib:ensure_dir(filename:join(Dir, "dummy")),
+                            %% Available version matches up -- we're good to go;
+                            %% add the app dir to our code path
+                            true = code:add_patha(Dir),
+                            Dep;
+                        {false, Reason} ->
+                            %% The app that was downloaded doesn't match up (or had
+                            %% errors or something). For the time being, abort.
+                            ?ABORT("Dependency dir ~s failed application validation "
+                                   "with reason:~n~p.\n", [Dep#dep.dir, Reason])
+                    end;
+                false ->
+                    retrieve_source_and_retry(Dep, Count)
+            end
     end.
+
+retrieve_source_and_retry(Dep, Count) ->
+    ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
+    require_source_engine(Dep#dep.source),
+    {true, TargetDir} = get_deps_dir(Dep#dep.app),
+    download_source(TargetDir, Dep#dep.source),
+    use_source(Dep#dep { dir = TargetDir }, Count-1, false).
+
 
 download_source(AppDir, {hg, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
@@ -435,7 +466,26 @@ update_source(AppDir, {rsync, Url}) ->
     rebar_utils:sh(?FMT("rsync -az --delete ~s/ ~s",[Url,AppDir]),[]).
 
 
+%% Remember downloaded dependencies
+memoize_dependency(App, VsnCheck) ->
+    PreviousAppVersionRestrictions = rebar_config:get_global({dep,App}, []),
+    NewAppVersionRestrictions = [VsnCheck] ++ PreviousAppVersionRestrictions,
+    rebar_config:set_global({dep,App}, NewAppVersionRestrictions).
 
+%% Check if we can resolve this new dependency
+can_resolve_dependency(App, VsnCheck) ->
+    AppVersionRestrictions = rebar_config:get_global({dep,App}, []),  
+    Res = check_dependencies(VsnCheck, AppVersionRestrictions, true),
+    ?INFO("\n\n******rebar_version check: ~s  <->  ~p : ~p\n", [ VsnCheck, AppVersionRestrictions, Res ]),
+    Res.
+
+check_dependencies(_, _, false) ->
+    false;
+check_dependencies(_, [], Res) ->
+    Res;
+check_dependencies(Vsn, [H|T], Res) ->
+    check_dependencies(Vsn, T, rebar_version:check(Vsn, H)).
+  
 
 %% ===================================================================
 %% Source helper functions

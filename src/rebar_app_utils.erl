@@ -32,6 +32,7 @@
          app_name/1,
          app_applications/1,
          app_vsn/1,
+         app_vsn_reset/1,
          is_skipped_app/1]).
 
 -export([load_app_file/1]). % TEMPORARY
@@ -100,6 +101,16 @@ app_vsn(AppFile) ->
         {ok, _, AppInfo} ->
             AppDir = filename:dirname(filename:dirname(AppFile)),
             rebar_utils:vcs_vsn(get_value(vsn, AppInfo, AppFile), AppDir);
+        {error, Reason} ->
+            ?ABORT("Failed to extract vsn from ~s: ~p\n",
+                   [AppFile, Reason])
+    end.
+
+app_vsn_reset(AppFile) ->
+    case load_app_file(AppFile) of
+        {ok, _, AppInfo} ->
+            AppDir = filename:dirname(filename:dirname(AppFile)),
+            rebar_utils:vcs_vsn_delete(get_value(vsn, AppInfo, AppFile), AppDir);
         {error, Reason} ->
             ?ABORT("Failed to extract vsn from ~s: ~p\n",
                    [AppFile, Reason])

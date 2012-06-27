@@ -45,6 +45,7 @@
          deprecated/3, deprecated/4,
          expand_env_variable/3,
          vcs_vsn/2,
+         vcs_vsn_delete/2,
          get_deprecated_global/3, get_deprecated_global/4,
          get_deprecated_list/4, get_deprecated_list/5,
          get_deprecated_local/4, get_deprecated_local/5,
@@ -205,6 +206,11 @@ vcs_vsn(Vcs, Dir) ->
             ets:insert(rebar_vsn_cache, {Key, VsnString}),
             VsnString
     end.
+
+vcs_vsn_delete(Vcs, Dir) ->
+    Key = {Vcs, Dir},
+    ets:delete(rebar_vsn_cache, Key).
+
 
 get_deprecated_global(OldOpt, NewOpt, When) ->
     get_deprecated_global(OldOpt, NewOpt, undefined, When).
