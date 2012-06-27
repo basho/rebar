@@ -186,12 +186,21 @@ setup_env(_Config) ->
 %% Added because of trans deps,
 %% need all deps in same dir and should be the one set by the root rebar.config
 %% Sets a default if root config has no deps_dir set
-%% shared_deps_dir by default is undefined
+%% shared_deps_dir by default is undefined.
+%% By default it will use OS environment value REBAR_SHARED_DEPS_DIR if set.
 set_global_deps_dir(Config, []) ->
     rebar_config:set_global(deps_dir,
                             rebar_config:get_local(Config, deps_dir, "deps")),
+    EnvSharedDepsDir = case os:getenv("REBAR_SHARED_DEPS_DIR") of
+                           false ->
+                                undefined;
+                           Dir ->
+                                Dir
+                       end,
     rebar_config:set_global(shared_deps_dir,
-                            rebar_config:get_local(Config, shared_deps_dir, undefined));
+                            rebar_config:get_local(Config, shared_deps_dir, EnvSharedDepsDir));
+
+
 set_global_deps_dir(_Config, _DepsDir) ->
     ok.
 
