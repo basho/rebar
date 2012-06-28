@@ -45,7 +45,7 @@
          deprecated/3, deprecated/4,
          expand_env_variable/3,
          vcs_vsn/2,
-         get_deprecated_global/3,
+         get_deprecated_global/3, get_deprecated_global/4,
          get_deprecated_list/4, get_deprecated_list/5,
          get_deprecated_local/4, get_deprecated_local/5,
          delayed_halt/1]).
@@ -71,7 +71,8 @@ is_arch(ArchRegex) ->
 get_arch() ->
     Words = wordsize(),
     erlang:system_info(otp_release) ++ "-"
-        ++ erlang:system_info(system_architecture) ++ "-" ++ Words.
+        ++ erlang:system_info(system_architecture) ++ "-" ++ Words
+        ++ "-" ++ os_family().
 
 wordsize() ->
     try erlang:system_info({wordsize, external}) of
@@ -205,48 +206,15 @@ vcs_vsn(Vcs, Dir) ->
             VsnString
     end.
 
-vcs_vsn_1(Vcs, Dir) ->
-    case vcs_vsn_cmd(Vcs) of
-        {unknown, VsnString} ->
-            ?DEBUG("vcs_vsn: Unknown VCS atom in vsn field: ~p\n", [Vcs]),
-            VsnString;
-        {cmd, CmdString} ->
-            vcs_vsn_invoke(CmdString, Dir);
-        Cmd ->
-            %% If there is a valid VCS directory in the application directory,
-            %% use that version info
-            Extension = lists:concat([".", Vcs]),
-            case filelib:is_dir(filename:join(Dir, Extension)) of
-                true ->
-                    ?DEBUG("vcs_vsn: Primary vcs used for ~s\n", [Dir]),
-                    vcs_vsn_invoke(Cmd, Dir);
-                false ->
-                    %% No VCS directory found for the app. Depending on source
-                    %% tree structure, there may be one higher up, but that can
-                    %% yield unexpected results when used with deps. So, we
-                    %% fallback to searching for a priv/vsn.Vcs file.
-                    VsnFile = filename:join([Dir, "priv", "vsn" ++ Extension]),
-                    case file:read_file(VsnFile) of
-                        {ok, VsnBin} ->
-                            ?DEBUG("vcs_vsn: Read ~s from priv/vsn.~p\n",
-                                   [VsnBin, Vcs]),
-                            string:strip(binary_to_list(VsnBin), right, $\n);
-                        {error, enoent} ->
-                            ?DEBUG("vcs_vsn: Fallback to vcs for ~s\n", [Dir]),
-                            vcs_vsn_invoke(Cmd, Dir)
-                    end
-            end
-    end.
-
 get_deprecated_global(OldOpt, NewOpt, When) ->
     get_deprecated_global(OldOpt, NewOpt, undefined, When).
 
 get_deprecated_global(OldOpt, NewOpt, Default, When) ->
     case rebar_config:get_global(NewOpt, Default) of
-        undefined ->
+        Default ->
             case rebar_config:get_global(OldOpt, Default) of
-                undefined ->
-                    undefined;
+                Default ->
+                    Default;
                 Old ->
                     deprecated(OldOpt, NewOpt, When),
                     Old
@@ -254,7 +222,6 @@ get_deprecated_global(OldOpt, NewOpt, Default, When) ->
         New ->
             New
     end.
-
 
 get_deprecated_list(Config, OldOpt, NewOpt, When) ->
     get_deprecated_list(Config, OldOpt, NewOpt, undefined, When).
@@ -317,6 +284,10 @@ delayed_halt(Code) ->
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+
+os_family() ->
+    {OsFamily, _} = os:type(),
+    atom_to_list(OsFamily).
 
 get_deprecated_3(Get, Config, OldOpt, NewOpt, Default, When) ->
     case Get(Config, NewOpt, Default) of
@@ -426,6 +397,39 @@ emulate_escript_foldl(Fun, Acc, File) ->
             end;
         {error, _} = Error ->
             Error
+    end.
+
+vcs_vsn_1(Vcs, Dir) ->
+    case vcs_vsn_cmd(Vcs) of
+        {unknown, VsnString} ->
+            ?DEBUG("vcs_vsn: Unknown VCS atom in vsn field: ~p\n", [Vcs]),
+            VsnString;
+        {cmd, CmdString} ->
+            vcs_vsn_invoke(CmdString, Dir);
+        Cmd ->
+            %% If there is a valid VCS directory in the application directory,
+            %% use that version info
+            Extension = lists:concat([".", Vcs]),
+            case filelib:is_dir(filename:join(Dir, Extension)) of
+                true ->
+                    ?DEBUG("vcs_vsn: Primary vcs used for ~s\n", [Dir]),
+                    vcs_vsn_invoke(Cmd, Dir);
+                false ->
+                    %% No VCS directory found for the app. Depending on source
+                    %% tree structure, there may be one higher up, but that can
+                    %% yield unexpected results when used with deps. So, we
+                    %% fallback to searching for a priv/vsn.Vcs file.
+                    VsnFile = filename:join([Dir, "priv", "vsn" ++ Extension]),
+                    case file:read_file(VsnFile) of
+                        {ok, VsnBin} ->
+                            ?DEBUG("vcs_vsn: Read ~s from priv/vsn.~p\n",
+                                   [VsnBin, Vcs]),
+                            string:strip(binary_to_list(VsnBin), right, $\n);
+                        {error, enoent} ->
+                            ?DEBUG("vcs_vsn: Fallback to vcs for ~s\n", [Dir]),
+                            vcs_vsn_invoke(Cmd, Dir)
+                    end
+            end
     end.
 
 vcs_vsn_cmd(git) ->
