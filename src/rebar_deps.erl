@@ -115,7 +115,11 @@ setup_env(_Config) ->
 
 %% Set symlinks from DEPS dir to SHARED_DEPS dir
 %% This only works for Linux-based OS!
+%% We need to make sure the deps_dir actually exists before
+%% we can symlink to it
 'symlink-shared-deps-to-deps'(DownloadDir, TargetDir) ->
+    {true, DepsDir} = get_deps_dir(),
+    filelib:ensure_dir(DepsDir ++ "/"),  
     LinkResult = os:cmd("ln -s " ++ DownloadDir ++ " " ++ TargetDir),
     ?DEBUG("Symlinked ~1000p to ~1000p, result: ~1000s\n", [DownloadDir, TargetDir, LinkResult]),
     ok.
