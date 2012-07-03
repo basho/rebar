@@ -4,7 +4,7 @@
 %%
 %% rebar: Erlang Build Tools
 %%
-%% Copyright (c) 2009, 2010 Thijs Terlouw (thijsterlouw@spilgames.com)
+%% Copyright (c) 2012 Thijs Terlouw (Thijs.Terlouw@spilgames.com)
 %%
 %% Permission is hereby granted, free of charge, to any person obtaining a copy
 %% of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,11 @@ check_single_constraints_test_() ->
         ?_assertEqual(true, rebar_version:check_constraints("1.2.3", ["> 1.2.2"])),
         ?_assertEqual(true, rebar_version:check_constraints("1.2.3", ["= 1.2.3"])), 
         ?_assertEqual(true, rebar_version:check_constraints("1.2.3", ["<= 1.2.3"])), 
-        ?_assertEqual(true, rebar_version:check_constraints("1.2.3", ["< 1.2.4"]))                                 
+        ?_assertEqual(true, rebar_version:check_constraints("1.2.3", ["< 1.2.4"])),   
+		                              
+        ?_assertEqual(false, rebar_version:check_constraints("1.2.3", ["< 1.2.3"])),                                 
+        ?_assertEqual(false, rebar_version:check_constraints("1.3.0", ["< 1.2.3"])),                                 
+        ?_assertEqual(false, rebar_version:check_constraints("2.0.0", ["< 1.2.3"]))                                 
     ].
 
 check_multiple_constraints_test_() ->
