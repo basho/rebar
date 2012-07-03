@@ -341,7 +341,7 @@ is_app_available(App, VsnCheck, Path) ->
 use_source(Dep) ->
     use_source(Dep, 3, false).
 
-use_source(Dep, 0, Force) ->
+use_source(Dep, 0, _) ->
     ?ABORT("Failed to acquire source from ~p after 3 tries.\n",
            [Dep#dep.source]);
 use_source(Dep, Count, Force) ->
@@ -498,7 +498,7 @@ check_dependencies(_, _, false) ->
     false;
 check_dependencies(_, [], Res) ->
     Res;
-check_dependencies(Vsn, [H|T], Res) ->
+check_dependencies(Vsn, [H|T], _) ->
     check_dependencies(Vsn, T, rebar_version:check(Vsn, H)).
   
 
