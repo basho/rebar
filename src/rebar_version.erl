@@ -82,7 +82,6 @@ check(Vsn, VsnRegex) ->
 %% @end
 %%--------------------------------------------------------------------
 check_constraints(Vsn, Constraints) ->
-    %TODO implement actual constraint checks
     ParsedVersion = parse_version(Vsn),
     ParsedConstraints = parse_constraints(Constraints),
     verify_constraints(ParsedVersion, ParsedConstraints, true).
