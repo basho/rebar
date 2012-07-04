@@ -391,7 +391,7 @@ use_source(Dep, Count, Force) ->
                 false ->
                     ok
             end,
-            retrieve_source_and_retry(Dep, Count);
+            retrieve_source_and_retry(Dep, Count, Force);
         _ ->
             case filelib:is_dir(Dep#dep.dir) of
                 true ->
@@ -411,17 +411,19 @@ use_source(Dep, Count, Force) ->
                             Dep;
                         {false, Reason} ->
                             %% The app that was downloaded doesn't match up (or had
-                            %% errors or something). For the time being, abort.
-                            ?ABORT("Dependency dir ~s failed application validation "
-                                   "with reason:~n~p.\n", [Dep#dep.dir, Reason])
+                            %% errors or something). 
+                            ?WARN("Dependency dir ~s failed application validation "
+                                   "with reason:~n~p.Will retry by removing previous deps dir.\n", [Dep#dep.dir, Reason]),
+                            rebar_file_utils:rm_rf(Dep#dep.dir),
+                            use_source(Dep, Count-1, true)
                     end;
                 false ->
-                    retrieve_source_and_retry(Dep, Count)
+                    retrieve_source_and_retry(Dep, Count, Force)
             end
     end.
 
 
-retrieve_source_and_retry(Dep, Count) ->
+retrieve_source_and_retry(Dep, Count, Force) ->
     %% The shared deps dir might already exist, in that case we only
     %% need to symlink. So construct the download dir and check if it
     %% already exists.
@@ -439,13 +441,23 @@ retrieve_source_and_retry(Dep, Count) ->
     
     %% If the (possibly versioned) downloads dir already exists, just
     %% skip downloading the source
-    case filelib:is_dir(DownloadDir) of
-        true ->
-            ok;
-        false ->
+    DownloadDirExists = filelib:is_dir(DownloadDir),
+    
+    if 
+        Force orelse DownloadDirExists =:= false ->
+            if 
+                DownloadDirExists =:= true ->
+                    rebar_file_utils:rm_rf(DownloadDir);
+                true ->
+                    ok
+            end,
+            
             ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
             require_source_engine(Dep#dep.source),
-            download_source(DownloadDir, Dep#dep.source)
+            download_source(DownloadDir, Dep#dep.source);
+        
+        true ->
+            ok  
     end,
 
     %% If we used the shared dir, we need to symlink from the shared
@@ -454,6 +466,7 @@ retrieve_source_and_retry(Dep, Count) ->
         undefined ->
             ok;
         _ ->
+            rebar_file_utils:rm_rf(TargetDir),
             'symlink-shared-deps-to-deps'(DownloadDir, TargetDir)
     end,
 
