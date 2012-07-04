@@ -38,6 +38,8 @@
          'delete-deps'/2,
          'list-deps'/2]).
 
+%% For testing
+-export([get_value/2, set_value/2, del_key/1]).
 
 -record(dep, { dir,
                app,
@@ -141,7 +143,7 @@ setup_env(_Config) ->
 
 'get-deps'(Config, _) ->
     %% Make Config available
-    erlang:put({?MODULE, config}, Config),
+    set_value(config, Config),
     
     %% Determine what deps are available and missing
     Deps = rebar_config:get_local(Config, deps, []),
@@ -154,7 +156,7 @@ setup_env(_Config) ->
     %% the necessary transitivity of the deps
     erlang:put(?MODULE, [D#dep.dir || D <- PulledDeps]),
     
-    erlang:put({?MODULE, config}, undefined),
+    del_key(config),
     
     ok.
 
@@ -591,15 +593,15 @@ update_source(AppDir, {rsync, Url}) ->
 
 %% Remember downloaded dependencies
 memoize_dependency(App, VsnCheck) ->
-    PreviousAppVersionRestrictions = rebar_config:get_global({dep,App}, []), 
-    Config = erlang:get({?MODULE, config}),
+    PreviousAppVersionRestrictions = get_value({dep,App}, []), 
+    Config = get_value(config, undefined),
     Dir = rebar_config:get_dir(Config),
     NewAppVersionRestrictions = [{Dir, VsnCheck}] ++ PreviousAppVersionRestrictions, 
-    rebar_config:set_global({dep,App}, NewAppVersionRestrictions).
+    set_value({dep,App}, NewAppVersionRestrictions).
 
 %% Check if we can resolve this new dependency
 can_resolve_dependency(App, VsnCheck) ->
-    AppDepConstraints = rebar_config:get_global({dep,App}, []), 
+    AppDepConstraints = get_value({dep,App}, []), 
     VsnConstraints = [ Constraint || {_, Constraint} <- AppDepConstraints],
     Res = check_dependencies(VsnCheck, VsnConstraints, true),
     case Res of
@@ -616,7 +618,23 @@ check_dependencies(_, [], Res) ->
 check_dependencies(Vsn, [H|T], _) ->
     check_dependencies(Vsn, T, rebar_version:check(Vsn, H)).
   
+%% Remember some values using rebar_config.
+%% TODO: there should be a generic KV storage system
+get_value(Key, Default) ->
+    Config = rebar_config:get_global(rebar_deps_config, []),
+    proplists:get_value(Key, Config, Default).
 
+set_value(Key, Value) ->
+    Config = rebar_config:get_global(rebar_deps_config, []),
+    TempConfig = proplists:delete(Key, Config),
+    NewConfig = [{Key, Value}] ++ TempConfig,
+    rebar_config:set_global(rebar_deps_config, NewConfig).
+
+del_key(Key) ->
+    Config = rebar_config:get_global(rebar_deps_config, []),
+    NewConfig = proplists:delete(Key, Config),
+    rebar_config:set_global(rebar_deps_config, NewConfig).
+    
 %% ===================================================================
 %% Source helper functions
 %% ===================================================================
