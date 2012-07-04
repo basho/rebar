@@ -119,7 +119,7 @@ setup_env(_Config) ->
 %% we can symlink to it
 'symlink-shared-deps-to-deps'(DownloadDir, TargetDir) ->
     {true, DepsDir} = get_deps_dir(),
-    filelib:ensure_dir(DepsDir ++ "/"),  
+    ok = filelib:ensure_dir(DepsDir ++ "/"),  
     LinkResult = os:cmd("ln -s " ++ DownloadDir ++ " " ++ TargetDir),
     ?DEBUG("Symlinked ~1000p to ~1000p, result: ~1000s\n", [DownloadDir, TargetDir, LinkResult]),
     ok.
