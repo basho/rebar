@@ -107,7 +107,7 @@ app_vsn(AppFile) ->
     end.
 
 app_vsn_reset(AppFile) ->
-    case load_app_file(AppFile) of
+    case reload_app_file(AppFile) of
         {ok, _, AppInfo} ->
             AppDir = filename:dirname(filename:dirname(AppFile)),
             rebar_utils:vcs_vsn_delete(get_value(vsn, AppInfo, AppFile), AppDir);
@@ -141,6 +141,11 @@ is_skipped_app(AppFile) ->
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
+
+reload_app_file(Filename) ->
+    AppFile = {app_file, Filename},
+    erlang:put(AppFile, undefined),
+    load_app_file(Filename).
 
 load_app_file(Filename) ->
     AppFile = {app_file, Filename},
