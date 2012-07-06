@@ -391,6 +391,14 @@ retrieve_source_and_retry(Dep, Count) ->
     require_source_engine(Dep#dep.source),
     {true, TargetDir} = get_deps_dir(Dep#dep.app),
     download_source(TargetDir, Dep#dep.source),
+
+    case rebar_app_utils:is_app_dir(Dep#dep.dir) of
+        {true, AppFile} ->
+            rebar_app_utils:app_vsn_reset(AppFile);
+        _ ->
+            ?WARN("Failed to reload .app file for ~p.\n", [Dep#dep.app])
+    end,
+
     use_source(Dep#dep { dir = TargetDir }, Count-1, false).
 
 
