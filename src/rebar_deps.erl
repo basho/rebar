@@ -470,6 +470,13 @@ retrieve_source_and_retry(Dep, Count, Force) ->
         _ ->
             rebar_file_utils:rm_rf(TargetDir),
             'symlink-shared-deps-to-deps'(DownloadDir, TargetDir)
+	end,
+
+    case rebar_app_utils:is_app_dir(Dep#dep.dir) of
+        {true, AppFile} ->
+            rebar_app_utils:app_vsn_reset(AppFile);
+        _ ->
+            ?WARN("Failed to reload .app file for ~p.\n", [Dep#dep.app])
     end,
 
     use_source(Dep#dep { dir = TargetDir }, Count-1, false).
