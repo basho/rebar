@@ -108,6 +108,12 @@
 
 %% == Dependencies ==
 
+%% Where to put shared dependencies. By default it is not used
+%% Shared dependencies contain versioned directories and result
+%% in symlinks from the deps_dir to the shared_deps_dir.
+%% This allows you to share deps between several projects.
+{shared_deps_dir, "../deps"}.
+
 %% Where to put any downloaded dependencies. Default is "deps"
 {deps_dir, "deps"}.
 
