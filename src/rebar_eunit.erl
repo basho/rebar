@@ -266,7 +266,18 @@ perform_cover(Config, BeamFiles, SrcModules) ->
 perform_cover(false, _Config, _BeamFiles, _SrcModules) ->
     ok;
 perform_cover(true, Config, BeamFiles, SrcModules) ->
-    cover_analyze(Config, BeamFiles, SrcModules).
+    CoverOpts = rebar_config:get_list(Config, cover_opts, []),
+    {NewBeamFiles, NewSrcModules} = 
+    case proplists:get_value(excl_mods, CoverOpts) of
+        undefined ->
+            {BeamFiles, SrcModules};
+        ExclMods ->
+            {
+                [lists:delete(M, BeamFiles) || M <- ExclMods],
+                [lists:delete(M, SrcModules) || M <- ExclMods]
+            }       
+    end,    
+    cover_analyze(Config, NewBeamFiles, NewSrcModules).
 
 cover_analyze(_Config, [], _SrcModules) ->
     ok;
@@ -346,7 +357,18 @@ cover_init(true, BeamFiles) ->
             OkOpen
     end;
 cover_init(Config, BeamFiles) ->
-    cover_init(rebar_config:get(Config, cover_enabled, false), BeamFiles).
+    CoverOpts = rebar_config:get_list(Config, cover_opts, []),
+    NewBeamFiles = case proplists:get_value(excl_mods, CoverOpts) of
+        undefined ->
+            BeamFiles;
+        ExclMods -> 
+            DelBeam = fun(B) ->
+                    M = list_to_atom(filename:basename(B, ".beam")),
+                    not lists:member(M, ExclMods)
+            end,
+            lists:filter(DelBeam, BeamFiles)
+    end, 
+    cover_init(rebar_config:get(Config, cover_enabled, false), NewBeamFiles).
 
 cover_analyze_mod(Module) ->
     case cover:analyze(Module, coverage, module) of
