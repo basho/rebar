@@ -88,6 +88,11 @@
 %% Option to use short names (i.e., -sname test) when starting ct
 {ct_use_short_names, true}.
 
+%% == QuickCheck ==
+
+%% If qc_lib is unspecified, rebar tries to detect PropEr or EQC
+{qc_opts, [{qc_lib, module()}, Options]}.
+
 %% == Cleanup ==
 
 %% Which files to cleanup
