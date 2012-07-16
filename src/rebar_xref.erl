@@ -90,7 +90,10 @@ xref(Config, _) ->
 
     case lists:member(false, [ExportsNoWarn, UndefNoWarn, QueryNoWarn]) of
         true ->
-            ?ABORT;
+            case rebar_config:get(Config, xref_strict, true) of
+                true -> ?ABORT;
+                false -> ?WARN("xref failed!", [])
+            end;
         false ->
             ok
     end.
