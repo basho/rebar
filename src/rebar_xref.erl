@@ -100,7 +100,7 @@ xref(Config, _) ->
     case ExportsNoWarn andalso UndefNoWarn andalso QueryNoWarn
         andalso DeprecatedNoWarn of
         false ->
-            ?ABORT("Xref check failed~n", []);
+            ?FAIL;
         true ->
             ok
     end.
