@@ -78,6 +78,15 @@ xref(Config, _) ->
                 true
         end,
 
+    %% Look for calls to deprecated functions
+    DeprecatedNoWarn =
+        case lists:member(deprecated_function_calls, XrefChecks) of
+            true ->
+                check_deprecated_function_calls();
+            false ->
+                true
+        end,
+
     %% Run custom queries
     QueryChecks = rebar_config:get(Config, xref_queries, []),
     QueryNoWarn = lists:all(fun check_query/1, QueryChecks),
@@ -88,10 +97,11 @@ xref(Config, _) ->
     %% Stop xref
     stopped = xref:stop(xref),
 
-    case lists:member(false, [ExportsNoWarn, UndefNoWarn, QueryNoWarn]) of
-        true ->
-            ?FAIL;
+    case ExportsNoWarn andalso UndefNoWarn andalso QueryNoWarn
+        andalso DeprecatedNoWarn of
         false ->
+            ?ABORT("Xref check failed~n", []);
+        true ->
             ok
     end.
 
@@ -119,6 +129,18 @@ check_undefined_function_calls() ->
                        [Source, Line, FunStr, Target])
       end, UndefinedCalls),
     UndefinedCalls =:= [].
+
+check_deprecated_function_calls() ->
+    {ok, Deprecated} = xref:analyze(xref, deprecated_function_calls),
+    DeprecatedCalls =
+        [{find_mfa_source(Caller), format_fa(Caller), format_mfa(Target)}
+         || {Caller, Target} <- Deprecated],
+    lists:foreach(
+      fun({{Source, Line}, FunStr, Target}) ->
+              ?CONSOLE("~s:~w: Warning ~s calls deprecated function ~s\n",
+                       [Source, Line, FunStr, Target])
+      end, DeprecatedCalls),
+    DeprecatedCalls =:= [].
 
 check_query({Query, Value}) ->
     {ok, Answer} = xref:q(xref, Query),
