@@ -118,29 +118,29 @@ check_exports_not_used() ->
     UnusedExports =:= [].
 
 check_undefined_function_calls() ->
-    {ok, UndefinedCalls0} = xref:analyze(xref, undefined_function_calls),
-    UndefinedCalls =
-        [{find_mfa_source(Caller), format_fa(Caller), format_mfa(Target)}
-         || {Caller, Target} <- UndefinedCalls0],
-
-    lists:foreach(
-      fun({{Source, Line}, FunStr, Target}) ->
-              ?CONSOLE("~s:~w: Warning ~s calls undefined function ~s\n",
-                       [Source, Line, FunStr, Target])
-      end, UndefinedCalls),
-    UndefinedCalls =:= [].
+    check_calls(undefined_function_calls).
 
 check_deprecated_function_calls() ->
-    {ok, Deprecated} = xref:analyze(xref, deprecated_function_calls),
-    DeprecatedCalls =
+    check_calls(deprecated_function_calls).
+
+check_calls(XrefCheck) ->
+    {ok, WrongCalls0} = xref:analyze(xref, XrefCheck),
+    WrongCalls =
         [{find_mfa_source(Caller), format_fa(Caller), format_mfa(Target)}
-         || {Caller, Target} <- Deprecated],
+         || {Caller, Target} <- WrongCalls0],
+
     lists:foreach(
       fun({{Source, Line}, FunStr, Target}) ->
-              ?CONSOLE("~s:~w: Warning ~s calls deprecated function ~s\n",
-                       [Source, Line, FunStr, Target])
-      end, DeprecatedCalls),
-    DeprecatedCalls =:= [].
+              ?CONSOLE("~s:~w: Warning ~s calls ~s function ~s\n",
+                       [Source, Line, FunStr, check_to_string(XrefCheck),
+                        Target])
+      end, WrongCalls),
+    WrongCalls =:= [].
+
+check_to_string(undefined_function_calls) ->
+    "undefined";
+check_to_string(deprecated_function_calls) ->
+    "deprecated".
 
 check_query({Query, Value}) ->
     {ok, Answer} = xref:q(xref, Query),
