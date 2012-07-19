@@ -58,7 +58,8 @@ xref(Config, _) ->
     %% Get list of xref checks we want to run
     XrefChecks = rebar_config:get(Config, xref_checks,
                                   [exports_not_used,
-                                   undefined_function_calls]),
+                                   undefined_function_calls,
+                                   deprecated_function_calls]),
 
     %% Look for exports that are unused by anything
     ExportsNoWarn =
