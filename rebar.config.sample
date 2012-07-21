@@ -79,8 +79,11 @@
 
 %% == Common Test ==
 
-%% Override the default "test" directory in which SUITEs are located
-{ct_dir, "itest"}.
+%% Override the default "ctest" directory in which SUITEs are located
+{ct_dir, "ctest"}.
+
+%% Override the default "logs" directory in which SUITEs are logged
+{ct_logs, "logs"}.
 
 %% Option to pass extra parameters when launching Common Test
 {ct_extra_params, "-boot start_sasl -s myapp"}.
