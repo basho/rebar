@@ -89,7 +89,6 @@ check_vsn() ->
             _ ->
                 ""
         end,
-    io:fwrite("ReltoolVsn is = ~p~n", [ReltoolVsn]),
     case ReltoolVsn < "0.5.2" of
         true ->
             ?ABORT("Reltool support requires at least reltool-0.5.2; "
