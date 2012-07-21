@@ -31,21 +31,26 @@
          get_arch/0,
          wordsize/0,
          sh/2,
-         find_files/2,
-         find_files/3,
+         find_files/2, find_files/3,
          now_str/0,
          ensure_dir/1,
          beam_to_mod/2, beams/1,
          erl_to_mod/1,
-         abort/2,
+         abort/0, abort/2,
          escript_foldl/3,
          find_executable/1,
          prop_check/3,
          expand_code_path/0,
-         deprecated/3, deprecated/4,
          expand_env_variable/3,
-         vcs_vsn/2,
-         get_deprecated_global/3]).
+         vcs_vsn/3,
+         deprecated/3, deprecated/4,
+         get_deprecated_global/3, get_deprecated_global/4,
+         get_deprecated_list/4, get_deprecated_list/5,
+         get_deprecated_local/4, get_deprecated_local/5,
+         delayed_halt/1,
+         erl_opts/1,
+         src_dirs/1
+        ]).
 
 -include("rebar.hrl").
 
@@ -68,7 +73,8 @@ is_arch(ArchRegex) ->
 get_arch() ->
     Words = wordsize(),
     erlang:system_info(otp_release) ++ "-"
-        ++ erlang:system_info(system_architecture) ++ "-" ++ Words.
+        ++ erlang:system_info(system_architecture) ++ "-" ++ Words
+        ++ "-" ++ os_family().
 
 wordsize() ->
     try erlang:system_info({wordsize, external}) of
@@ -88,8 +94,8 @@ wordsize() ->
 %% Val = string() | false
 %%
 sh(Command0, Options0) ->
-    ?INFO("sh info:\n\tcwd: ~p\n\tcmd: ~s\n\topts: ~p\n",
-          [get_cwd(), Command0, Options0]),
+    ?INFO("sh info:\n\tcwd: ~p\n\tcmd: ~s\n", [get_cwd(), Command0]),
+    ?DEBUG("\topts: ~p\n", [Options0]),
 
     DefaultOptions = [use_stdout, abort_on_error],
     Options = [expand_sh_flag(V)
@@ -134,10 +140,14 @@ ensure_dir(Path) ->
             Error
     end.
 
+-spec abort() -> no_return().
+abort() ->
+    throw(rebar_abort).
+
 -spec abort(string(), [term()]) -> no_return().
 abort(String, Args) ->
     ?ERROR(String, Args),
-    halt(1).
+    abort().
 
 %% TODO: Rename emulate_escript_foldl to escript_foldl and remove
 %% this function when the time is right. escript:foldl/3 was an
@@ -188,45 +198,28 @@ expand_env_variable(InStr, VarName, RawVarValue) ->
             re:replace(InStr, RegEx, [VarValue, "\\2"], ReOpts)
     end.
 
-vcs_vsn(Vcs, Dir) ->
-    case vcs_vsn_cmd(Vcs) of
-        {unknown, VsnString} ->
-            ?DEBUG("vcs_vsn: Unknown VCS atom in vsn field: ~p\n", [Vcs]),
-            VsnString;
-        {cmd, CmdString} ->
-            vcs_vsn_invoke(CmdString, Dir);
-        Cmd ->
-            %% If there is a valid VCS directory in the application directory,
-            %% use that version info
-            Extension = lists:concat([".", Vcs]),
-            case filelib:is_dir(filename:join(Dir, Extension)) of
-                true ->
-                    ?DEBUG("vcs_vsn: Primary vcs used for ~s\n", [Dir]),
-                    vcs_vsn_invoke(Cmd, Dir);
-                false ->
-                    %% No VCS directory found for the app. Depending on source
-                    %% tree structure, there may be one higher up, but that can
-                    %% yield unexpected results when used with deps. So, we
-                    %% fallback to searching for a priv/vsn.Vcs file.
-                    VsnFile = filename:join([Dir, "priv", "vsn" ++ Extension]),
-                    case file:read_file(VsnFile) of
-                        {ok, VsnBin} ->
-                            ?DEBUG("vcs_vsn: Read ~s from priv/vsn.~p\n",
-                                   [VsnBin, Vcs]),
-                            string:strip(binary_to_list(VsnBin), right, $\n);
-                        {error, enoent} ->
-                            ?DEBUG("vcs_vsn: Fallback to vcs for ~s\n", [Dir]),
-                            vcs_vsn_invoke(Cmd, Dir)
-                    end
-            end
+vcs_vsn(Config, Vcs, Dir) ->
+    Key = {Vcs, Dir},
+    {ok, Cache} = rebar_config:get_xconf(Config, vsn_cache),
+    case dict:find(Key, Cache) of
+        error ->
+            VsnString = vcs_vsn_1(Vcs, Dir),
+            Cache1 = dict:store(Key, VsnString, Cache),
+            Config1 = rebar_config:set_xconf(Config, vsn_cache, Cache1),
+            {Config1, VsnString};
+        {ok, VsnString} ->
+            {Config, VsnString}
     end.
 
 get_deprecated_global(OldOpt, NewOpt, When) ->
-    case rebar_config:get_global(NewOpt, undefined) of
-        undefined ->
-            case rebar_config:get_global(OldOpt, undefined) of
-                undefined ->
-                    undefined;
+    get_deprecated_global(OldOpt, NewOpt, undefined, When).
+
+get_deprecated_global(OldOpt, NewOpt, Default, When) ->
+    case rebar_config:get_global(NewOpt, Default) of
+        Default ->
+            case rebar_config:get_global(OldOpt, Default) of
+                Default ->
+                    Default;
                 Old ->
                     deprecated(OldOpt, NewOpt, When),
                     Old
@@ -235,12 +228,33 @@ get_deprecated_global(OldOpt, NewOpt, When) ->
             New
     end.
 
-deprecated(Old, New, Opts, When) ->
+get_deprecated_list(Config, OldOpt, NewOpt, When) ->
+    get_deprecated_list(Config, OldOpt, NewOpt, undefined, When).
+
+get_deprecated_list(Config, OldOpt, NewOpt, Default, When) ->
+    get_deprecated_3(fun rebar_config:get_list/3,
+                     Config, OldOpt, NewOpt, Default, When).
+
+get_deprecated_local(Config, OldOpt, NewOpt, When) ->
+    get_deprecated_local(Config, OldOpt, NewOpt, undefined, When).
+
+get_deprecated_local(Config, OldOpt, NewOpt, Default, When) ->
+    get_deprecated_3(fun rebar_config:get_local/3,
+                     Config, OldOpt, NewOpt, Default, When).
+
+deprecated(Old, New, Opts, When) when is_list(Opts) ->
     case lists:member(Old, Opts) of
         true ->
             deprecated(Old, New, When);
         false ->
             ok
+    end;
+deprecated(Old, New, Config, When) ->
+    case rebar_config:get(Config, Old, undefined) of
+        undefined ->
+            ok;
+        _ ->
+            deprecated(Old, New, When)
     end.
 
 deprecated(Old, New, When) ->
@@ -251,19 +265,80 @@ deprecated(Old, New, When) ->
         "'~p' will be removed ~s.~n~n">>,
       [Old, Old, New, Old, When]).
 
+-spec delayed_halt(integer()) -> no_return().
+delayed_halt(Code) ->
+    %% Work around buffer flushing issue in erlang:halt if OTP older
+    %% than R15B01.
+    %% TODO: remove workaround once we require R15B01 or newer
+    %% R15B01 introduced erlang:halt/2
+    case erlang:is_builtin(erlang, halt, 2) of
+        true ->
+            halt(Code);
+        false ->
+            case os:type() of
+                {win32, nt} ->
+                    timer:sleep(100),
+                    halt(Code);
+                _ ->
+                    halt(Code),
+                    %% workaround to delay exit until all output is written
+                    receive after infinity -> ok end
+            end
+    end.
+
+%% @doc Return list of erl_opts
+-spec erl_opts(rebar_config:config()) -> list().
+erl_opts(Config) ->
+    RawErlOpts = filter_defines(rebar_config:get(Config, erl_opts, []), []),
+    GlobalDefines = [{d, list_to_atom(D)} ||
+                        D <- rebar_config:get_global(defines, [])],
+    Opts = GlobalDefines ++ RawErlOpts,
+    case proplists:is_defined(no_debug_info, Opts) of
+        true ->
+            [O || O <- Opts, O =/= no_debug_info];
+        false ->
+            [debug_info|Opts]
+    end.
+
+-spec src_dirs(SrcDirs::[string()]) -> [file:filename(), ...].
+src_dirs([]) ->
+    ["src"];
+src_dirs(SrcDirs) ->
+    SrcDirs.
+
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+
+os_family() ->
+    {OsFamily, _} = os:type(),
+    atom_to_list(OsFamily).
+
+get_deprecated_3(Get, Config, OldOpt, NewOpt, Default, When) ->
+    case Get(Config, NewOpt, Default) of
+        Default ->
+            case Get(Config, OldOpt, Default) of
+                Default ->
+                    Default;
+                Old ->
+                    deprecated(OldOpt, NewOpt, When),
+                    Old
+            end;
+        New ->
+            New
+    end.
 
 %% We do the shell variable substitution ourselves on Windows and hope that the
 %% command doesn't use any other shell magic.
 patch_on_windows(Cmd, Env) ->
     case os:type() of
         {win32,nt} ->
-            "cmd /q /c "
+            Cmd1 = "cmd /q /c "
                 ++ lists:foldl(fun({Key, Value}, Acc) ->
                                        expand_env_variable(Acc, Key, Value)
-                               end, Cmd, Env);
+                               end, Cmd, Env),
+            %% Remove left-over vars
+            re:replace(Cmd1, "\\\$\\w+|\\\${\\w+}", "", [global, {return, list}]);
         _ ->
             Cmd
     end.
@@ -349,10 +424,42 @@ emulate_escript_foldl(Fun, Acc, File) ->
             Error
     end.
 
+vcs_vsn_1(Vcs, Dir) ->
+    case vcs_vsn_cmd(Vcs) of
+        {unknown, VsnString} ->
+            ?DEBUG("vcs_vsn: Unknown VCS atom in vsn field: ~p\n", [Vcs]),
+            VsnString;
+        {cmd, CmdString} ->
+            vcs_vsn_invoke(CmdString, Dir);
+        Cmd ->
+            %% If there is a valid VCS directory in the application directory,
+            %% use that version info
+            Extension = lists:concat([".", Vcs]),
+            case filelib:is_dir(filename:join(Dir, Extension)) of
+                true ->
+                    ?DEBUG("vcs_vsn: Primary vcs used for ~s\n", [Dir]),
+                    vcs_vsn_invoke(Cmd, Dir);
+                false ->
+                    %% No VCS directory found for the app. Depending on source
+                    %% tree structure, there may be one higher up, but that can
+                    %% yield unexpected results when used with deps. So, we
+                    %% fallback to searching for a priv/vsn.Vcs file.
+                    VsnFile = filename:join([Dir, "priv", "vsn" ++ Extension]),
+                    case file:read_file(VsnFile) of
+                        {ok, VsnBin} ->
+                            ?DEBUG("vcs_vsn: Read ~s from priv/vsn.~p\n",
+                                   [VsnBin, Vcs]),
+                            string:strip(binary_to_list(VsnBin), right, $\n);
+                        {error, enoent} ->
+                            ?DEBUG("vcs_vsn: Fallback to vcs for ~s\n", [Dir]),
+                            vcs_vsn_invoke(Cmd, Dir)
+                    end
+            end
+    end.
+
 vcs_vsn_cmd(git) ->
-    %% Explicitly git-describe a committish to accommodate for projects
-    %% in subdirs which don't have a GIT_DIR. In that case we will
-    %% get a description of the last commit that touched the subdir.
+    %% git describe the last commit that touched CWD
+    %% required for correct versioning of apps in subdirs, such as apps/app1
     case os:type() of
         {win32,nt} ->
             "FOR /F \"usebackq tokens=* delims=\" %i in "
@@ -370,3 +477,27 @@ vcs_vsn_cmd(Version) -> {unknown, Version}.
 vcs_vsn_invoke(Cmd, Dir) ->
     {ok, VsnString} = rebar_utils:sh(Cmd, [{cd, Dir}, {use_stdout, false}]),
     string:strip(VsnString, right, $\n).
+
+%%
+%% Filter a list of erl_opts platform_define options such that only
+%% those which match the provided architecture regex are returned.
+%%
+-spec filter_defines(ErlOpts::list(), Acc::list()) -> list().
+filter_defines([], Acc) ->
+    lists:reverse(Acc);
+filter_defines([{platform_define, ArchRegex, Key} | Rest], Acc) ->
+    case rebar_utils:is_arch(ArchRegex) of
+        true ->
+            filter_defines(Rest, [{d, Key} | Acc]);
+        false ->
+            filter_defines(Rest, Acc)
+    end;
+filter_defines([{platform_define, ArchRegex, Key, Value} | Rest], Acc) ->
+    case rebar_utils:is_arch(ArchRegex) of
+        true ->
+            filter_defines(Rest, [{d, Key, Value} | Acc]);
+        false ->
+            filter_defines(Rest, Acc)
+    end;
+filter_defines([Opt | Rest], Acc) ->
+    filter_defines(Rest, [Opt | Acc]).

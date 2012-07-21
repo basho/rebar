@@ -48,25 +48,25 @@ compile(Config, _AppFile) ->
 compile_lfe(Source, _Target, Config) ->
     case code:which(lfe_comp) of
         non_existing ->
-            ?ERROR(<<
-                     "~n"
-                     "*** MISSING LFE COMPILER ***~n"
-                     "  You must do one of the following:~n"
-                     "    a) Install LFE globally in your erl libs~n"
-                     "    b) Add LFE as a dep for your project, eg:~n"
-                     "       {lfe, \"0.6.1\",~n"
-                     "        {git, \"git://github.com/rvirding/lfe\",~n"
-                     "         {tag, \"v0.6.1\"}}}~n"
-                     "~n"
-                   >>, []),
-            ?FAIL;
+            ?ERROR("~n"
+                   "*** MISSING LFE COMPILER ***~n"
+                   "  You must do one of the following:~n"
+                   "    a) Install LFE globally in your erl libs~n"
+                   "    b) Add LFE as a dep for your project, eg:~n"
+                   "       {lfe, \"0.6.1\",~n"
+                   "        {git, \"git://github.com/rvirding/lfe\",~n"
+                   "         {tag, \"v0.6.1\"}}}~n"
+                   "~n", []),
+            ?ABORT;
         _ ->
-            Opts = [{i, "include"}, {outdir, "ebin"}, report]
+            Opts = [{i, "include"}, {outdir, "ebin"}, return]
                 ++ rebar_config:get_list(Config, erl_opts, []),
             case lfe_comp:file(Source, Opts) of
-                {ok, _} ->
-                    ok;
+                {ok, _Mod, Ws} ->
+                    rebar_base_compiler:ok_tuple(Source, Ws);
+                {error, Es, Ws} ->
+                    rebar_base_compiler:error_tuple(Source, Es, Ws, Opts);
                 _ ->
-                    ?FAIL
+                    ?ABORT
             end
     end.

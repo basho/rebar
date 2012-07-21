@@ -82,12 +82,17 @@
 
 compile(Config, _AppFile) ->
     DtlOpts = erlydtl_opts(Config),
-    rebar_base_compiler:run(Config, [],
-                            option(doc_root, DtlOpts),
-                            option(source_ext, DtlOpts),
-                            option(out_dir, DtlOpts),
-                            option(module_ext, DtlOpts) ++ ".beam",
-                            fun compile_dtl/3, [{check_last_mod, false}]).
+    OrigPath = code:get_path(),
+    true = code:add_path(filename:join(rebar_utils:get_cwd(), "ebin")),
+    Result = rebar_base_compiler:run(Config, [],
+                                     option(doc_root, DtlOpts),
+                                     option(source_ext, DtlOpts),
+                                     option(out_dir, DtlOpts),
+                                     option(module_ext, DtlOpts) ++ ".beam",
+                                     fun compile_dtl/3,
+                                     [{check_last_mod, false}]),
+    true = code:set_path(OrigPath),
+    Result.
 
 
 %% ===================================================================
@@ -109,14 +114,13 @@ default(custom_tags_dir) -> "".
 compile_dtl(Source, Target, Config) ->
     case code:which(erlydtl) of
         non_existing ->
-            ?ERROR(
-               <<"~n===============================================~n"
-                 " You need to install erlydtl to compile DTL templates~n"
-                 " Download the latest tarball release from github~n"
-                 "    http://code.google.com/p/erlydtl/~n"
-                 " and install it into your erlang library dir~n"
-                 "===============================================~n~n">>, []),
-            ?FAIL;
+            ?ERROR("~n===============================================~n"
+                   " You need to install erlydtl to compile DTL templates~n"
+                   " Download the latest tarball release from github~n"
+                   "    http://code.google.com/p/erlydtl/~n"
+                   " and install it into your erlang library dir~n"
+                   "===============================================~n~n", []),
+            ?ABORT;
         _ ->
             case needs_compile(Source, Target, Config) of
                 true ->
@@ -142,7 +146,7 @@ do_compile(Source, Target, Config) ->
         Reason ->
             ?ERROR("Compiling template ~s failed:~n  ~p~n",
                    [Source, Reason]),
-            ?FAIL
+            ?ABORT
     end.
 
 module_name(Target) ->

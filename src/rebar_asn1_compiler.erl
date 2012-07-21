@@ -58,10 +58,14 @@ compile_asn1(Source, Target, Config) ->
         ok ->
             Asn1 = filename:basename(Source, ".asn1"),
             HrlFile = filename:join("src", Asn1 ++ ".hrl"),
-            ok = rebar_file_utils:mv(HrlFile, "include"),
-            ok;
+            case filelib:is_regular(HrlFile) of
+                true ->
+                    ok = rebar_file_utils:mv(HrlFile, "include");
+                false ->
+                    ok
+            end;
         {error, _Reason} ->
-            ?FAIL
+            ?ABORT
     end.
 
 asn_generated_files(AsnDir, SrcDir, IncDir) ->

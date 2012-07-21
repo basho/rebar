@@ -18,7 +18,7 @@
 %% Erlang compiler options
 {erl_opts, [no_debug_info, {i, "myinclude"}, {src_dirs, ["src1", "src2"]},
             {platform_define,
-            "(linux|solaris|freebsd|darwin)", 'HAVE_SENDFILE'},
+             "(linux|solaris|freebsd|darwin)", 'HAVE_SENDFILE'},
             {platform_define, "(linux|freebsd)", 'BACKLOG', 128},
             {platform_define, "R13", 'old_inets'}]}.
 
@@ -35,22 +35,18 @@
 
 %% == Port Compiler ==
 
-%% List of filenames or wildcards to be compiled. May also contain a tuple
-%% consisting of a regular expression to be applied against the system
-%% architecture and a list of filenames or wildcards to include should the
-%% expression pass. Default is `"c_src/*.c"'
-{port_sources, ["c_src/*.c", {"R14", ["c_src/*.c"]}]}.
-
 %% Port compilation environment variables. See rebar_port_compiler.erl for
 %% more info. Default is `[]'
-{port_envs, []}.
+{port_env, [{"CFLAGS", "$CFLAGS -Ifoo"},
+            {"freebsd", "LDFLAGS", "$LDFLAGS -lfoo"}]}.
 
-%% Custom name of the port driver .so file. Defaults to `<Application>_drv.so'.
-{so_name, "driver.so"}.
-
-%% so_specs - useful for building multiple *.so files
-%%            from one or more object files
-{so_specs, [{"priv/so_name.so", ["c_src/object_file_name.o"]}]}.
+%% port_specs
+%% List of filenames or wildcards to be compiled. May also contain a tuple
+%% consisting of a regular expression to be applied against the system
+%% architecture as a filter.
+{port_specs, [{"priv/so_name.so", ["c_src/*.c"]},
+              {"linux", "priv/hello_linux", ["c_src/hello_linux.c"]},
+              {"linux", "priv/hello_linux", ["c_src/*.c"], [{env, []}]}}.
 
 %% == LFE Compiler ==
 
@@ -91,6 +87,9 @@
 
 %% Option to pass extra parameters when launching Common Test
 {ct_extra_params, "-boot start_sasl -s myapp"}.
+
+%% Option to use short names (i.e., -sname test) when starting ct
+{ct_use_short_names, true}.
 
 %% == Cleanup ==
 
@@ -157,5 +156,15 @@
 %% == xref ==
 
 {xref_warnings, false}.
+
 %% xref checks to run
 {xref_checks, [exports_not_used, undefined_function_calls]}.
+
+%% Optional custom xref queries (xref manual has details) specified as
+%%     {xref_queries, [{query_string(), expected_query_result()},...]}
+%% The following for example removes all references to ejabberd:*_msg/4
+%% functions from undefined external function calls as those are in a
+%% generated module
+{xref_queries,
+ [{"(XC - UC) || (XU - X - B"
+   " - (\"ejabberd_logger\":\".*_msg\"/\"4\"))",[]}]}.

@@ -8,7 +8,7 @@ main(Args) ->
 
     %% Get a string repr of first matching VCS changeset
     VcsInfo = vcs_info([{hg, ".hg", "hg identify -i"},
-                        {git, ".git", "git describe --always"}]),
+                        {git, ".git", "git describe --always --tags"}]),
 
     %% Check for force=1 flag to force a rebuild
     case lists:member("force=1", Args) of
@@ -24,12 +24,16 @@ main(Args) ->
                     false -> undefined
                 end,
 
+    %% Extract the system info of the version of OTP we use to compile rebar
+    OtpInfo = string:strip(erlang:system_info(otp_release), both, $\n),
+
     %% Compile all src/*.erl to ebin
     case make:files(filelib:wildcard("src/*.erl"),
                     [{outdir, "ebin"}, {i, "include"},
                      DebugFlag,
                      {d, 'BUILD_TIME', Built},
-                     {d, 'VCS_INFO', VcsInfo}]) of
+                     {d, 'VCS_INFO', VcsInfo},
+                     {d, 'OTP_INFO', OtpInfo}]) of
         up_to_date ->
             ok;
         error ->
@@ -49,35 +53,9 @@ main(Args) ->
     %% Add ebin/ to our path
     true = code:add_path("ebin"),
 
-    %% Run rebar to do proper .app validation and such
-    rebar:main(["compile"] ++ Args),
-
-    %% Read the contents of the files in ebin and templates; note that we
-    %% place all the beam files at the top level of the code archive so
-    %% that code loading works properly.
-    Files = load_files("*", "ebin") ++ load_files("priv/templates/*", "."),
-
-    case zip:create("mem", Files, [memory]) of
-        {ok, {"mem", ZipBin}} ->
-            %% Archive was successfully created. Prefix that binary with our
-            %% header and write to "rebar" file.
-            %% Without -noshell -noinput escript consumes all input that would
-            %% otherwise go to the shell for the next command.
-            Script = <<"#!/usr/bin/env escript\n%%! -noshell -noinput\n",
-                       ZipBin/binary>>,
-            case file:write_file("rebar", Script) of
-                ok ->
-                    ok;
-                {error, WriteError} ->
-                    io:format("Failed to write rebar script: ~p\n",
-                              [WriteError]),
-                    halt(1)
-            end;
-        {error, ZipError} ->
-            io:format("Failed to construct rebar script archive: ~p\n",
-                      [ZipError]),
-            halt(1)
-    end,
+    %% Run rebar compile to do proper .app validation etc.
+    %% and rebar escriptize to create the rebar script
+    rebar:main(["compile", "escriptize"] ++ Args),
 
     %% Finally, update executable perms for our script on *nix,
     %%  or write out script files on win32.
@@ -113,14 +91,6 @@ build_time() ->
     lists:flatten(io_lib:format("~4..0w~2..0w~2..0w_~2..0w~2..0w~2..0w",
                                 [Y, M, D, H, Min, S])).
 
-
-load_files(Wildcard, Dir) ->
-    [read_file(Filename, Dir) || Filename <- filelib:wildcard(Wildcard, Dir)].
-
-read_file(Filename, Dir) ->
-    {ok, Bin} = file:read_file(filename:join(Dir, Filename)),
-    {Filename, Bin}.
-
 vcs_info([]) ->
     "No VCS info available.";
 vcs_info([{Id, Dir, Cmd} | Rest]) ->
@@ -132,18 +102,9 @@ vcs_info([{Id, Dir, Cmd} | Rest]) ->
     end.
 
 write_windows_scripts() ->
-    PowershellScript=
-        "$basedir = Split-Path -Parent $MyInvocation.MyCommand.Path\r\n"
-        "$rebar = Join-Path $basedir \"rebar\"\r\n"
-        "escript.exe $rebar $args\r\n",
     CmdScript=
         "@echo off\r\n"
         "setlocal\r\n"
         "set rebarscript=%~f0\r\n"
-        "escript.exe \"%rebarscript:.bat=%i\" %*\r\n",
-    ok = file:write_file("rebar.cmd", CmdScript),
-    UTF16BE = {utf16, big},
-    ok = file:write_file("rebar.ps1",
-                         [unicode:encoding_to_bom(UTF16BE),
-                          unicode:characters_to_binary(PowershellScript,
-                                                       utf8, UTF16BE)]).
+        "escript.exe \"%rebarscript:.cmd=%\" %*\r\n",
+    ok = file:write_file("rebar.cmd", CmdScript).

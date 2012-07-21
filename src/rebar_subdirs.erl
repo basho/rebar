@@ -38,8 +38,9 @@
 preprocess(Config, _) ->
     %% Get the list of subdirs specified in the config (if any).
     Cwd = rebar_utils:get_cwd(),
-    Subdirs0 = rebar_config:get_local(Config, sub_dirs, []),
-    case {rebar_core:is_skip_dir(Cwd), Subdirs0} of
+    ListSubdirs = rebar_config:get_local(Config, sub_dirs, []),
+    Subdirs0 = lists:flatmap(fun filelib:wildcard/1, ListSubdirs),
+    case {rebar_config:is_skip_dir(Config, Cwd), Subdirs0} of
         {true, []} ->
             {ok, []};
         {true, _} ->

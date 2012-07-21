@@ -57,6 +57,8 @@ rm_rf(Target) ->
     end.
 
 -spec cp_r(Sources::list(string()), Dest::file:filename()) -> ok.
+cp_r([], _Dest) ->
+    ok;
 cp_r(Sources, Dest) ->
     case os:type() of
         {unix, _} ->
@@ -106,7 +108,7 @@ delete_each([File | Rest]) ->
             delete_each(Rest);
         {error, Reason} ->
             ?ERROR("Failed to delete file ~s: ~p\n", [File, Reason]),
-            ?FAIL
+            ?ABORT
     end.
 
 %% ===================================================================
@@ -150,6 +152,25 @@ cp_r_win32({false, Source},{false, Dest}) ->
     %% from file to file
     {ok,_} = file:copy(Source, Dest),
     ok;
+cp_r_win32({true, SourceDir}, {false, DestDir}) ->
+    case filelib:is_regular(DestDir) of
+        true ->
+            %% From directory to file? This shouldn't happen
+            {error, lists:flatten(
+                      io_lib:format("Cannot copy dir (~p) to file (~p)\n",
+                                    [SourceDir, DestDir]))};
+        false ->
+            %% Specifying a target directory that doesn't currently exist.
+            %% So let's attempt to create this directory
+            case filelib:ensure_dir(filename:join(DestDir, "dummy")) of
+                ok ->
+                    ok = xcopy_win32(SourceDir, DestDir);
+                {error, Reason} ->
+                    {error, lists:flatten(
+                              io_lib:format("Unable to create dir ~p: ~p\n",
+                                            [DestDir, Reason]))}
+            end
+    end;
 cp_r_win32(Source,Dest) ->
     Dst = {filelib:is_dir(Dest), Dest},
     lists:foreach(fun(Src) ->

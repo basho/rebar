@@ -35,7 +35,7 @@
          get_rel_apps/2,
          get_previous_release_path/0,
          get_rel_file_path/2,
-         load_config/1,
+         load_config/2,
          get_sys_tuple/1,
          get_target_dir/1,
          get_root_dir/1,
@@ -48,12 +48,20 @@ is_rel_dir() ->
 
 is_rel_dir(Dir) ->
     Fname = filename:join([Dir, "reltool.config"]),
-    case filelib:is_regular(Fname) of
-        true ->
-            {true, Fname};
-        false ->
-            false
-    end.
+    Scriptname = Fname ++ ".script",
+    Res = case filelib:is_regular(Scriptname) of
+              true ->
+                  {true, Scriptname};
+              false ->
+                  case filelib:is_regular(Fname) of
+                      true ->
+                          {true, Fname};
+                      false ->
+                          false
+                  end
+          end,
+    ?DEBUG("is_rel_dir(~s) -> ~p~n", [Dir, Res]),
+    Res.
 
 %% Get release name and version from a reltool.config
 get_reltool_release_info([{sys, Config}| _]) ->
@@ -115,10 +123,10 @@ get_previous_release_path() ->
 %%
 %% Load terms from reltool.config
 %%
-load_config(ReltoolFile) ->
-    case file:consult(ReltoolFile) of
+load_config(Config, ReltoolFile) ->
+    case rebar_config:consult_file(ReltoolFile) of
         {ok, Terms} ->
-            expand_version(Terms, filename:dirname(ReltoolFile));
+            expand_version(Config, Terms, filename:dirname(ReltoolFile));
         Other ->
             ?ABORT("Failed to load expected config from ~s: ~p\n",
                    [ReltoolFile, Other])
@@ -209,16 +217,23 @@ make_proplist([H|T], Acc) ->
 make_proplist([], Acc) ->
     Acc.
 
-expand_version(ReltoolConfig, Dir) ->
+expand_version(Config, ReltoolConfig, Dir) ->
     case lists:keyfind(sys, 1, ReltoolConfig) of
         {sys, Sys} ->
-            ExpandedSys = {sys, [expand_rel_version(Term, Dir) || Term <- Sys]},
-            lists:keyreplace(sys, 1, ReltoolConfig, ExpandedSys);
+            {Config1, Rels} =
+                lists:foldl(
+                  fun(Term, {C, R}) ->
+                          {C1, Rel} = expand_rel_version(C, Term, Dir),
+                          {C1, [Rel|R]}
+                  end, {Config, []}, Sys),
+            ExpandedSys = {sys, lists:reverse(Rels)},
+            {Config1, lists:keyreplace(sys, 1, ReltoolConfig, ExpandedSys)};
         _ ->
-            ReltoolConfig
+            {Config, ReltoolConfig}
     end.
 
-expand_rel_version({rel, Name, Version, Apps}, Dir) ->
-    {rel, Name, rebar_utils:vcs_vsn(Version, Dir), Apps};
-expand_rel_version(Other, _Dir) ->
-    Other.
+expand_rel_version(Config, {rel, Name, Version, Apps}, Dir) ->
+    {NewConfig, VsnString} = rebar_utils:vcs_vsn(Config, Version, Dir),
+    {NewConfig, {rel, Name, VsnString, Apps}};
+expand_rel_version(Config, Other, _Dir) ->
+    {Config, Other}.

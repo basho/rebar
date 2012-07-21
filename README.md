@@ -4,6 +4,8 @@ rebar
 rebar is an Erlang build tool that makes it easy to compile and  
 test Erlang applications, port drivers and releases.
 
+[![Build Status](https://secure.travis-ci.org/basho/rebar.png?branch=master)](http://travis-ci.org/basho/rebar)
+
 rebar is a self-contained Erlang script, so it's easy to distribute or even  
 embed directly in a project. Where possible, rebar uses standard Erlang/OTP  
 conventions for project structures, thus minimizing the amount of build  
@@ -27,15 +29,14 @@ Should you want to clone the rebar repository, you will also require git.
 
 #### Downloading
 
-Clone the git repository:
+You can download a pre-built binary version of rebar from:
 
-```sh
-$ git clone git://github.com/basho/rebar.git
-```
+https://github.com/basho/rebar/wiki/rebar
 
 #### Building rebar
 
 ```sh
+$ git clone git://github.com/basho/rebar.git
 $ cd rebar
 $ ./bootstrap
 Recompile: src/getopt
@@ -72,8 +73,8 @@ Do not mix spaces and tabs.
 Do not introduce lines longer than 80 characters.
 
 [erlang-mode (emacs)](http://www.erlang.org/doc/man/erlang.el.html) indentation is preferred.
-vi-only users are encouraged to give [Vim emulation](http://emacswiki.org/emacs/Evil)
-([more info](https://gitorious.org/evil/pages/Home)) a try.
+vi-only users are encouraged to   
+give [Vim emulation](http://emacswiki.org/emacs/Evil) ([more info](https://gitorious.org/evil/pages/Home)) a try.
 
 Writing Commit Messages
 -----------------------
@@ -107,42 +108,26 @@ Longer description (wrap at 72 characters)
 * Break up logical changes
 * Make whitespace changes separately
 
-Dialyzer and Tidier
--------------------
+Run checks
+----------
 
-Before you submit a patch check for
+Before you submit a patch, run ``make check`` to execute
+the test suite and check for  
 [xref](http://www.erlang.org/doc/man/xref.html) and
 [Dialyzer](http://www.erlang.org/doc/man/dialyzer.html)
-warnings.
+warnings. You may have to run ``make clean`` first.
 
-A successful run of ``make check`` looks like:
-
-```sh
-$ make check
-Recompile: src/rebar_core
-==> rebar (compile)
-Command 'debug' not understood or not applicable
-Congratulations! You now have a self-contained script called "rebar" in
-your current working directory. Place this script anywhere in your path
-and you can use rebar to build OTP-compliant apps.
-make: [xref_warnings] Error 1 (ignored)
-make: [dialyzer_warnings] Error 2 (ignored)
-```
-
-[xref](http://www.erlang.org/doc/man/xref.html) and
 [Dialyzer](http://www.erlang.org/doc/man/dialyzer.html) warnings are compared
-against a set of safe-to-ignore warnings  
-found in
-[dialyzer_reference](https://raw.github.com/tuncer/rebar/maint/dialyzer_reference)
-and
-[xref_reference](https://raw.github.com/tuncer/rebar/maint/xref_reference).
+against a set of safe-to-ignore warnings found in  
+[dialyzer_reference](https://raw.github.com/basho/rebar/master/dialyzer_reference).
+[xref](http://www.erlang.org/doc/man/xref.html) is run with
+[custom queries](https://raw.github.com/basho/rebar/master/rebar.config)
+to suppress safe-to-ignore warnings.
 
 It is **strongly recommended** to check the code with
-[Tidier](http://tidier.softlab.ntua.gr:20000/tidier/getstarted).  
-Select all transformation options and enable **automatic**
-transformation.  
-If Tidier suggests a transformation apply the changes **manually**
-to the source code.  
-Do not use the code from the tarball (*out.tgz*) as it will have
-white-space changes  
-applied by Erlang's pretty-printer.
+[Tidier](http://tidier.softlab.ntua.gr:20000/tidier/getstarted).
+Select all transformation   
+options and enable **automatic** transformation. If Tidier suggests a transformation,  
+apply the changes **manually** to the source code. Do not use the code from
+the  
+tarball (*out.tgz*) as it will have white-space changes applied by Erlang's pretty-printer.

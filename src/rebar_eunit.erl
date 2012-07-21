@@ -43,7 +43,7 @@
 %% The following Global options are supported:
 %% <ul>
 %%   <li>verbose=1 - show extra output from the eunit test</li>
-%%   <li>suite="foo"" - runs test/foo_tests.erl</li>
+%%   <li>suites="foo,bar" - runs test/foo_tests.erl and test/bar_tests.erl</li>
 %% </ul>
 %% Additionally, for projects that have separate folders for the core
 %% implementation, and for the unit tests, then the following
@@ -65,9 +65,9 @@
 %% ===================================================================
 
 eunit(Config, _AppFile) ->
-    %% Make sure ?EUNIT_DIR/ and ebin/ directory exists (tack on dummy module)
-    ok = filelib:ensure_dir(eunit_dir() ++ "/foo"),
-    ok = filelib:ensure_dir(ebin_dir() ++ "/foo"),
+    %% Make sure ?EUNIT_DIR/ and ebin/ directory exists (append dummy module)
+    ok = filelib:ensure_dir(filename:join(eunit_dir(), "dummy")),
+    ok = filelib:ensure_dir(filename:join(ebin_dir(), "dummy")),
 
     %% Setup code path prior to compilation so that parse_transforms
     %% and the like work properly. Also, be sure to add ebin_dir()
@@ -84,8 +84,15 @@ eunit(Config, _AppFile) ->
 
     %% Copy source files to eunit dir for cover in case they are not directly
     %% in src but in a subdirectory of src. Cover only looks in cwd and ../src
-    %% for source files.
-    SrcErls = rebar_utils:find_files("src", ".*\\.erl\$"),
+    %% for source files. Also copy files from src_dirs.
+    ErlOpts = rebar_utils:erl_opts(Config),
+
+    SrcDirs = rebar_utils:src_dirs(proplists:append_values(src_dirs, ErlOpts)),
+    SrcErls = lists:foldl(
+                fun(Dir, Acc) ->
+                        Files = rebar_utils:find_files(Dir, ".*\\.erl\$"),
+                        lists:append(Acc, Files)
+                end, [], SrcDirs),
 
     %% If it is not the first time rebar eunit is executed, there will be source
     %% files already present in ?EUNIT_DIR. Since some SCMs (like Perforce) set
@@ -112,8 +119,8 @@ eunit(Config, _AppFile) ->
     %% Compile erlang code to ?EUNIT_DIR, using a tweaked config
     %% with appropriate defines for eunit, and include all the test modules
     %% as well.
-    rebar_erlc_compiler:doterl_compile(eunit_config(Config),
-                                       ?EUNIT_DIR, TestErls),
+    ok = rebar_erlc_compiler:doterl_compile(eunit_config(Config),
+                                            ?EUNIT_DIR, TestErls),
 
     %% Build a list of all the .beams in ?EUNIT_DIR -- use this for
     %% cover and eunit testing. Normally you can just tell cover
@@ -132,12 +139,13 @@ eunit(Config, _AppFile) ->
     ModuleBeamFiles = BeamFiles ++ OtherBeamFiles,
     Modules = [rebar_utils:beam_to_mod(?EUNIT_DIR, N) || N <- ModuleBeamFiles],
     SrcModules = [rebar_utils:erl_to_mod(M) || M <- SrcErls],
+    FilteredModules = filter_modules(Modules),
 
     {ok, CoverLog} = cover_init(Config, ModuleBeamFiles),
 
     StatusBefore = status_before_eunit(),
-    EunitResult = perform_eunit(Config, Modules),
-    perform_cover(Config, Modules, SrcModules),
+    EunitResult = perform_eunit(Config, FilteredModules),
+    perform_cover(Config, FilteredModules, SrcModules),
 
     cover_close(CoverLog),
 
@@ -173,10 +181,17 @@ eunit_dir() ->
 ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
 
-perform_eunit(Config, Modules) ->
-    %% suite defined, so only specify the module that relates to the
-    %% suite (if any). Suite can be a comma seperated list of modules to run.
-    Suite = rebar_config:get_global(suite, undefined),
+filter_modules(Modules) ->
+    RawSuites = rebar_utils:get_deprecated_global(suite, suites, [], "soon"),
+    Suites = [list_to_atom(Suite) || Suite <- string:tokens(RawSuites, ",")],
+    filter_modules(Modules, Suites).
+
+filter_modules(Modules, []) ->
+    Modules;
+filter_modules(Modules, Suites) ->
+    [M || M <- Modules, lists:member(M, Suites)].
+
+perform_eunit(Config, FilteredModules) ->
     EunitOpts = get_eunit_opts(Config),
 
     %% Move down into ?EUNIT_DIR while we run tests so any generated files
@@ -184,18 +199,12 @@ perform_eunit(Config, Modules) ->
     Cwd = rebar_utils:get_cwd(),
     ok = file:set_cwd(?EUNIT_DIR),
 
-    EunitResult = perform_eunit(EunitOpts, Modules, Suite),
+    EunitResult = (catch eunit:test(FilteredModules, EunitOpts)),
 
     %% Return to original working dir
     ok = file:set_cwd(Cwd),
 
     EunitResult.
-
-perform_eunit(EunitOpts, Modules, undefined) ->
-    (catch eunit:test(Modules, EunitOpts));
-perform_eunit(EunitOpts, _Modules, Suites) ->
-    (catch eunit:test([list_to_atom(Suite) ||
-                          Suite <- string:tokens(Suites, ",")], EunitOpts)).
 
 get_eunit_opts(Config) ->
     %% Enable verbose in eunit if so requested..
@@ -209,44 +218,48 @@ get_eunit_opts(Config) ->
     BaseOpts ++ rebar_config:get_list(Config, eunit_opts, []).
 
 eunit_config(Config) ->
-    EqcOpts = eqc_opts(),
-    PropErOpts = proper_opts(),
+    {Config1, EqcOpts} = eqc_opts(Config),
+    {Config2, PropErOpts} = proper_opts(Config1),
 
-    ErlOpts = rebar_config:get_list(Config, erl_opts, []),
-    EunitOpts = rebar_config:get_list(Config, eunit_compile_opts, []),
+    ErlOpts = rebar_config:get_list(Config2, erl_opts, []),
+    EunitOpts = rebar_config:get_list(Config2, eunit_compile_opts, []),
     Opts0 = [{d, 'TEST'}] ++
         ErlOpts ++ EunitOpts ++ EqcOpts ++ PropErOpts,
     Opts = [O || O <- Opts0, O =/= no_debug_info],
-    Config1 = rebar_config:set(Config, erl_opts, Opts),
+    Config3 = rebar_config:set(Config2, erl_opts, Opts),
 
-    FirstErls = rebar_config:get_list(Config1, eunit_first_files, []),
-    rebar_config:set(Config1, erl_first_files, FirstErls).
+    FirstErls = rebar_config:get_list(Config3, eunit_first_files, []),
+    rebar_config:set(Config3, erl_first_files, FirstErls).
 
-eqc_opts() ->
-    define_if('EQC', is_lib_avail(is_eqc_avail, eqc,
-                                  "eqc.hrl", "QuickCheck")).
+eqc_opts(Config) ->
+    {NewConfig, IsAvail} = is_lib_avail(Config, is_eqc_avail, eqc,
+                                        "eqc.hrl", "QuickCheck"),
+    Opts = define_if('EQC', IsAvail),
+    {NewConfig, Opts}.
 
-proper_opts() ->
-    define_if('PROPER', is_lib_avail(is_proper_avail, proper,
-                                     "proper.hrl", "PropEr")).
+proper_opts(Config) ->
+    {NewConfig, IsAvail} = is_lib_avail(Config, is_proper_avail, proper,
+                                        "proper.hrl", "PropEr"),
+    Opts = define_if('PROPER', IsAvail),
+    {NewConfig, Opts}.
 
 define_if(Def, true) -> [{d, Def}];
 define_if(_Def, false) -> [].
 
-is_lib_avail(DictKey, Mod, Hrl, Name) ->
-    case erlang:get(DictKey) of
-        undefined ->
+is_lib_avail(Config, DictKey, Mod, Hrl, Name) ->
+    case rebar_config:get_xconf(Config, DictKey) of
+        error ->
             IsAvail = case code:lib_dir(Mod, include) of
                           {error, bad_name} ->
                               false;
                           Dir ->
                               filelib:is_regular(filename:join(Dir, Hrl))
                       end,
-            erlang:put(DictKey, IsAvail),
+            NewConfig = rebar_config:set_xconf(Config, DictKey, IsAvail),
             ?DEBUG("~s availability: ~p\n", [Name, IsAvail]),
-            IsAvail;
-        IsAvail ->
-            IsAvail
+            {NewConfig, IsAvail};
+        {ok, IsAvail} ->
+            {Config, IsAvail}
     end.
 
 perform_cover(Config, BeamFiles, SrcModules) ->
@@ -260,15 +273,7 @@ perform_cover(true, Config, BeamFiles, SrcModules) ->
 
 cover_analyze(_Config, [], _SrcModules) ->
     ok;
-cover_analyze(Config, Modules, SrcModules) ->
-    %% suite can be a comma seperated list of modules to test
-    Suite = [list_to_atom(S) ||
-                S <- string:tokens(rebar_config:get_global(suite, ""), ",")],
-    FilteredModules = case Suite of
-                          [] -> Modules;
-                          _  -> [M || M <- Modules, lists:member(M, Suite)]
-                      end,
-
+cover_analyze(Config, FilteredModules, SrcModules) ->
     %% Generate coverage info for all the cover-compiled modules
     Coverage = lists:flatten([cover_analyze_mod(M) || M <- FilteredModules]),
 
@@ -329,7 +334,7 @@ cover_init(true, BeamFiles) ->
         [] ->
             %% No modules compiled successfully...fail
             ?ERROR("Cover failed to compile any modules; aborting.~n", []),
-            ?FAIL;
+            ?ABORT;
         _ ->
             %% At least one module compiled successfully
 
@@ -555,12 +560,47 @@ reconstruct_app_env_vars([App|Apps]) ->
                   _ ->
                       []
               end,
-    AllVars = CmdVars ++ AppVars,
+
+    %% App vars specified in config files override those in the .app file.
+    %% Config files later in the args list override earlier ones.
+    AppVars1 = case init:get_argument(config) of
+                   {ok, ConfigFiles} ->
+                       {App, MergedAppVars} = lists:foldl(fun merge_app_vars/2,
+                                                          {App, AppVars},
+                                                          ConfigFiles),
+                       MergedAppVars;
+                   error ->
+                       AppVars
+               end,
+    AllVars = CmdVars ++ AppVars1,
     ?DEBUG("Reconstruct ~p ~p\n", [App, AllVars]),
     lists:foreach(fun({K, V}) -> application:set_env(App, K, V) end, AllVars),
     reconstruct_app_env_vars(Apps);
 reconstruct_app_env_vars([]) ->
     ok.
+
+merge_app_vars(ConfigFile, {App, AppVars}) ->
+    File = ensure_config_extension(ConfigFile),
+    FileAppVars = app_vars_from_config_file(File, App),
+    Dict1 = dict:from_list(AppVars),
+    Dict2 = dict:from_list(FileAppVars),
+    Dict3 = dict:merge(fun(_Key, _Value1, Value2) -> Value2 end, Dict1, Dict2),
+    {App, dict:to_list(Dict3)}.
+
+ensure_config_extension(File) ->
+    %% config files must end with .config on disk but when specifying them
+    %% via the -config option the extension is optional
+    BaseFileName = filename:basename(File, ".config"),
+    DirName = filename:dirname(File),
+    filename:join(DirName, BaseFileName ++ ".config").
+
+app_vars_from_config_file(File, App) ->
+    case file:consult(File) of
+        {ok, [Env]} ->
+            proplists:get_value(App, Env, []);
+        _ ->
+            []
+    end.
 
 wait_until_dead(Pid) when is_pid(Pid) ->
     Ref = erlang:monitor(process, Pid),

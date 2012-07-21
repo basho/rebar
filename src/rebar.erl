@@ -41,6 +41,10 @@
 -define(VCS_INFO, "undefined").
 -endif.
 
+-ifndef(OTP_INFO).
+-define(OTP_INFO, "undefined").
+-endif.
+
 %% ====================================================================
 %% Public API
 %% ====================================================================
@@ -49,13 +53,13 @@ main(Args) ->
     case catch(run(Args)) of
         ok ->
             ok;
-        {error, failed} ->
-            halt(1);
+        rebar_abort ->
+            rebar_utils:delayed_halt(1);
         Error ->
             %% Nothing should percolate up from rebar_core;
             %% Dump this error to console
             io:format("Uncaught error in rebar_core: ~p\n", [Error]),
-            halt(1)
+            rebar_utils:delayed_halt(1)
     end.
 
 %% ====================================================================
@@ -91,7 +95,10 @@ run_aux(["version"]) ->
     ok;
 run_aux(Commands) ->
     %% Make sure crypto is running
-    ok = crypto:start(),
+    case crypto:start() of
+        ok -> ok;
+        {error,{already_started,crypto}} -> ok
+    end,
 
     %% Initialize logging system
     rebar_log:init(),
@@ -108,9 +115,6 @@ run_aux(Commands) ->
     %% Note the top-level directory for reference
     rebar_config:set_global(base_dir, filename:absname(rebar_utils:get_cwd())),
 
-    %% Keep track of how many operations we do, so we can detect bad commands
-    erlang:put(operations, 0),
-
     %% If $HOME/.rebar/config exists load and use as global config
     GlobalConfigFile = filename:join([os:getenv("HOME"), ".rebar", "config"]),
     GlobalConfig = case filelib:is_regular(GlobalConfigFile) of
@@ -123,8 +127,13 @@ run_aux(Commands) ->
                    end,
     BaseConfig = rebar_config:base_config(GlobalConfig),
 
+    %% Keep track of how many operations we do, so we can detect bad commands
+    BaseConfig1 = rebar_config:set_xconf(BaseConfig, operations, 0),
+    %% Initialize vsn cache
+    BaseConfig2 = rebar_config:set_xconf(BaseConfig1, vsn_cache, dict:new()),
+
     %% Process each command, resetting any state between each one
-    rebar_core:process_commands(CommandAtoms, BaseConfig).
+    rebar_core:process_commands(CommandAtoms, BaseConfig2).
 
 %%
 %% print help/usage string
@@ -155,10 +164,12 @@ parse_args(Args) ->
             rebar_config:set_global(enable_profiling,
                                     proplists:get_bool(profile, Options)),
 
+            %% Setup flag to keep running after a single command fails
+            rebar_config:set_global(keep_going,
+                                    proplists:get_bool(keep_going, Options)),
+
             %% Set global variables based on getopt options
-            LogLevel = proplists:get_value(verbose, Options,
-                                           rebar_log:default_level()),
-            rebar_config:set_global(verbose, LogLevel),
+            set_log_level(Options),
             set_global_flag(Options, force),
             DefJobs = rebar_config:get_jobs(),
             case proplists:get_value(jobs, Options, DefJobs) of
@@ -181,16 +192,28 @@ parse_args(Args) ->
         {error, {Reason, Data}} ->
             ?ERROR("~s ~p~n~n", [Reason, Data]),
             help(),
-            halt(1)
+            rebar_utils:delayed_halt(1)
     end.
+
+%%
+%% set log level based on getopt option
+%%
+set_log_level(Options) ->
+    LogLevel = case proplists:get_all_values(verbose, Options) of
+                   [] ->
+                       rebar_log:default_level();
+                   Verbosities ->
+                       lists:last(Verbosities)
+               end,
+    rebar_config:set_global(verbose, LogLevel).
 
 %%
 %% show version information and halt
 %%
 version() ->
     {ok, Vsn} = application:get_key(rebar, vsn),
-    ?CONSOLE("rebar version: ~s date: ~s vcs: ~s\n",
-             [Vsn, ?BUILD_TIME, ?VCS_INFO]).
+    ?CONSOLE("rebar ~s ~s ~s ~s\n",
+             [Vsn, ?OTP_INFO, ?BUILD_TIME, ?VCS_INFO]).
 
 
 %%
@@ -216,7 +239,7 @@ show_info_maybe_halt(Opts, NonOptArgs) ->
         [] ->
             ?CONSOLE("No command to run specified!~n",[]),
             help(),
-            halt(1);
+            rebar_utils:delayed_halt(1);
         _ ->
             ok
     end.
@@ -225,9 +248,7 @@ show_info_maybe_halt(O, Opts, F) ->
     case proplists:get_bool(O, Opts) of
         true ->
             F(),
-            halt(0),
-            %% workaround to delay exit until all output is written
-            receive after infinity -> ok end;
+            rebar_utils:delayed_halt(0);
         false ->
             false
     end.
@@ -260,8 +281,8 @@ generate-upgrade  previous_release=path  Build an upgrade package
 
 generate-appups   previous_release=path  Generate appup files
 
-eunit       [suite=foo]              Run eunit [test/foo_tests.erl] tests
-ct          [suites=] [case=]        Run common_test suites in ./test
+eunit       [suites=foo]             Run eunit [test/foo_tests.erl] tests
+ct          [suites=] [case=]        Run common_test suites
 
 xref                                 Run cross reference analysis
 
@@ -289,7 +310,9 @@ option_spec_list() ->
      {defines,  $D, undefined,  string,    "Define compiler macro"},
      {jobs,     $j, "jobs",     integer,   JobsHelp},
      {config,   $C, "config",   string,    "Rebar config file to use"},
-     {profile,  $p, "profile",  undefined, "Profile this run of rebar"}
+     {profile,  $p, "profile",  undefined, "Profile this run of rebar"},
+     {keep_going, $k, "keep-going", undefined,
+      "Keep running after a command fails"}
     ].
 
 %%
@@ -321,7 +344,8 @@ command_names() ->
     ["check-deps", "clean", "compile", "create", "create-app", "create-node",
      "ct", "delete-deps", "doc", "eunit", "generate", "generate-appups",
      "generate-upgrade", "get-deps", "help", "list-deps", "list-templates",
-     "update-deps", "overlay", "version", "xref"].
+     "update-deps", "overlay", "shell", "version", "xref"].
+
 
 unabbreviate_command_names([]) ->
     [];
