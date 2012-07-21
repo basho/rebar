@@ -46,7 +46,7 @@
 %% ===================================================================
 
 ct(Config, File) ->
-    TestDir = rebar_config:get_local(Config, ct_dir, "ctest"),
+    TestDir = rebar_config:get_local(Config, ct_dir, "test"),
     LogsDir = rebar_config:get_local(Config, ct_logs, "logs"),
     run_test_if_present(TestDir, LogsDir, Config, File).
 
@@ -59,7 +59,11 @@ run_test_if_present(TestDir, LogsDir, Config, File) ->
             ?WARN("~s directory not present - skipping\n", [TestDir]),
             ok;
         true ->
-            run_test(TestDir, LogsDir, Config, File)
+			case filelib:wildcard(TestDir ++ "/*_SUITE.erl") of
+				[] -> ?WARN("~s directory present, but no common_test SUITES - skipping\n", [TestDir]),
+				 	  ok;
+				_ -> run_test(TestDir, LogsDir, Config, File)
+			end
     end.
 
 run_test(TestDir, LogsDir, Config, _File) ->
