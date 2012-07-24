@@ -114,15 +114,22 @@ setup_env(_Config) ->
     [{"REBAR_DEPS_DIR", DepsDir}, ERL_LIBS].
 
 %% Set symlinks from DEPS dir to SHARED_DEPS dir
-%% This only works for Linux-based OS!
+%% This works most Unix systems and Windows beginning with Vista
 %% We need to make sure the deps_dir actually exists before
 %% we can symlink to it
 'symlink-shared-deps-to-deps'(DownloadDir, TargetDir) ->
     {true, DepsDir} = get_deps_dir(),
     ok = filelib:ensure_dir(DepsDir ++ "/"),  
-    LinkResult = os:cmd("ln -s " ++ DownloadDir ++ " " ++ TargetDir),
-    ?DEBUG("Symlinked ~1000p to ~1000p, result: ~1000s\n", [DownloadDir, TargetDir, LinkResult]),
-    ok.
+    LinkResult = file:make_symlink(DownloadDir, TargetDir),
+    case LinkResult of
+        {error, enotsup} ->
+            ?ABORT("Shared deps require OS support for symlinks.\n", []);
+        ok ->
+            ?DEBUG("Symlinked ~1000p to ~1000p\n", [DownloadDir, TargetDir]);
+        _ ->
+            ?ERROR("Error symlinking ~1000p to ~1000p : ~1000p\n", [DownloadDir, TargetDir, LinkResult])
+    end,
+    LinkResult.
 
 'check-deps'(Config, _) ->
     %% Get the list of immediate (i.e. non-transitive) deps that are missing
