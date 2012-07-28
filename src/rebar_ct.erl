@@ -47,23 +47,31 @@
 
 ct(Config, File) ->
     TestDir = rebar_config:get_local(Config, ct_dir, "test"),
-    run_test_if_present(TestDir, Config, File).
+    LogsDir = rebar_config:get_local(Config, ct_log_dir, "logs"),
+    run_test_if_present(TestDir, LogsDir, Config, File).
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
-run_test_if_present(TestDir, Config, File) ->
+run_test_if_present(TestDir, LogsDir, Config, File) ->
     case filelib:is_dir(TestDir) of
         false ->
             ?WARN("~s directory not present - skipping\n", [TestDir]),
             ok;
         true ->
-            run_test(TestDir, Config, File)
+            case filelib:wildcard(TestDir ++ "/*_SUITE.erl") of 
+                [] -> 
+                    ?WARN("~s directory present, but no common_test"
+                       ++ " SUITES - skipping\n", [TestDir]),
+                    ok;
+                _ -> 
+                    run_test(TestDir, LogsDir, Config, File)
+            end
     end.
 
-run_test(TestDir, Config, _File) ->
-    {Cmd, RawLog} = make_cmd(TestDir, Config),
-    clear_log(RawLog),
+run_test(TestDir, LogsDir, Config, _File) ->
+    {Cmd, RawLog} = make_cmd(TestDir, LogsDir, Config),
+    clear_log(LogsDir, RawLog),
     case rebar_config:is_verbose(Config) of
         false ->
             Output = " >> " ++ RawLog ++ " 2>&1";
@@ -75,8 +83,8 @@ run_test(TestDir, Config, _File) ->
     check_log(Config, RawLog).
 
 
-clear_log(RawLog) ->
-    case filelib:ensure_dir("logs/index.html") of
+clear_log(LogsDir, RawLog) ->
+    case filelib:ensure_dir(filename:join(LogsDir, "index.html")) of
         ok ->
             NowStr = rebar_utils:now_str(),
             LogHeader = "--- Test run on " ++ NowStr ++ " ---\n",
@@ -120,9 +128,9 @@ show_log(Config, RawLog) ->
             ok
     end.
 
-make_cmd(TestDir, Config) ->
+make_cmd(TestDir, LogsDir, Config) ->
     Cwd = rebar_utils:get_cwd(),
-    LogDir = filename:join(Cwd, "logs"),
+    LogDir = filename:join(Cwd, LogsDir),
     EbinDir = filename:absname(filename:join(Cwd, "ebin")),
     IncludeDir = filename:join(Cwd, "include"),
     Include = case filelib:is_dir(IncludeDir) of
