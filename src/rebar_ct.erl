@@ -58,7 +58,12 @@ run_test_if_present(TestDir, Config, File) ->
             ?WARN("~s directory not present - skipping\n", [TestDir]),
             ok;
         true ->
-            run_test(TestDir, Config, File)
+            try
+                run_test(TestDir, Config, File)
+            catch
+                throw:skip ->
+                    ok
+            end
     end.
 
 run_test(TestDir, Config, _File) ->
@@ -262,8 +267,10 @@ find_suite_path(Suite, TestDir) ->
     Path = filename:join(TestDir, Suite ++ "_SUITE.erl"),
     case filelib:is_regular(Path) of
         false ->
-            ?ERROR("Suite ~s not found\n", [Suite]),
-            ?FAIL;
+            ?WARN("Suite ~s not found\n", [Suite]),
+            %% Note - this throw is caught in run_test_if_present/3;
+            %% this solution was easier than refactoring the entire module.
+            throw(skip);
         true ->
             Path
     end.
