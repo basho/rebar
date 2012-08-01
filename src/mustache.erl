@@ -84,9 +84,9 @@ render(Mod, CompiledTemplate, Ctx) ->
   lists:flatten(CompiledTemplate(Ctx2)).
 
 pre_compile(T, State) ->
-  SectionRE = "\{\{\#([^\}]*)}}\s*(.+?){{\/\\1\}\}\s*",
+  SectionRE = "{{#([^}]*)}}\s*(.+?){{/\\1}}\s*",
   {ok, CompiledSectionRE} = re:compile(SectionRE, [dotall]),
-  TagRE = "\{\{(#|=|!|<|>|\{)?(.+?)\\1?\}\}+",
+  TagRE = "{{(#|=|!|<|>|{)?(.+?)\\1?}}+",
   {ok, CompiledTagRE} = re:compile(TagRE, [dotall]),
   State2 = State#mstate{section_re = CompiledSectionRE, tag_re = CompiledTagRE},
   "fun(Ctx) -> " ++
@@ -156,7 +156,7 @@ compile_tag("!", _Content, _State) ->
 
 template_path(Mod) ->
   ModPath = code:which(Mod),
-  re:replace(ModPath, "\.beam$", ".mustache", [{return, list}]).
+  re:replace(ModPath, "\\.beam$", ".mustache", [{return, list}]).
 
 get(Key, Ctx) when is_list(Key) ->
   {ok, Mod} = dict:find('__mod__', Ctx),
