@@ -112,10 +112,9 @@ delete_each([File | Rest]) ->
             ?FAIL
     end.
 
--spec write_file_if_contents_differ(Filename, Bytes) -> ok | {error, Reason} when
-    Filename :: file:name(),
-    Bytes :: iodata(),
-    Reason :: file:posix() | badarg | terminated | system_limit.
+-type file_write_reason() :: file:posix() | badarg | terminated | system_limit.
+-spec write_file_if_contents_differ(Filename::file:name(), Bytes::iodata()) ->
+                                             ok | {error, file_write_reason()}.
 write_file_if_contents_differ(Filename, Bytes) ->
     ToWrite = iolist_to_binary(Bytes),
     case file:read_file(Filename) of
