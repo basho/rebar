@@ -156,7 +156,9 @@ doterl_compile(Config, OutDir, MoreSources) ->
     true = code:add_path(filename:absname("ebin")),
     rebar_base_compiler:run(Config, NewFirstErls, OtherErls,
                             fun(S, C) ->
-                                    internal_erl_compile(S, C, OutDir, ErlOpts)
+                                    internal_erl_compile(S, C,
+                                                         proplists:get_value(outdir, ErlOpts, OutDir),
+                                                         ErlOpts)
                             end),
     true = code:set_path(CurrPath),
     ok.
