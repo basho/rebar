@@ -38,7 +38,7 @@ run(_Dir) ->
     {ok, _} = retest_sh:run(HgCmd, [{dir, "repo/b"}]),
     {ok, _} = retest_sh:run(HgCmd, [{dir, "repo/c"}]),
 
-    {ok, _} = retest_sh:run("./rebar -v get-deps compile", []),
+    {ok, _} = retest_sh:run("./rebar -v -r get-deps compile", []),
     ok.
 
 %%

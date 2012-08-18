@@ -30,7 +30,7 @@ run(_Dir) ->
     {ok, _} = retest_sh:run(HgCmd, [{dir, "repo/b"}]),
     {ok, _} = retest_sh:run(HgCmd, [{dir, "repo/c"}]),
 
-    {ok, _} = retest_sh:run("./rebar get-deps compile", []),
+    {ok, _} = retest_sh:run("./rebar -r get-deps compile", []),
 
     true = filelib:is_regular("ebin/a.beam"),
     ok.
