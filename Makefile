@@ -30,7 +30,7 @@ binary: clean all
 	(cd ../rebar.wiki && git commit -m "Update $(VSN)" rebar)
 
 deps:
-	@REBAR_EXTRA_DEPS=1 ./rebar get-deps
+	@REBAR_EXTRA_DEPS=1 ./rebar -r get-deps
 	@(cd deps/retest && $(REBAR) compile escriptize)
 
 test:
