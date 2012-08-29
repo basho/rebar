@@ -26,6 +26,7 @@
 %% -------------------------------------------------------------------
 -module(rebar_deps).
 
+-include_lib("kernel/include/file.hrl").
 -include("rebar.hrl").
 
 -export([preprocess/2,
@@ -330,8 +331,27 @@ delete_dep(D) ->
     case filelib:is_dir(D#dep.dir) of
         true ->
             ?INFO("Deleting dependency: ~s\n", [D#dep.dir]),
+            ok = case get_shared_deps_dir(D#dep.app) of
+                {true, _} -> delete_shared_dep(D);
+                _ -> ok
+            end,
             rebar_file_utils:rm_rf(D#dep.dir);
         false ->
+            ok
+    end.
+
+delete_shared_dep(D) ->
+    ?INFO("Deleting shared dependency: ~s\n", [D#dep.dir]),
+    Target = D#dep.dir,
+    ok = case file:read_link_info(Target) of
+        {ok, FileInfo} ->
+            case FileInfo#file_info.type of
+                symlink ->
+                    {ok, RealTarget} = file:read_link(Target),
+                    rebar_file_utils:rm_rf(RealTarget);
+                _ -> ok
+            end;
+        {error, _} ->
             ok
     end.
 
