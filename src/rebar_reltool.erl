@@ -109,7 +109,8 @@ process_overlay(Config, ReltoolConfig) ->
     OverlayVars0 =
         dict:from_list([{erts_vsn, "erts-" ++ erlang:system_info(version)},
                         {rel_vsn, BootRelVsn},
-                        {target_dir, TargetDir}]),
+                        {target_dir, TargetDir},
+                        {hostname, net_adm:localhost()}]),
 
     %% Load up any variables specified by overlay_vars
     OverlayVars1 = overlay_vars(Config, OverlayVars0, ReltoolConfig),
@@ -149,7 +150,7 @@ overlay_vars(Config, Vars0, ReltoolConfig) ->
 load_vars_file(undefined) ->
     dict:new();
 load_vars_file(File) ->
-    case file:consult(File) of
+    case rebar_config:consult_file(File) of
         {ok, Terms} ->
             dict:from_list(Terms);
         {error, Reason} ->
