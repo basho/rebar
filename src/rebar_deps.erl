@@ -122,7 +122,7 @@ setup_env(_Config) ->
 %% we can symlink to it
 'symlink-shared-deps-to-deps'(DownloadDir, TargetDir) ->
     {true, DepsDir} = get_deps_dir(),
-    ok = filelib:ensure_dir(DepsDir ++ "/"),  
+    ok = filelib:ensure_dir(DepsDir ++ "/"),
     LinkResult = file:make_symlink(DownloadDir, TargetDir),
     case LinkResult of
         {error, enotsup} ->
@@ -152,7 +152,7 @@ setup_env(_Config) ->
 'get-deps'(Config, _) ->
     %% Make Config available
     set_value(config, Config),
-    
+
     %% Determine what deps are available and missing
     Deps = rebar_config:get_local(Config, deps, []),
     {_AvailableDeps, MissingDeps} = find_deps(find, Deps),
@@ -163,9 +163,9 @@ setup_env(_Config) ->
     %% Add each pulled dep to our list of dirs for post-processing. This yields
     %% the necessary transitivity of the deps
     erlang:put(?MODULE, [D#dep.dir || D <- PulledDeps]),
-    
+
     del_key(config),
-    
+
     ok.
 
 'update-deps'(Config, _) ->
@@ -229,7 +229,7 @@ get_deps_dir() ->
 
 get_deps_dir(App) ->
     BaseDir = rebar_config:get_global(base_dir, []),
-    DepsDir = rebar_config:get_global(deps_dir, "deps"),                 
+    DepsDir = rebar_config:get_global(deps_dir, "deps"),
     {true, filename:join([BaseDir, DepsDir, App])}.
 
 get_shared_deps_dir(App) ->
@@ -364,7 +364,7 @@ is_app_available(App, VsnCheck, Path) ->
     case rebar_app_utils:is_app_dir(Path) of
         {true, AppFile} ->
             case rebar_app_utils:app_name(AppFile) of
-                App ->    
+                App ->
                     Vsn = rebar_app_utils:app_vsn(AppFile),
                     ?INFO("Looking for ~s ~1000p ; found ~s-~s at ~s\n",
                             [App, VsnCheck, App, Vsn, Path]),
@@ -381,12 +381,12 @@ is_app_available(App, VsnCheck, Path) ->
                                     %% Because in a next round we probably have
                                     %% a new version available in the directory
                                     rebar_app_utils:app_vsn_reset(AppFile),
-                                    {false, resolvable_version_mismatch};  
-                                {false, Reason} ->     
+                                    {false, resolvable_version_mismatch};
+                                {false, Reason} ->
                                     {false, {version_mismatch,
                                              {AppFile,
-                                              {wanted, VsnCheck}, 
-                                               {has, Vsn}, 
+                                              {wanted, VsnCheck},
+                                               {has, Vsn},
                                                Reason}}}
                             end
                     end;
@@ -401,7 +401,7 @@ is_app_available(App, VsnCheck, Path) ->
                   "but no .app found.\n", [Path]),
             {false, {missing_app_file, Path}}
     end.
-          
+
 
 use_source(Dep) ->
     use_source(Dep, 3, false).
@@ -428,9 +428,9 @@ use_source(Dep, Count, Force) ->
                     case is_app_available(Dep#dep.app,
                                           Dep#dep.vsn_regex, Dep#dep.dir) of
                         {false, resolvable_version_mismatch} ->
-                            ?WARN("Dependency dir ~s failed version-check, but able to resolve.\n", 
+                            ?WARN("Dependency dir ~s failed version-check, but able to resolve.\n",
                                    [Dep#dep.dir]),
-                            use_source(Dep, Count, true); 
+                            use_source(Dep, Count, true);
                         {true, _} ->
                             Dir = filename:join(Dep#dep.dir, "ebin"),
                             ok = filelib:ensure_dir(filename:join(Dir, "dummy")),
@@ -440,7 +440,7 @@ use_source(Dep, Count, Force) ->
                             Dep;
                         {false, Reason} ->
                             %% The app that was downloaded doesn't match up (or had
-                            %% errors or something). 
+                            %% errors or something).
                             ?WARN("Dependency dir ~s failed application validation "
                                    "with reason:~n~p.Will retry by removing previous deps dir.\n", [Dep#dep.dir, Reason]),
                             rebar_file_utils:rm_rf(Dep#dep.dir),
@@ -627,20 +627,20 @@ update_source(AppDir, {rsync, Url}) ->
 
 %% Remember downloaded dependencies
 memoize_dependency(App, VsnCheck) ->
-    PreviousAppVersionRestrictions = get_value({dep,App}, []), 
+    PreviousAppVersionRestrictions = get_value({dep,App}, []),
     Config = get_value(config, undefined),
     Dir = rebar_config:get_dir(Config),
-    NewAppVersionRestrictions = [{Dir, VsnCheck}] ++ PreviousAppVersionRestrictions, 
+    NewAppVersionRestrictions = [{Dir, VsnCheck}] ++ PreviousAppVersionRestrictions,
     set_value({dep,App}, NewAppVersionRestrictions).
 
 %% Check if we can resolve this new dependency
 can_resolve_dependency(App, VsnCheck) ->
-    AppDepConstraints = get_value({dep,App}, []), 
+    AppDepConstraints = get_value({dep,App}, []),
     VsnConstraints = [ Constraint || {_, Constraint} <- AppDepConstraints],
     Res = check_dependencies(VsnCheck, VsnConstraints, true),
     case Res of
         false ->
-            {false, {reason, {cannot_satisfy, AppDepConstraints}}};     
+            {false, {reason, {cannot_satisfy, AppDepConstraints}}};
         true ->
             true
     end.
@@ -651,7 +651,7 @@ check_dependencies(_, [], Res) ->
     Res;
 check_dependencies(Vsn, [H|T], _) ->
     check_dependencies(Vsn, T, rebar_version:check(Vsn, H)).
-  
+
 %% Remember some values using rebar_config.
 %% TODO: there should be a generic KV storage system
 get_value(Key, Default) ->
@@ -668,7 +668,7 @@ del_key(Key) ->
     Config = rebar_config:get_global(rebar_deps_config, []),
     NewConfig = proplists:delete(Key, Config),
     rebar_config:set_global(rebar_deps_config, NewConfig).
-    
+
 %% ===================================================================
 %% Source helper functions
 %% ===================================================================
