@@ -513,7 +513,9 @@ parse_version({git, _, Rev}) ->
 parse_version({bzr, _, Rev}) ->
     {rev, Rev};
 parse_version({svn, _, Rev}) ->
-    {rev, Rev}.
+    {rev, Rev};
+parse_version(undefined) ->
+    undefined.
 
 
 %% Downloads the source and returns the directory containing the source.
