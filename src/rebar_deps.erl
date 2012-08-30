@@ -232,17 +232,20 @@ get_deps_dir(App) ->
     DepsDir = rebar_config:get_global(deps_dir, "deps"),
     {true, filename:join([BaseDir, DepsDir, App])}.
 
-get_shared_deps_dir(App) ->
+get_shared_deps_dir(Dep) ->
     BaseDir = rebar_config:get_global(base_dir, []),
     SharedDepsDir = rebar_config:get_global(shared_deps_dir, undefined),
-    SharedDepsDirPath = case SharedDepsDir of
-                            undefined ->
-                                undefined;
-                            _ ->
-                                filename:join([BaseDir, SharedDepsDir, App])
-                        end,                        
-    {true, SharedDepsDirPath}.
-    
+    case SharedDepsDir of
+        undefined ->
+            {false, undefined};
+        _ ->
+            Version = parse_version(Dep#dep.source),
+            UnversionedAppDir = filename:join(
+                [BaseDir, SharedDepsDir, Dep#dep.app]),
+            VersionedAppDir = get_download_dir(UnversionedAppDir, Version),
+            {true, VersionedAppDir}
+    end.
+
 get_lib_dir(App) ->
     %% Find App amongst the reachable lib directories
     %% Returns either the found path or a tagged tuple with a boolean
@@ -330,28 +333,16 @@ acc_deps(read, _, Dep, AppDir, Acc) ->
 delete_dep(D) ->
     case filelib:is_dir(D#dep.dir) of
         true ->
-            ?INFO("Deleting dependency: ~s\n", [D#dep.dir]),
-            ok = case get_shared_deps_dir(D#dep.app) of
-                {true, _} -> delete_shared_dep(D);
-                _ -> ok
+            ok = case get_shared_deps_dir(D) of
+                {true, SharedDepDir} ->
+                    ?INFO("Deleting shared dependency: ~s\n", [SharedDepDir]),
+                    rebar_file_utils:rm_rf(SharedDepDir);
+                {false, _} ->
+                    ok
             end,
+            ?INFO("Deleting dependency: ~s\n", [D#dep.dir]),
             rebar_file_utils:rm_rf(D#dep.dir);
         false ->
-            ok
-    end.
-
-delete_shared_dep(D) ->
-    ?INFO("Deleting shared dependency: ~s\n", [D#dep.dir]),
-    Target = D#dep.dir,
-    ok = case file:read_link_info(Target) of
-        {ok, FileInfo} ->
-            case FileInfo#file_info.type of
-                symlink ->
-                    {ok, RealTarget} = file:read_link(Target),
-                    rebar_file_utils:rm_rf(RealTarget);
-                _ -> ok
-            end;
-        {error, _} ->
             ok
     end.
 
@@ -457,47 +448,27 @@ retrieve_source_and_retry(Dep, Count, Force) ->
     %% need to symlink. So construct the download dir and check if it
     %% already exists.
     {true, TargetDir} = get_deps_dir(Dep#dep.app),
-    {true, SharedTargetDir} = get_shared_deps_dir(Dep#dep.app),
-    {AppDir, UseVersionedDir} = case SharedTargetDir of
-                        undefined ->
-                            {TargetDir, false};
-                        _ ->
-                            {SharedTargetDir, true}
-                    end,  
-                
-    Version = parse_version(Dep#dep.source),
-    DownloadDir = get_download_dir(AppDir, Version, UseVersionedDir),
-    
-    %% If the (possibly versioned) downloads dir already exists, just
-    %% skip downloading the source
-    DownloadDirExists = filelib:is_dir(DownloadDir),
-    
-    if 
-        Force orelse DownloadDirExists =:= false ->
-            if 
-                DownloadDirExists =:= true ->
-                    rebar_file_utils:rm_rf(DownloadDir);
-                true ->
-                    ok
-            end,
-            
-            ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
-            require_source_engine(Dep#dep.source),
-            download_source(DownloadDir, Dep#dep.source);
-        
-        true ->
-            ok  
-    end,
-
-    %% If we used the shared dir, we need to symlink from the shared
-    %% dir to the regular deps dir, so it becomes available in deps_dir
-    case SharedTargetDir of
-        undefined ->
+    case get_shared_deps_dir(Dep) of
+        {false, _} ->
             ok;
-        _ ->
+        {true, SharedTargetDir} ->
+            %% If the (possibly versioned) downloads dir already exists, just
+            %% skip downloading the source
+            case filelib:is_dir(SharedTargetDir) of
+                false ->
+                    download_dep(Dep, SharedTargetDir);
+                true ->
+                    case Force of
+                        true ->
+                            rebar_file_utils:rm_rf(SharedTargetDir),
+                            download_dep(Dep, SharedTargetDir);
+                        false ->
+                            ok
+                    end
+            end,
             rebar_file_utils:rm_rf(TargetDir),
-            'symlink-shared-deps-to-deps'(DownloadDir, TargetDir)
-	end,
+            'symlink-shared-deps-to-deps'(SharedTargetDir, TargetDir)
+    end,
 
     case rebar_app_utils:is_app_dir(Dep#dep.dir) of
         {true, AppFile} ->
@@ -508,20 +479,23 @@ retrieve_source_and_retry(Dep, Count, Force) ->
 
     use_source(Dep#dep { dir = TargetDir }, Count-1, false).
 
-
+%% Helper, downloads dependency from source
+download_dep(Dep, Destination) ->
+    ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
+    require_source_engine(Dep#dep.source),
+    download_source(Destination, Dep#dep.source).
 
 %% Helper creates a versioned download
-get_download_dir(AppDir, _, false) ->
-    AppDir;
-get_download_dir(AppDir, {branch, "HEAD"}, true) ->
-    AppDir;
-get_download_dir(AppDir, {branch, Branch}, true) ->
-    AppDir ++ "-branch-" ++ Branch;
-get_download_dir(AppDir, {tag, Tag}, true) ->
-    AppDir ++ "-tag-" ++ Tag;
-get_download_dir(AppDir, {rev, Rev}, true) ->
-    AppDir ++ "-rev-" ++ Rev.
-
+get_download_dir(BaseAppDir, {branch, "HEAD"}) ->
+    BaseAppDir;
+get_download_dir(BaseAppDir, {branch, Branch}) ->
+    BaseAppDir ++ "-branch-" ++ Branch;
+get_download_dir(BaseAppDir, {tag, Tag}) ->
+    BaseAppDir ++ "-tag-" ++ Tag;
+get_download_dir(BaseAppDir, {rev, Rev}) ->
+    BaseAppDir ++ "-rev-" ++ Rev;
+get_download_dir(BaseAppDir, _) ->
+    BaseAppDir.
 
 %% Parse the version to a uniform format
 parse_version({hg, _, Rev}) ->
