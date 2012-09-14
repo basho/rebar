@@ -59,36 +59,183 @@ eunit_test_() ->
                ?_assert(string:str(RebarOut, "All 2 tests passed") =/= 0)}]
      end}.
 
+eunit_with_suites_and_tests_test_() ->
+    [{"Ensure EUnit runs selected suites",
+      setup, fun() ->
+                     setup_project_with_multiple_modules(),
+                     rebar("-v eunit suites=myapp_mymod2")
+             end,
+      fun teardown/1,
+      fun(RebarOut) ->
+              [{"Selected suite tests in 'test' directory are found and run",
+                ?_assert(string:str(RebarOut, "myapp_mymod2_tests:") =/= 0)},
+
+               {"Selected suite tests in 'src' directory are found and run",
+                ?_assert(string:str(RebarOut, "myapp_mymod2:") =/= 0)},
+
+               {"Unselected suite tests in 'test' directory are not run",
+                ?_assert(string:str(RebarOut, "myapp_mymod_tests:") =:= 0)},
+
+               {"Unselected suite tests in 'src' directory are not run",
+                ?_assert(string:str(RebarOut, "myapp_mymod:") =:= 0)},
+
+               {"Selected suite tests are only run once",
+                ?_assert(string:str(RebarOut, "All 4 tests passed") =/= 0)}]
+      end},
+     {"Ensure EUnit runs selected _tests suites",
+      setup, fun() ->
+                     setup_project_with_multiple_modules(),
+                     rebar("-v eunit suites=myapp_mymod2_tests")
+             end,
+      fun teardown/1,
+      fun(RebarOut) ->
+              [{"Selected suite tests in 'test' directory are found and run",
+                ?_assert(string:str(RebarOut, "myapp_mymod2_tests:") =/= 0)},
+
+               {"Selected suite tests in 'src' directory are not run",
+                ?_assert(string:str(RebarOut, "myapp_mymod2:") =:= 0)},
+
+               {"Unselected suite tests in 'test' directory are not run",
+                ?_assert(string:str(RebarOut, "myapp_mymod_tests:") =:= 0)},
+
+               {"Unselected suite tests in 'src' directory are not run",
+                ?_assert(string:str(RebarOut, "myapp_mymod:") =:= 0)},
+
+               {"Selected suite tests are only run once",
+                ?_assert(string:str(RebarOut, "All 2 tests passed") =/= 0)}]
+      end},
+     {"Ensure EUnit runs a specific test defined in a selected suite",
+      setup, fun() ->
+                     setup_project_with_multiple_modules(),
+                     rebar("-v eunit suites=myapp_mymod2 tests=myprivate2")
+             end,
+      fun teardown/1,
+      fun(RebarOut) ->
+              [{"Selected suite tests are found and run",
+                ?_assert(string:str(RebarOut,
+                                    "myapp_mymod2:myprivate2_test/0") =/= 0)},
+
+               {"Selected suite tests is run once",
+                ?_assert(string:str(RebarOut, "Test passed") =/= 0)}]
+      end},
+     {"Ensure EUnit runs a specific generator test defined in a selected suite",
+      setup, fun() ->
+                     setup_project_with_multiple_modules(),
+                     rebar("-v eunit suites=myapp_mymod3 tests=mygenerator")
+             end,
+      fun teardown/1,
+      fun(RebarOut) ->
+              [{"Selected suite's generator test is found and run",
+                ?_assert(string:str(RebarOut,
+                                    "myapp_mymod3:mygenerator_test_/0") =/= 0)},
+
+               {"Selected suite's generator test raises an error",
+                ?_assert(string:str(RebarOut,
+                                    "assertEqual_failed") =/= 0)},
+
+               {"Selected suite tests is run once",
+                ?_assert(string:str(RebarOut, "Failed: 1.") =/= 0)}]
+      end},
+     {"Ensure EUnit runs specific tests defined in selected suites",
+      setup, fun() ->
+                     setup_project_with_multiple_modules(),
+                     rebar("-v eunit suites=myapp_mymod,myapp_mymod2"
+                           " tests=myprivate,myfunc2")
+             end,
+      fun teardown/1,
+      fun(RebarOut) ->
+              [{"Selected suite tests are found and run",
+                [?_assert(string:str(RebarOut,
+                                     "myapp_mymod:myprivate_test/0") =/= 0),
+                 ?_assert(string:str(RebarOut,
+                                     "myapp_mymod2:myprivate2_test/0") =/= 0),
+                 ?_assert(
+                    string:str(RebarOut,
+                               "myapp_mymod2_tests:myfunc2_test/0") =/= 0)]},
+
+               {"Selected suite tests are run once",
+                ?_assert(string:str(RebarOut, "All 3 tests passed") =/= 0)}]
+      end},
+     {"Ensure EUnit runs specific test in a _tests suite",
+      setup,
+      fun() ->
+              setup_project_with_multiple_modules(),
+              rebar("-v eunit suites=myapp_mymod2_tests tests=common_name_test")
+      end,
+      fun teardown/1,
+      fun(RebarOut) ->
+              [{"Only selected suite tests are found and run",
+                [?_assert(string:str(RebarOut,
+                                     "myapp_mymod2:common_name_test/0") =:= 0),
+                 ?_assert(string:str(RebarOut,
+                                     "myapp_mymod2_tests:common_name_test/0")
+                          =/= 0)]},
+
+               {"Selected suite tests is run once",
+                ?_assert(string:str(RebarOut, "Test passed") =/= 0)}]
+      end},
+     {"Ensure EUnit runs a specific test without a specified suite",
+      setup,
+      fun() ->
+              setup_project_with_multiple_modules(),
+              rebar("-v eunit tests=myprivate")
+      end,
+      fun teardown/1,
+      fun(RebarOut) ->
+              [{"Only selected suite tests are found and run",
+                [?_assert(string:str(RebarOut,
+                                     "myapp_mymod:myprivate_test/0") =/= 0),
+                 ?_assert(string:str(RebarOut,
+                                     "myapp_mymod2:myprivate2_test/0")
+                          =/= 0)]},
+
+               {"Selected suite tests is run once",
+                ?_assert(string:str(RebarOut, "All 2 tests passed") =/= 0)}]
+      end}].
+
 cover_test_() ->
     {"Ensure Cover runs with tests in a test dir and no defined suite",
      setup, fun() -> setup_cover_project(), rebar("-v eunit") end,
      fun teardown/1,
 
-     [{"All cover reports are generated",
-       assert_files_in("the temporary eunit directory",
-                       expected_cover_generated_files())},
+     fun(RebarOut) ->
+             [{"Error messages are not present",
+               ?_assert(string:str(RebarOut, "Cover analyze failed for") =:= 0)},
 
-      {"Only production modules get coverage reports",
-       assert_files_not_in("the temporary eunit directory",
-                           [".eunit/myapp_mymod_tests.COVER.html"])}]}.
+              {"All cover reports are generated",
+               assert_files_in("the temporary eunit directory",
+                               expected_cover_generated_files())},
+
+              {"Only production modules get coverage reports",
+               assert_files_not_in("the temporary eunit directory",
+                                   [".eunit/myapp_mymod_tests.COVER.html"])}]
+     end}.
 
 cover_with_suite_test_() ->
     {"Ensure Cover runs with Tests in a test dir and a test suite",
      setup,
      fun() ->
              setup_cover_project_with_suite(),
-             rebar("-v eunit suite=mysuite")
+             rebar("-v eunit suites=mysuite")
      end,
      fun teardown/1,
 
-     [{"All cover reports are generated",
-       assert_files_in("the temporary eunit directory",
-                       expected_cover_generated_files())},
+     fun(RebarOut) ->
+             [{"Error messages are not present",
+               ?_assert(string:str(RebarOut, "Cover analyze failed for") =:= 0)},
 
-      {"Only production modules get coverage reports",
-       assert_files_not_in("the temporary eunit directory",
-                           [".eunit/myapp_mymod_tests.COVER.html",
-                            ".eunit/mysuite.COVER.html"])}]}.
+              {"Cover reports are generated for module",
+               assert_files_in("the temporary eunit directory",
+                               [".eunit/index.html",
+                                ".eunit/mysuite.COVER.html"])},
+
+              {"Only production modules get coverage reports",
+               assert_files_not_in("the temporary eunit directory",
+                                   [".eunit/myapp_app.COVER.html",
+                                    ".eunit/myapp_mymod.COVER.html",
+                                    ".eunit/myapp_sup.COVER.html",
+                                    ".eunit/myapp_mymod_tests.COVER.html"])}]
+     end}.
 
 expected_cover_generated_files() ->
     [".eunit/index.html",
@@ -155,6 +302,28 @@ basic_setup_test_() ->
          "-include_lib(\"eunit/include/eunit.hrl\").\n",
          "myfunc_test() -> ?assertMatch(ok, myapp_mymod:myfunc()).\n"]).
 
+-define(myapp_mymod2,
+        ["-module(myapp_mymod2).\n",
+         "-export([myfunc2/0]).\n",
+         "-include_lib(\"eunit/include/eunit.hrl\").\n",
+         "myfunc2() -> ok.\n",
+         "myprivate2_test() -> ?assert(true).\n",
+         "common_name_test() -> ?assert(true).\n"]).
+
+-define(myapp_mymod2_tests,
+        ["-module(myapp_mymod2_tests).\n",
+         "-compile([export_all]).\n",
+         "-include_lib(\"eunit/include/eunit.hrl\").\n",
+         "myfunc2_test() -> ?assertMatch(ok, myapp_mymod2:myfunc2()).\n",
+         "common_name_test() -> ?assert(true).\n"]).
+
+-define(myapp_mymod3,
+        ["-module(myapp_mymod3).\n",
+         "-export([myfunc3/0]).\n",
+         "-include_lib(\"eunit/include/eunit.hrl\").\n",
+         "myfunc3() -> ok.\n",
+         "mygenerator_test_() -> [?_assertEqual(true, false)].\n"]).
+
 -define(mysuite,
         ["-module(mysuite).\n",
          "-export([all_test_/0]).\n",
@@ -182,6 +351,12 @@ setup_basic_project() ->
     ok = file:make_dir("test"),
     ok = file:write_file("test/myapp_mymod_tests.erl", ?myapp_mymod_tests),
     ok = file:write_file("src/myapp_mymod.erl", ?myapp_mymod).
+
+setup_project_with_multiple_modules() ->
+    setup_basic_project(),
+    ok = file:write_file("test/myapp_mymod2_tests.erl", ?myapp_mymod2_tests),
+    ok = file:write_file("src/myapp_mymod2.erl", ?myapp_mymod2),
+    ok = file:write_file("src/myapp_mymod3.erl", ?myapp_mymod3).
 
 setup_cover_project() ->
     setup_basic_project(),
@@ -247,6 +422,5 @@ assert_full_coverage(Mod) ->
             Result = [X || X <- string:tokens(binary_to_list(F), "\n"),
                            string:str(X, Mod) =/= 0,
                            string:str(X, "100%") =/= 0],
-            ok = file:close(F),
             ?assert(length(Result) =:= 1)
     end.

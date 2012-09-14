@@ -37,12 +37,12 @@
 %% Public API
 %% ===================================================================
 
-generate(Config, ReltoolFile) ->
+generate(Config0, ReltoolFile) ->
     %% Make sure we have decent version of reltool available
     check_vsn(),
 
     %% Load the reltool configuration from the file
-    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
+    {Config, ReltoolConfig} = rebar_rel_utils:load_config(Config0, ReltoolFile),
 
     Sys = rebar_rel_utils:get_sys_tuple(ReltoolConfig),
 
@@ -56,32 +56,33 @@ generate(Config, ReltoolFile) ->
     %% Finally, run reltool
     case catch(run_reltool(Server, Config, ReltoolConfig)) of
         ok ->
-            ok;
+            {ok, Config};
         {error, failed} ->
-            ?ABORT;
+            ?FAIL;
         Other2 ->
             ?ERROR("Unexpected error: ~p\n", [Other2]),
-            ?ABORT
+            ?FAIL
     end.
 
-overlay(_Config, ReltoolFile) ->
+overlay(Config, ReltoolFile) ->
     %% Load the reltool configuration from the file
-    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
-    process_overlay(ReltoolConfig).
+    {Config1, ReltoolConfig} = rebar_rel_utils:load_config(Config, ReltoolFile),
+    {Config1, process_overlay(Config, ReltoolConfig)}.
 
-clean(_Config, ReltoolFile) ->
-    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
-    TargetDir = rebar_rel_utils:get_target_dir(ReltoolConfig),
+clean(Config, ReltoolFile) ->
+    {Config1, ReltoolConfig} = rebar_rel_utils:load_config(Config, ReltoolFile),
+    TargetDir = rebar_rel_utils:get_target_dir(Config, ReltoolConfig),
     rebar_file_utils:rm_rf(TargetDir),
-    rebar_file_utils:delete_each(["reltool.spec"]).
-
-
+    rebar_file_utils:delete_each(["reltool.spec"]),
+    {ok, Config1}.
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
 check_vsn() ->
+    %% TODO: use application:load and application:get_key once we require
+    %%       R14A or newer. There's no reltool.app before R14A.
     case code:lib_dir(reltool) of
         {error, bad_name} ->
             ?ABORT("Reltool support requires the reltool application "
@@ -97,8 +98,8 @@ check_vsn() ->
             end
     end.
 
-process_overlay(ReltoolConfig) ->
-    TargetDir = rebar_rel_utils:get_target_dir(ReltoolConfig),
+process_overlay(Config, ReltoolConfig) ->
+    TargetDir = rebar_rel_utils:get_target_dir(Config, ReltoolConfig),
 
     {_BootRelName, BootRelVsn} =
         rebar_rel_utils:get_reltool_release_info(ReltoolConfig),
@@ -111,7 +112,7 @@ process_overlay(ReltoolConfig) ->
                         {target_dir, TargetDir}]),
 
     %% Load up any variables specified by overlay_vars
-    OverlayVars1 = overlay_vars(OverlayVars0, ReltoolConfig),
+    OverlayVars1 = overlay_vars(Config, OverlayVars0, ReltoolConfig),
     OverlayVars = rebar_templater:resolve_variables(dict:to_list(OverlayVars1),
                                                     OverlayVars1),
 
@@ -134,9 +135,11 @@ process_overlay(ReltoolConfig) ->
 %% variable in the file from reltool.config and then override that value by
 %% providing an additional file on the command-line.
 %%
-overlay_vars(Vars0, ReltoolConfig) ->
+overlay_vars(Config, Vars0, ReltoolConfig) ->
     BaseVars = load_vars_file(proplists:get_value(overlay_vars, ReltoolConfig)),
-    OverrideVars = load_vars_file(rebar_config:get_global(overlay_vars, undefined)),
+    OverrideVars = load_vars_file(rebar_config:get_global(Config,
+                                                          overlay_vars,
+                                                          undefined)),
     M = fun(_Key, _Base, Override) -> Override end,
     dict:merge(M, dict:merge(M, Vars0, BaseVars), OverrideVars).
 
@@ -146,14 +149,12 @@ overlay_vars(Vars0, ReltoolConfig) ->
 load_vars_file(undefined) ->
     dict:new();
 load_vars_file(File) ->
-    case file:consult(File) of
+    case rebar_config:consult_file(File) of
         {ok, Terms} ->
             dict:from_list(Terms);
         {error, Reason} ->
-            ?ABORT("Unable to load overlay_vars from ~s: ~p\n", [File, Reason])
+            ?ABORT("Unable to load overlay_vars from ~p: ~p\n", [File, Reason])
     end.
-
-
 
 validate_rel_apps(ReltoolServer, {sys, ReltoolConfig}) ->
     case lists:keyfind(rel, 1, ReltoolConfig) of
@@ -187,19 +188,18 @@ app_exists(App, Server) when is_atom(App) ->
 app_exists(AppTuple, Server) when is_tuple(AppTuple) ->
     app_exists(element(1, AppTuple), Server).
 
-
-run_reltool(Server, _Config, ReltoolConfig) ->
+run_reltool(Server, Config, ReltoolConfig) ->
     case reltool:get_target_spec(Server) of
         {ok, Spec} ->
             %% Pull the target dir and make sure it exists
-            TargetDir = rebar_rel_utils:get_target_dir(ReltoolConfig),
-            mk_target_dir(TargetDir),
+            TargetDir = rebar_rel_utils:get_target_dir(Config, ReltoolConfig),
+            mk_target_dir(Config, TargetDir),
 
             %% Determine the otp root dir to use
-            RootDir = rebar_rel_utils:get_root_dir(ReltoolConfig),
+            RootDir = rebar_rel_utils:get_root_dir(Config, ReltoolConfig),
 
             %% Dump the spec, if necessary
-            dump_spec(Spec),
+            dump_spec(Config, Spec),
 
             %% Have reltool actually run
             case reltool:eval_target_spec(Spec, RootDir, TargetDir) of
@@ -215,37 +215,35 @@ run_reltool(Server, _Config, ReltoolConfig) ->
 
             ok = create_RELEASES(TargetDir, BootRelName, BootRelVsn),
 
-            process_overlay(ReltoolConfig);
+            process_overlay(Config, ReltoolConfig);
 
         {error, Reason} ->
             ?ABORT("Unable to generate spec: ~s\n", [Reason])
     end.
 
-
-mk_target_dir(TargetDir) ->
+mk_target_dir(Config, TargetDir) ->
     case filelib:ensure_dir(filename:join(TargetDir, "dummy")) of
         ok ->
             ok;
         {error, eexist} ->
             %% Output directory already exists; if force=1, wipe it out
-            case rebar_config:get_global(force, "0") of
+            case rebar_config:get_global(Config, force, "0") of
                 "1" ->
                     rebar_file_utils:rm_rf(TargetDir),
                     ok = file:make_dir(TargetDir);
                 _ ->
                     ?ERROR("Release target directory ~p already exists!\n",
                            [TargetDir]),
-                    ?ABORT
+                    ?FAIL
             end;
         {error, Reason} ->
             ?ERROR("Failed to make target dir ~p: ~s\n",
                    [TargetDir, file:format_error(Reason)]),
-            ?ABORT
+            ?FAIL
     end.
 
-
-dump_spec(Spec) ->
-    case rebar_config:get_global(dump_spec, "0") of
+dump_spec(Config, Spec) ->
+    case rebar_config:get_global(Config, dump_spec, "0") of
         "1" ->
             SpecBin = list_to_binary(io_lib:print(Spec, 1, 120, -1)),
             ok = file:write_file("reltool.spec", SpecBin);
@@ -346,10 +344,22 @@ apply_file_info(InFile, OutFile) ->
 
 create_RELEASES(TargetDir, RelName, RelVsn) ->
     ReleasesDir = filename:join(TargetDir, "releases"),
+    RelFile = filename:join([ReleasesDir, RelVsn, RelName ++ ".rel"]),
+    Apps = rebar_rel_utils:get_rel_apps(RelFile),
+    TargetLib = filename:join(TargetDir,"lib"),
+
+    AppDirs =
+        [ {App, Vsn, TargetLib}
+          || {App, Vsn} <- Apps,
+             filelib:is_dir(
+               filename:join(TargetLib,
+                             lists:concat([App, "-", Vsn]))) ],
+
     case release_handler:create_RELEASES(
-           TargetDir, ReleasesDir,
-           filename:join([ReleasesDir, RelVsn, RelName ++ ".rel"]),
-           filename:join(TargetDir, "lib")) of
+           code:root_dir(),
+           ReleasesDir,
+           RelFile,
+           AppDirs) of
         ok ->
             ok;
         {error, Reason} ->

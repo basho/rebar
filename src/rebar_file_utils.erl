@@ -29,7 +29,8 @@
 -export([rm_rf/1,
          cp_r/2,
          mv/2,
-         delete_each/1]).
+         delete_each/1,
+         write_file_if_contents_differ/2]).
 
 -include("rebar.hrl").
 
@@ -39,7 +40,7 @@
 
 %% @doc Remove files and directories.
 %% Target is a single filename, directoryname or wildcard expression.
--spec rm_rf(Target::string()) -> ok.
+-spec rm_rf(string()) -> 'ok'.
 rm_rf(Target) ->
     case os:type() of
         {unix, _} ->
@@ -56,7 +57,9 @@ rm_rf(Target) ->
             ok
     end.
 
--spec cp_r(Sources::list(string()), Dest::file:filename()) -> ok.
+-spec cp_r(list(string()), file:filename()) -> 'ok'.
+cp_r([], _Dest) ->
+    ok;
 cp_r(Sources, Dest) ->
     case os:type() of
         {unix, _} ->
@@ -71,7 +74,7 @@ cp_r(Sources, Dest) ->
             ok
     end.
 
--spec mv(Source::string(), Dest::file:filename()) -> ok.
+-spec mv(string(), file:filename()) -> 'ok'.
 mv(Source, Dest) ->
     case os:type() of
         {unix, _} ->
@@ -106,7 +109,18 @@ delete_each([File | Rest]) ->
             delete_each(Rest);
         {error, Reason} ->
             ?ERROR("Failed to delete file ~s: ~p\n", [File, Reason]),
-            ?ABORT
+            ?FAIL
+    end.
+
+write_file_if_contents_differ(Filename, Bytes) ->
+    ToWrite = iolist_to_binary(Bytes),
+    case file:read_file(Filename) of
+        {ok, ToWrite} ->
+            ok;
+        {ok,  _} ->
+            file:write_file(Filename, ToWrite);
+        {error,  _} ->
+            file:write_file(Filename, ToWrite)
     end.
 
 %% ===================================================================

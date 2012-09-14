@@ -27,9 +27,11 @@
               rebar_otp_app,
               rebar_port_compiler,
               rebar_protobuffs_compiler,
+              rebar_qc,
               rebar_rel_utils,
               rebar_reltool,
               rebar_require_vsn,
+              rebar_shell,
               rebar_subdirs,
               rebar_templater,
               rebar_upgrade,
@@ -48,9 +50,6 @@
   {env, [
          %% Default log level
          {log_level, error},
-
-         %% Default parallel jobs
-         {jobs, 3},
 
          %% any_dir processing modules
          {any_dir_modules, [
@@ -75,8 +74,10 @@
                                rebar_otp_app,
                                rebar_ct,
                                rebar_eunit,
+                               rebar_qc,
                                rebar_escripter,
                                rebar_edoc,
+                               rebar_shell,
                                rebar_xref
                               ]},
 

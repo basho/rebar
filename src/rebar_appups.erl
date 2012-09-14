@@ -38,13 +38,14 @@
 %% Public API
 %% ====================================================================
 
-'generate-appups'(_Config, ReltoolFile) ->
+'generate-appups'(Config, ReltoolFile) ->
     %% Get the old release path
-    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
-    TargetParentDir = rebar_rel_utils:get_target_parent_dir(ReltoolConfig),
+    {Config1, ReltoolConfig} = rebar_rel_utils:load_config(Config, ReltoolFile),
+    TargetParentDir = rebar_rel_utils:get_target_parent_dir(Config,
+                                                            ReltoolConfig),
 
-    OldVerPath = filename:join([TargetParentDir,
-                                rebar_rel_utils:get_previous_release_path()]),
+    PrevRelPath = rebar_rel_utils:get_previous_release_path(Config),
+    OldVerPath = filename:join([TargetParentDir, PrevRelPath]),
 
     %% Get the new and old release name and versions
     {Name, _Ver} = rebar_rel_utils:get_reltool_release_info(ReltoolConfig),
@@ -75,7 +76,7 @@
     %% Generate appup files for upgraded apps
     generate_appup_files(NewVerPath, OldVerPath, UpgradeApps),
 
-    ok.
+    {ok, Config1}.
 
 %% ===================================================================
 %% Internal functions

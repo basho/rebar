@@ -83,7 +83,7 @@
 compile(Config, _AppFile) ->
     DtlOpts = erlydtl_opts(Config),
     OrigPath = code:get_path(),
-    true = code:add_path(filename:join(rebar_utils:get_cwd(), "ebin")),
+    true = code:add_path(rebar_utils:ebin_dir()),
     Result = rebar_base_compiler:run(Config, [],
                                      option(doc_root, DtlOpts),
                                      option(source_ext, DtlOpts),
@@ -120,7 +120,7 @@ compile_dtl(Source, Target, Config) ->
                    "    http://code.google.com/p/erlydtl/~n"
                    " and install it into your erlang library dir~n"
                    "===============================================~n~n", []),
-            ?ABORT;
+            ?FAIL;
         _ ->
             case needs_compile(Source, Target, Config) of
                 true ->
@@ -146,7 +146,7 @@ do_compile(Source, Target, Config) ->
         Reason ->
             ?ERROR("Compiling template ~s failed:~n  ~p~n",
                    [Source, Reason]),
-            ?ABORT
+            ?FAIL
     end.
 
 module_name(Target) ->

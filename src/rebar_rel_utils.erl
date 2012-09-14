@@ -33,13 +33,13 @@
          get_rel_release_info/2,
          get_rel_apps/1,
          get_rel_apps/2,
-         get_previous_release_path/0,
+         get_previous_release_path/1,
          get_rel_file_path/2,
-         load_config/1,
+         load_config/2,
          get_sys_tuple/1,
-         get_target_dir/1,
-         get_root_dir/1,
-         get_target_parent_dir/1]).
+         get_target_dir/2,
+         get_root_dir/2,
+         get_target_parent_dir/2]).
 
 -include("rebar.hrl").
 
@@ -107,12 +107,11 @@ get_rel_apps(Name, Path) ->
 get_rel_file_path(Name, Path) ->
     [RelFile] = filelib:wildcard(filename:join([Path, "releases", "*",
                                                 Name ++ ".rel"])),
-    [BinDir|_] = re:replace(RelFile, Name ++ "\\.rel", ""),
-    filename:join([binary_to_list(BinDir), Name ++ ".rel"]).
+    RelFile.
 
 %% Get the previous release path from a global variable
-get_previous_release_path() ->
-    case rebar_config:get_global(previous_release, false) of
+get_previous_release_path(Config) ->
+    case rebar_config:get_global(Config, previous_release, false) of
         false ->
             ?ABORT("previous_release=PATH is required to "
                    "create upgrade package~n", []);
@@ -123,10 +122,10 @@ get_previous_release_path() ->
 %%
 %% Load terms from reltool.config
 %%
-load_config(ReltoolFile) ->
+load_config(Config, ReltoolFile) ->
     case rebar_config:consult_file(ReltoolFile) of
         {ok, Terms} ->
-            expand_version(Terms, filename:dirname(ReltoolFile));
+            expand_version(Config, Terms, filename:dirname(ReltoolFile));
         Other ->
             ?ABORT("Failed to load expected config from ~s: ~p\n",
                    [ReltoolFile, Other])
@@ -148,8 +147,8 @@ get_sys_tuple(ReltoolConfig) ->
 %% Look for {target_dir, TargetDir} in the reltool config file; if none is
 %% found, use the name of the release as the default target directory.
 %%
-get_target_dir(ReltoolConfig) ->
-    case rebar_config:get_global(target_dir, undefined) of
+get_target_dir(Config, ReltoolConfig) ->
+    case rebar_config:get_global(Config, target_dir, undefined) of
         undefined ->
             case lists:keyfind(target_dir, 1, ReltoolConfig) of
                 {target_dir, TargetDir} ->
@@ -167,8 +166,8 @@ get_target_dir(ReltoolConfig) ->
             filename:absname(TargetDir)
     end.
 
-get_target_parent_dir(ReltoolConfig) ->
-    TargetDir = get_target_dir(ReltoolConfig),
+get_target_parent_dir(Config, ReltoolConfig) ->
+    TargetDir = get_target_dir(Config, ReltoolConfig),
     case lists:reverse(tl(lists:reverse(filename:split(TargetDir)))) of
         [] -> ".";
         Components -> filename:join(Components)
@@ -178,10 +177,10 @@ get_target_parent_dir(ReltoolConfig) ->
 %% Look for root_dir in sys tuple and command line; fall back to
 %% code:root_dir().
 %%
-get_root_dir(ReltoolConfig) ->
+get_root_dir(Config, ReltoolConfig) ->
     {sys, SysInfo} = get_sys_tuple(ReltoolConfig),
     SysRootDirTuple = lists:keyfind(root_dir, 1, SysInfo),
-    CmdRootDir = rebar_config:get_global(root_dir, undefined),
+    CmdRootDir = rebar_config:get_global(Config, root_dir, undefined),
     case {SysRootDirTuple, CmdRootDir} of
         %% root_dir in sys typle and no root_dir on cmd-line
         {{root_dir, SysRootDir}, undefined} ->
@@ -217,16 +216,23 @@ make_proplist([H|T], Acc) ->
 make_proplist([], Acc) ->
     Acc.
 
-expand_version(ReltoolConfig, Dir) ->
+expand_version(Config, ReltoolConfig, Dir) ->
     case lists:keyfind(sys, 1, ReltoolConfig) of
         {sys, Sys} ->
-            ExpandedSys = {sys, [expand_rel_version(Term, Dir) || Term <- Sys]},
-            lists:keyreplace(sys, 1, ReltoolConfig, ExpandedSys);
+            {Config1, Rels} =
+                lists:foldl(
+                  fun(Term, {C, R}) ->
+                          {C1, Rel} = expand_rel_version(C, Term, Dir),
+                          {C1, [Rel|R]}
+                  end, {Config, []}, Sys),
+            ExpandedSys = {sys, lists:reverse(Rels)},
+            {Config1, lists:keyreplace(sys, 1, ReltoolConfig, ExpandedSys)};
         _ ->
-            ReltoolConfig
+            {Config, ReltoolConfig}
     end.
 
-expand_rel_version({rel, Name, Version, Apps}, Dir) ->
-    {rel, Name, rebar_utils:vcs_vsn(Version, Dir), Apps};
-expand_rel_version(Other, _Dir) ->
-    Other.
+expand_rel_version(Config, {rel, Name, Version, Apps}, Dir) ->
+    {NewConfig, VsnString} = rebar_utils:vcs_vsn(Config, Version, Dir),
+    {NewConfig, {rel, Name, VsnString, Apps}};
+expand_rel_version(Config, Other, _Dir) ->
+    {Config, Other}.

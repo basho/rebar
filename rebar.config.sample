@@ -65,11 +65,13 @@
 %% Options for eunit:test()
 {eunit_opts, []}.
 
-%% Additional compile options for eunit. erl_opts from above is also used
+%% Additional compile options for eunit. erl_opts is also used
 {eunit_compile_opts, []}.
 
 %% Same as erl_first_files, but used only when running 'eunit'
 {eunit_first_files, []}.
+
+%% == Cover ==
 
 %% Whether to enable coverage reporting. Default is `false'
 {cover_enabled, false}.
@@ -77,16 +79,33 @@
 %% Whether to print coverage report to console. Default is `false'
 {cover_print_enabled, false}.
 
+%% Whether to export coverage report to file. Default is `false'
+{cover_export_enabled, false}.
+
 %% == Common Test ==
 
 %% Override the default "test" directory in which SUITEs are located
 {ct_dir, "itest"}.
+
+%% Override the default "logs" directory in which SUITEs are logged
+{ct_log_dir, "test/logs"}.
 
 %% Option to pass extra parameters when launching Common Test
 {ct_extra_params, "-boot start_sasl -s myapp"}.
 
 %% Option to use short names (i.e., -sname test) when starting ct
 {ct_use_short_names, true}.
+
+%% == QuickCheck ==
+
+%% If qc_mod is unspecified, rebar tries to detect Triq or EQC
+{qc_opts, [{qc_mod, module()}, Options]}.
+
+%% Additional compile options for qc. erl_opts is also used
+{qc_compile_opts, []}.
+
+%% Same as erl_first_files, but used only when running 'qc'
+{qc_first_files, []}.
 
 %% == Cleanup ==
 

@@ -47,13 +47,13 @@ xref(Config, _) ->
 
     xref:set_default(xref, [{warnings,
                              rebar_config:get(Config, xref_warnings, false)},
-                            {verbose, rebar_config:is_verbose()}]),
+                            {verbose, rebar_config:is_verbose(Config)}]),
 
     {ok, _} = xref:add_directory(xref, "ebin"),
 
     %% Save the code path prior to doing anything
     OrigPath = code:get_path(),
-    true = code:add_path(filename:join(rebar_utils:get_cwd(), "ebin")),
+    true = code:add_path(rebar_utils:ebin_dir()),
 
     %% Get list of xref checks we want to run
     XrefChecks = rebar_config:get(Config, xref_checks,
@@ -90,7 +90,7 @@ xref(Config, _) ->
 
     case lists:member(false, [ExportsNoWarn, UndefNoWarn, QueryNoWarn]) of
         true ->
-            ?ABORT;
+            ?FAIL;
         false ->
             ok
     end.
@@ -146,10 +146,10 @@ filter_away_ignored(UnusedExports) ->
     %% any functions marked to ignore. We then use this list to mask any
     %% functions marked as unused exports by xref
     F = fun(Mod) ->
-                Attrs  = kf(attributes, Mod:module_info()),
-                Ignore = kf(ignore_xref, Attrs),
-                Callbacks =
-                    [B:behaviour_info(callbacks) || B <- kf(behaviour, Attrs)],
+                Attrs  = Mod:module_info(attributes),
+                Ignore = keyall(ignore_xref, Attrs),
+                Callbacks = [B:behaviour_info(callbacks)
+                             || B <- keyall(behaviour, Attrs)],
                 [{Mod, F, A} || {F, A} <- Ignore ++ lists:flatten(Callbacks)]
         end,
     AttrIgnore =
@@ -157,14 +157,8 @@ filter_away_ignored(UnusedExports) ->
           lists:map(F, lists:usort([M || {M, _, _} <- UnusedExports]))),
     [X || X <- UnusedExports, not lists:member(X, AttrIgnore)].
 
-
-kf(Key, List) ->
-    case lists:keyfind(Key, 1, List) of
-        {Key, Value} ->
-            Value;
-        false ->
-            []
-    end.
+keyall(Key, List) ->
+    lists:flatmap(fun({K, L}) when Key =:= K -> L; (_) -> [] end, List).
 
 display_mfas([], _Message) ->
     ok;

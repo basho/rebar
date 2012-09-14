@@ -38,17 +38,19 @@
 %% Public API
 %% ====================================================================
 
-'generate-upgrade'(_Config, ReltoolFile) ->
+'generate-upgrade'(Config0, ReltoolFile) ->
     %% Get the old release path
-    ReltoolConfig = rebar_rel_utils:load_config(ReltoolFile),
-    TargetParentDir = rebar_rel_utils:get_target_parent_dir(ReltoolConfig),
-    TargetDir = rebar_rel_utils:get_target_dir(ReltoolConfig),
+    {Config, ReltoolConfig} = rebar_rel_utils:load_config(Config0, ReltoolFile),
+    TargetParentDir = rebar_rel_utils:get_target_parent_dir(Config,
+                                                            ReltoolConfig),
+    TargetDir = rebar_rel_utils:get_target_dir(Config, ReltoolConfig),
 
-    OldVerPath = filename:join([TargetParentDir,
-                                rebar_rel_utils:get_previous_release_path()]),
+    PrevRelPath = rebar_rel_utils:get_previous_release_path(Config),
+    OldVerPath = filename:join([TargetParentDir, PrevRelPath]),
 
     %% Run checks to make sure that building a package is possible
-    {NewVerPath, NewName, NewVer} = run_checks(OldVerPath, ReltoolConfig),
+    {NewVerPath, NewName, NewVer} = run_checks(Config, OldVerPath,
+                                               ReltoolConfig),
     NameVer = NewName ++ "_" ++ NewVer,
 
     %% Save the code path prior to doing anything
@@ -72,13 +74,13 @@
     %% Restore original path
     true = code:set_path(OrigPath),
 
-    ok.
+    {ok, Config}.
 
 %% ===================================================================
 %% Internal functions
 %% ==================================================================
 
-run_checks(OldVerPath, ReltoolConfig) ->
+run_checks(Config, OldVerPath, ReltoolConfig) ->
     true = rebar_utils:prop_check(filelib:is_dir(OldVerPath),
                                   "Release directory doesn't exist (~p)~n",
                                   [OldVerPath]),
@@ -86,8 +88,9 @@ run_checks(OldVerPath, ReltoolConfig) ->
     {Name, Ver} = rebar_rel_utils:get_reltool_release_info(ReltoolConfig),
 
     NewVerPath =
-        filename:join([rebar_rel_utils:get_target_parent_dir(ReltoolConfig),
-                       Name]),
+        filename:join(
+          [rebar_rel_utils:get_target_parent_dir(Config, ReltoolConfig),
+           Name]),
     true = rebar_utils:prop_check(filelib:is_dir(NewVerPath),
                                   "Release directory doesn't exist (~p)~n",
                                   [NewVerPath]),
