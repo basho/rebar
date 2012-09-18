@@ -387,17 +387,20 @@ download_source(AppDir, {git, Url, ""}) ->
 download_source(AppDir, {git, Url, {branch, Branch}}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]),
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, cleanup_retry_clone(AppDir)}]),
     rebar_utils:sh(?FMT("git checkout -q origin/~s", [Branch]), [{cd, AppDir}]);
 download_source(AppDir, {git, Url, {tag, Tag}}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]),
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, cleanup_retry_clone(AppDir)}]),
     rebar_utils:sh(?FMT("git checkout -q ~s", [Tag]), [{cd, AppDir}]);
 download_source(AppDir, {git, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]),
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, cleanup_retry_clone(AppDir)}]),
     rebar_utils:sh(?FMT("git checkout -q ~s", [Rev]), [{cd, AppDir}]);
 download_source(AppDir, {bzr, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
@@ -412,6 +415,25 @@ download_source(AppDir, {svn, Url, Rev}) ->
 download_source(AppDir, {rsync, Url}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("rsync -az --delete ~s/ ~s", [Url, AppDir]), []).
+
+cleanup_retry_clone(AppDir) ->
+    Cleanup = case os:type() of
+                  {win32,nt} ->
+                      "rd /q /s " ++ AppDir;
+                  _ ->
+                      "rm -rf " ++ AppDir
+              end,
+    fun(Command, {Rc, Output}, 4) ->
+            io:format("~s failed with error: ~w and output:~n~s~n",
+                      [Command, Rc, Output]),
+            false;
+       (Command, {Rc, Output}, Count) ->
+            Wait = 250 * Count,
+            io:format("~s failed with error: ~w and output:~n~s~nRetrying in ~wms~n",
+                      [Command, Rc, Output, Wait]),
+            timer:sleep(Wait),
+            rebar_utils:sh(Cleanup, []),
+            true end.
 
 update_source(Config, Dep) ->
     %% It's possible when updating a source, that a given dep does not have a
