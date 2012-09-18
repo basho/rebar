@@ -440,10 +440,20 @@ erts_dir() ->
     lists:concat([code:root_dir(), "/erts-", erlang:system_info(version)]).
 
 os_env() ->
-    Os = [list_to_tuple(re:split(S, "=", [{return, list}, {parts, 2}])) ||
-             S <- os:getenv()],
-    %% Drop variables without a name (win32)
-    [T1 || {K, _V} = T1 <- Os, K =/= []].
+    lists:reverse(
+        lists:foldl(
+            fun({'EXIT',{badarg, _}}, Env) ->
+                   %% Skip variable which can not be parsed
+                   Env; 
+               ([[],_], Env) ->
+                   %% Drop variables without a name (win32)
+                   Env;
+               ([_,_] = Tokens, Env) ->
+                   [list_to_tuple(Tokens) | Env]
+            end,
+            [],
+            [catch(re:split(S, "=", [{return, list}, {parts, 2}])) || 
+                S <- os:getenv()])).
 
 select_compile_template(drv, Compiler) ->
     select_compile_drv_template(Compiler);
