@@ -109,14 +109,35 @@ sh(Command0, Options0) ->
     Command = patch_on_windows(Command0, proplists:get_value(env, Options, [])),
     PortSettings = proplists:get_all_values(port_settings, Options) ++
         [exit_status, {line, 16384}, use_stdio, stderr_to_stdout, hide],
-    Port = open_port({spawn, Command}, PortSettings),
+    sh_out(Command, PortSettings, ErrorHandler, OutputHandler).
 
+sh_out(Command, PortSettings, {retry, ErrorHandler}, OutputHandler) ->
+    sh_out_retry(Command, PortSettings, ErrorHandler, OutputHandler, 1);
+sh_out(Command, PortSettings, ErrorHandler, OutputHandler) ->
+    Port = open_port({spawn, Command}, PortSettings),
     case sh_loop(Port, OutputHandler, []) of
         {ok, _Output} = Ok ->
             Ok;
         {error, {_Rc, _Output}=Err} ->
             ErrorHandler(Command, Err)
     end.
+
+sh_out_retry(Command, PortSettings, RetryHandler, OutputHandler, Count) ->
+    Port = open_port({spawn, Command}, PortSettings),
+    case sh_loop(Port, OutputHandler, []) of
+        {ok, _Output} = Ok ->
+            Ok;
+        {error, {_Rc, _Output}=Err} ->
+            case RetryHandler(Command, Err, Count) of
+                true ->
+                    sh_out_retry(Command, PortSettings, RetryHandler,
+                                 OutputHandler, Count + 1);
+                false ->
+                    log_and_abort(Command, Err)
+            end
+    end.
+
+
 
 find_files(Dir, Regex) ->
     find_files(Dir, Regex, true).
@@ -361,6 +382,14 @@ patch_on_windows(Cmd, Env) ->
             Cmd
     end.
 
+expand_sh_flag({retry_on_error, Fun}) when is_function(Fun) ->
+    case erlang:fun_info(Fun, arity) of
+        {arity, 3} ->
+            {error_handler, {retry, Fun}};
+        _ ->
+            %% Bail when incorrect retry handler is set
+            ?FAIL
+    end;
 expand_sh_flag(return_on_error) ->
     {error_handler,
      fun(_Command, Err) ->

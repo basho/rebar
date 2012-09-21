@@ -376,42 +376,73 @@ use_source(Config, Dep, Count) ->
     end.
 
 download_source(AppDir, {hg, Url, Rev}) ->
+    download_source(AppDir, {hg, Url, Rev, {retries, ?DEFAULT_RETRIES}});
+download_source(AppDir, {hg, Url, Rev, {retries, Retries}}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("hg clone -U ~s ~s", [Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]),
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, retry_handler(AppDir, Retries)}]),
     rebar_utils:sh(?FMT("hg update ~s", [Rev]), [{cd, AppDir}]);
 download_source(AppDir, {git, Url}) ->
-    download_source(AppDir, {git, Url, {branch, "HEAD"}});
+    download_source(AppDir, {git, Url, {branch, "HEAD"}, {retries, ?DEFAULT_RETRIES}});
 download_source(AppDir, {git, Url, ""}) ->
-    download_source(AppDir, {git, Url, {branch, "HEAD"}});
+    download_source(AppDir, {git, Url, {branch, "HEAD"}, {retries, ?DEFAULT_RETRIES}});
 download_source(AppDir, {git, Url, {branch, Branch}}) ->
-    ok = filelib:ensure_dir(AppDir),
-    rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]),
-    rebar_utils:sh(?FMT("git checkout -q origin/~s", [Branch]), [{cd, AppDir}]);
+    download_source(AppDir, {git, Url, {branch, Branch}, {retries, ?DEFAULT_RETRIES}});
 download_source(AppDir, {git, Url, {tag, Tag}}) ->
-    ok = filelib:ensure_dir(AppDir),
-    rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]),
-    rebar_utils:sh(?FMT("git checkout -q ~s", [Tag]), [{cd, AppDir}]);
+    download_source(AppDir, {git, Url, {tag, Tag}, {retries, ?DEFAULT_RETRIES}});
 download_source(AppDir, {git, Url, Rev}) ->
+    download_source(AppDir, {git, Url, Rev, {retries, ?DEFAULT_RETRIES}});
+download_source(AppDir, {svn, Url, Rev}) ->
+    download_source(AppDir, {svn, Url, Rev, {retries, ?DEFAULT_RETRIES}});
+download_source(AppDir, {git, Url, {branch, Branch}, {retries, Retries}}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]),
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, retry_handler(AppDir, Retries)}]),
+    rebar_utils:sh(?FMT("git checkout -q origin/~s", [Branch]), [{cd, AppDir}]);
+download_source(AppDir, {git, Url, {tag, Tag}, {retries, Retries}}) ->
+    ok = filelib:ensure_dir(AppDir),
+    rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, retry_handler(AppDir, Retries)}]),
+    rebar_utils:sh(?FMT("git checkout -q ~s", [Tag]), [{cd, AppDir}]);
+download_source(AppDir, {git, Url, Rev, {retries, Retries}}) ->
+    ok = filelib:ensure_dir(AppDir),
+    rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, retry_handler(AppDir, Retries)}]),
     rebar_utils:sh(?FMT("git checkout -q ~s", [Rev]), [{cd, AppDir}]);
-download_source(AppDir, {bzr, Url, Rev}) ->
+download_source(AppDir, {bzr, Url, Rev, {retries, Retries}}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("bzr branch -r ~s ~s ~s",
                         [Rev, Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]);
-download_source(AppDir, {svn, Url, Rev}) ->
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, retry_handler(AppDir, Retries)}]);
+download_source(AppDir, {svn, Url, Rev, {retries, Retries}}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("svn checkout -r ~s ~s ~s",
                         [Rev, Url, filename:basename(AppDir)]),
-                   [{cd, filename:dirname(AppDir)}]);
+                   [{cd, filename:dirname(AppDir)},
+                    {retry_on_error, retry_handler(AppDir, Retries)}]);
 download_source(AppDir, {rsync, Url}) ->
+    download_source(AppDir, {rsync, Url, {retries, ?DEFAULT_RETRIES}});
+download_source(AppDir, {rsync, Url, {retries, Retries}}) ->
     ok = filelib:ensure_dir(AppDir),
-    rebar_utils:sh(?FMT("rsync -az --delete ~s/ ~s", [Url, AppDir]), []).
+    rebar_utils:sh(?FMT("rsync -az --delete ~s/ ~s", [Url, AppDir]),
+                   [{retry_on_error, retry_handler(AppDir, Retries)}]).
+
+retry_handler(AppDir, Threshold) ->
+    fun(_Command, _Error, Retries) ->
+            if
+                Retries >= Threshold ->
+                    false;
+                true ->
+                    Wait = 250 * Retries,
+                    timer:sleep(Wait),
+                    rebar_file_utils:rm_rf(AppDir),
+                    true
+            end end.
 
 update_source(Config, Dep) ->
     %% It's possible when updating a source, that a given dep does not have a
