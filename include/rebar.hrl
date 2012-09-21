@@ -12,3 +12,5 @@
 -define(ERROR(Str, Args), rebar_log:log(error, Str, Args)).
 
 -define(FMT(Str, Args), lists:flatten(io_lib:format(Str, Args))).
+
+-define(DEFAULT_RETRIES, 0).
