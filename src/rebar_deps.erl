@@ -417,22 +417,12 @@ download_source(AppDir, {rsync, Url}) ->
     rebar_utils:sh(?FMT("rsync -az --delete ~s/ ~s", [Url, AppDir]), []).
 
 cleanup_retry_clone(AppDir) ->
-    Cleanup = case os:type() of
-                  {win32,nt} ->
-                      "rd /q /s " ++ AppDir;
-                  _ ->
-                      "rm -rf " ++ AppDir
-              end,
-    fun(Command, {Rc, Output}, 4) ->
-            io:format("~s failed with error: ~w and output:~n~s~n",
-                      [Command, Rc, Output]),
+    fun(_Command, _Error, 4) ->
             false;
-       (Command, {Rc, Output}, Count) ->
+       (_Command, _Error, Count) ->
             Wait = 250 * Count,
-            io:format("~s failed with error: ~w and output:~n~s~nRetrying in ~wms~n",
-                      [Command, Rc, Output, Wait]),
             timer:sleep(Wait),
-            rebar_utils:sh(Cleanup, []),
+            rebar_file_utils:rm_rf(AppDir),
             true end.
 
 update_source(Config, Dep) ->
