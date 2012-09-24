@@ -417,9 +417,9 @@ download_source(AppDir, {fossil, Url}) ->
 download_source(AppDir, {fossil, Url, latest}) ->
     download_source(AppDir, {fossil, Url, ""});
 download_source(AppDir, {fossil, Url, Version}) ->
-	Repository = filename:join(AppDir, filename:basename(AppDir) ++ ".fossil"),
+    Repository = filename:join(AppDir, filename:basename(AppDir) ++ ".fossil"),
     ok = filelib:ensure_dir(Repository),
-	ok = file:set_cwd(AppDir),
+    ok = file:set_cwd(AppDir),
     rebar_utils:sh(?FMT("fossil clone ~s ~s", [Url, Repository]),
                    [{cd, AppDir}]),
     rebar_utils:sh(?FMT("fossil open ~s ~s --nested", [Repository, Version]),
@@ -472,7 +472,7 @@ update_source1(AppDir, {fossil, Url}) ->
 update_source1(AppDir, {fossil, Url, latest}) ->
     update_source1(AppDir, {fossil, Url, ""});
 update_source1(AppDir, {fossil, _Url, Version}) ->
-	ok = file:set_cwd(AppDir),
+    ok = file:set_cwd(AppDir),
     rebar_utils:sh("fossil pull", [{cd, AppDir}]),
     rebar_utils:sh(?FMT("fossil update ~s", [Version]), []).
 
