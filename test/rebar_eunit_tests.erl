@@ -254,6 +254,17 @@ cover_coverage_test_() ->
        %% needs to be decremented in this case.
        assert_full_coverage("myapp_mymod")}]}.
 
+xref_deprecated_test_() ->
+    {"Xref detects deprecated function calls",
+     setup,
+     fun () -> setup_deprecated_project(), rebar("compile xref") end,
+     fun teardown/1,
+     fun(RebarOutput) ->
+             {"rebar xref crashes if there are deprecated function calls and "
+              "deprecated_function_calls check is activated",
+              ?_assert(re_match(RebarOutput, "ERROR: xref failed"))}
+     end}.
+
 %% ====================================================================
 %% Environment and Setup Tests
 %% ====================================================================
@@ -336,6 +347,17 @@ basic_setup_test_() ->
          "-include_lib(\"eunit/include/eunit.hrl\").\n",
          "myfunc_test() -> ?assertMatch(ok, myapp_mymod:myfunc()).\n"]).
 
+-define(deprecated_module,
+        ["-module(deprecated_module).\n",
+         "-compile([export_all]).\n",
+         "-deprecated({deprecated_function, 0}).\n",
+         "deprecated_function() -> old_stuff.\n"]).
+
+-define(deprecated_caller,
+        ["-module(deprecated_caller).\n",
+         "-compile([export_all]).\n",
+         "bad_call() -> deprecated_module:deprecated_function().\n"]).
+
 make_tmp_dir() ->
     ok = file:make_dir(?TMP_DIR).
 
@@ -357,6 +379,13 @@ setup_project_with_multiple_modules() ->
     ok = file:write_file("test/myapp_mymod2_tests.erl", ?myapp_mymod2_tests),
     ok = file:write_file("src/myapp_mymod2.erl", ?myapp_mymod2),
     ok = file:write_file("src/myapp_mymod3.erl", ?myapp_mymod3).
+
+setup_deprecated_project() ->
+    setup_basic_project(),
+    ok = file:write_file("src/deprecated_module.erl", ?deprecated_module),
+    ok = file:write_file("src/deprecated_caller.erl", ?deprecated_caller),
+    ok = file:write_file("rebar.config",
+                         "{xref_checks, [deprecated_function_calls]}.\n").
 
 setup_cover_project() ->
     setup_basic_project(),
@@ -423,4 +452,10 @@ assert_full_coverage(Mod) ->
                            string:str(X, Mod) =/= 0,
                            string:str(X, "100%") =/= 0],
             ?assert(length(Result) =:= 1)
+    end.
+
+re_match(String, RE) ->
+    case re:run(String, RE) of
+        {match, _} -> true;
+        nomatch    -> false
     end.
