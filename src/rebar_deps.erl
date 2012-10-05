@@ -134,6 +134,23 @@ setup_env(_Config) ->
     end,
     LinkResult.
 
+%% Copy instead of symlink from SHARED_DEPS to DEPS dir
+'copy-shared-deps-to-deps'(DownloadDir, TargetDir) ->
+    {true, DepsDir} = get_deps_dir(),
+    ok = filelib:ensure_dir(DepsDir ++ "/"),
+    Result = rebar_file_utils:cp_r([DownloadDir], TargetDir),
+    ?DEBUG("Copied ~1000p to ~1000p\n", [DownloadDir, TargetDir]),
+    Result.
+
+
+setup_deps_dir(SharedTargetDir, TargetDir) ->
+    case rebar_config:get_global(copy_from_shared_deps_dir, undefined) of
+        true ->
+            'copy-shared-deps-to-deps'(SharedTargetDir, TargetDir);
+        _ ->    %undefined | false
+            'symlink-shared-deps-to-deps'(SharedTargetDir, TargetDir)
+    end.
+
 'check-deps'(Config, _) ->
     %% Get the list of immediate (i.e. non-transitive) deps that are missing
     Deps = rebar_config:get_local(Config, deps, []),
@@ -211,6 +228,7 @@ setup_env(_Config) ->
 set_global_deps_dir(Config, []) ->
     rebar_config:set_global(deps_dir,
                             rebar_config:get_local(Config, deps_dir, "deps")),
+
     EnvSharedDepsDir = case os:getenv("REBAR_SHARED_DEPS_DIR") of
                            false ->
                                 undefined;
@@ -218,8 +236,16 @@ set_global_deps_dir(Config, []) ->
                                 Dir
                        end,
     rebar_config:set_global(shared_deps_dir,
-                            rebar_config:get_local(Config, shared_deps_dir, EnvSharedDepsDir));
+        rebar_config:get_local(Config, shared_deps_dir, EnvSharedDepsDir)),
 
+    EnvCopyFromSharedDepsDir = case os:getenv("REBAR_COPY_FROM_SHARED_DEPS_DIR") of
+                           false ->
+                                false;
+                           _ ->
+                                true
+                       end,
+    rebar_config:set_global(copy_from_shared_deps_dir,
+        rebar_config:get_local(Config, copy_from_shared_deps_dir, EnvCopyFromSharedDepsDir));
 
 set_global_deps_dir(_Config, _DepsDir) ->
     ok.
@@ -467,7 +493,7 @@ retrieve_source_and_retry(Dep, Count, Force) ->
                     end
             end,
             rebar_file_utils:rm_rf(TargetDir),
-            'symlink-shared-deps-to-deps'(SharedTargetDir, TargetDir)
+            setup_deps_dir(SharedTargetDir, TargetDir)
     end,
 
     case rebar_app_utils:is_app_dir(Dep#dep.dir) of
