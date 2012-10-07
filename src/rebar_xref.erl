@@ -58,7 +58,8 @@ xref(Config, _) ->
     %% Get list of xref checks we want to run
     XrefChecks = rebar_config:get(Config, xref_checks,
                                   [exports_not_used,
-                                   undefined_function_calls]),
+                                   undefined_function_calls,
+                                   deprecated_function_calls]),
 
     %% Look for exports that are unused by anything
     ExportsNoWarn =
@@ -78,6 +79,15 @@ xref(Config, _) ->
                 true
         end,
 
+    %% Look for calls to deprecated functions
+    DeprecatedNoWarn =
+        case lists:member(deprecated_function_calls, XrefChecks) of
+            true ->
+                check_deprecated_function_calls();
+            false ->
+                true
+        end,
+
     %% Run custom queries
     QueryChecks = rebar_config:get(Config, xref_queries, []),
     QueryNoWarn = lists:all(fun check_query/1, QueryChecks),
@@ -88,10 +98,11 @@ xref(Config, _) ->
     %% Stop xref
     stopped = xref:stop(xref),
 
-    case lists:member(false, [ExportsNoWarn, UndefNoWarn, QueryNoWarn]) of
-        true ->
-            ?FAIL;
+    case ExportsNoWarn andalso UndefNoWarn andalso QueryNoWarn
+        andalso DeprecatedNoWarn of
         false ->
+            ?FAIL;
+        true ->
             ok
     end.
 
@@ -108,17 +119,29 @@ check_exports_not_used() ->
     UnusedExports =:= [].
 
 check_undefined_function_calls() ->
-    {ok, UndefinedCalls0} = xref:analyze(xref, undefined_function_calls),
-    UndefinedCalls =
+    check_calls(undefined_function_calls).
+
+check_deprecated_function_calls() ->
+    check_calls(deprecated_function_calls).
+
+check_calls(XrefCheck) ->
+    {ok, WrongCalls0} = xref:analyze(xref, XrefCheck),
+    WrongCalls =
         [{find_mfa_source(Caller), format_fa(Caller), format_mfa(Target)}
-         || {Caller, Target} <- UndefinedCalls0],
+         || {Caller, Target} <- WrongCalls0],
 
     lists:foreach(
       fun({{Source, Line}, FunStr, Target}) ->
-              ?CONSOLE("~s:~w: Warning ~s calls undefined function ~s\n",
-                       [Source, Line, FunStr, Target])
-      end, UndefinedCalls),
-    UndefinedCalls =:= [].
+              ?CONSOLE("~s:~w: Warning ~s calls ~s function ~s\n",
+                       [Source, Line, FunStr, check_to_string(XrefCheck),
+                        Target])
+      end, WrongCalls),
+    WrongCalls =:= [].
+
+check_to_string(undefined_function_calls) ->
+    "undefined";
+check_to_string(deprecated_function_calls) ->
+    "deprecated".
 
 check_query({Query, Value}) ->
     {ok, Answer} = xref:q(xref, Query),

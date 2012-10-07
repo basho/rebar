@@ -174,8 +174,10 @@
 
 {xref_warnings, false}.
 
-%% xref checks to run
-{xref_checks, [exports_not_used, undefined_function_calls]}.
+%% xref checks to run (adding to this list doesn't have effect, but you can
+%% remove checks)
+{xref_checks, [exports_not_used, undefined_function_calls,
+               deprecated_function_calls]}.
 
 %% Optional custom xref queries (xref manual has details) specified as
 %%     {xref_queries, [{query_string(), expected_query_result()},...]}
