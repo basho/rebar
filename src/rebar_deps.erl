@@ -239,10 +239,9 @@ set_global_deps_dir(Config, []) ->
         rebar_config:get_local(Config, shared_deps_dir, EnvSharedDepsDir)),
 
     EnvCopyFromSharedDepsDir = case os:getenv("REBAR_COPY_FROM_SHARED_DEPS_DIR") of
-                           false ->
-                                false;
-                           _ ->
-                                true
+                           "1" -> true;
+                           "true" -> true;
+                           _ -> false
                        end,
     rebar_config:set_global(copy_from_shared_deps_dir,
         rebar_config:get_local(Config, copy_from_shared_deps_dir, EnvCopyFromSharedDepsDir));
