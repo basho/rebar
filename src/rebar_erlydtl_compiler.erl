@@ -131,16 +131,33 @@ compile(Config, _AppFile) ->
 erlydtl_opts(Config) ->
     Opts = rebar_config:get(Config, erlydtl_opts, []),
     Tuples = [{K,V} || {K,V} <- Opts],
+    Defaults = lists:keysort(1,
+        [{Opt, default(Opt)}
+            || Opt <- [doc_root,out_dir,source_ext,module_ext,compiler_options]]),
+
     case [L || L <- Opts, is_list(L), not io_lib:printable_list(L)] of
         [] ->
-            [Tuples];
+            [populate_defaults(Tuples, Defaults)];
         Lists ->
             lists:map(fun(L) ->
-                lists:foldl(fun({K,T}, Acc) ->
-                    lists:keystore(K, 1, Acc, {K, T})
-                end, Tuples, L)
+                populate_defaults(
+                    lists:foldl(fun({K,T}, Acc) ->
+                        lists:keystore(K, 1, Acc, {K, T})
+                    end, Tuples, L), Defaults)
             end, Lists)
     end.
+
+populate_defaults(Opts, Defaults) ->
+    Opts1 = lists:map(fun
+        (T) when is_tuple(T) -> T;
+        (A) when is_atom(A)  -> {A, true}
+    end, Opts),
+    lists:foldl(fun({K,V}, Acc) ->
+        case lists:keymember(K, 1, Acc) of
+            true  -> Acc;
+            false -> [{K,V} | Acc]
+        end
+    end, Opts1, Defaults).
 
 option(Opt, DtlOpts) ->
     proplists:get_value(Opt, DtlOpts, default(Opt)).
@@ -149,6 +166,7 @@ default(doc_root) -> "templates";
 default(out_dir)  -> "ebin";
 default(source_ext) -> ".dtl";
 default(module_ext) -> "_dtl";
+default(compiler_options) -> [report, return];
 default(custom_tags_dir) -> "";
 default(recursive) -> true.
 
@@ -171,28 +189,25 @@ compile_dtl(Source, Target, DtlOpts) ->
             end
     end.
 
-do_compile(Source, Target, DtlOpts) ->
+do_compile(Source, Target, Opts) ->
     %% TODO: Check last mod on target and referenced DTLs here..
 
-    %% ensure that doc_root and out_dir are defined,
-    %% using defaults if necessary
-    Opts = [{out_dir, option(out_dir, DtlOpts)},
-            {doc_root, option(doc_root, DtlOpts)},
-            {custom_tags_dir, option(custom_tags_dir, DtlOpts)},
-            report, return],
-    ?INFO("Compiling \"~s\" -> \"~s\" with options:~n    ~s~n",
-        [Source, Target, io_lib:format("~p", [Opts])]),
-    case erlydtl:compile(Source,
-                         module_name(Target),
-                         Opts++DtlOpts) of
+    ModuleName = module_name(Target),
+    ?DEBUG("Compiling \"~s\" -> \"~s\":~n  ~s~n",
+        [Source, Target,
+         io_lib:format("erlydtl:compile(~p, ~p, ~s)",
+             [Source, ModuleName, io_lib:format("~p", [Opts])])]),
+    try erlydtl:compile(Source, ModuleName, Opts) of
         ok -> ok;
         {error, {File, [{Pos, _Mod, Err}]}} ->
             ?ERROR("Compiling template ~p failed:~n    (~s): ~p~n",
                 [File, err_location(Pos), Err]);
         Reason ->
-            ?ERROR("Compiling template ~s failed:~n  ~p~n",
-                   [Source, Reason]),
-            ?FAIL
+            throw(Reason)
+    catch _:Err ->
+        ?ERROR("Compiling template ~s failed:~n  ~p~n    ~p~n",
+               [Source, Err, erlang:get_stacktrace()]),
+        ?FAIL
     end.
 
 err_location({L,C}) -> io_lib:format("line:~w, col:~w", [L, C]);
@@ -234,7 +249,7 @@ referenced_dtls1(Step, DtlOpts, Seen) ->
            end || F <- Step]),
     DocRoot = option(doc_root, DtlOpts),
     WithPaths = [ filename:join([DocRoot, F]) || F <- AllRefs ],
-    ?DEBUG("All deps: ~p\n", [WithPaths]),
+    ?DEBUG("Found deps: ~p\n", [WithPaths]),
     Existing = [F || F <- WithPaths, filelib:is_regular(F)],
     New = sets:subtract(sets:from_list(Existing), Seen),
     case sets:size(New) of
