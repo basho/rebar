@@ -180,16 +180,16 @@
                exports_not_used]}.
 
 %% Which applications should be considered as library
-%% code_path = everything in the rebars code path
+%% code_path = everything in the rebar code path
 %% app_file = rebar deps and from .app file.
 {xref_lib_path, app_file}.
 
 %% Applications that should be in the analysis but are not
 %% in the analysed applications .app file.
 %% (used when xref_lib_path = app_file.
-{xref_extra_application, [tools]}.
+{xref_extra_applications, [tools]}.
 
-%% All warnings includingin these modules will be ignored.
+%% All warnings including these modules will be ignored.
 {xref_ignore_modules, [rebar_config]}.
 
 
