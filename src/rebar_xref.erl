@@ -77,6 +77,18 @@ app_config(AppFileName) ->
     AppConfig.
 
 setup(Config, AppConfig) ->
+    case rebar_config:get_local(Config, xref_lib_path, code_path) of
+        code_path ->
+            ok = xref:set_library_path(xref, code_path());
+        app_file ->
+            setup_from_app_file(Config, AppConfig)
+    end.
+
+code_path() ->
+    [P || P <- code:get_path(),
+          filelib:is_dir(P)] ++ [filename:join(rebar_utils:get_cwd(), "ebin")].
+
+setup_from_app_file(Config, AppConfig) ->
     xref:set_default(xref, [{warnings,
                              rebar_config:get(Config, xref_warnings, false)},
                             {verbose, rebar_config:is_verbose(Config)}]),
