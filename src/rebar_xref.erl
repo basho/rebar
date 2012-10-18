@@ -41,25 +41,15 @@
 %% ===================================================================
 
 xref(Config, AppFileName) ->
-    {ok, [{application, _, AppFile}]} = file:consult(AppFileName),
+    AppConfig = app_config(AppFileName),
     OrigPath = code:get_path(),
 
     %% Spin up xref
     {ok, _} = xref:start(xref),
 
-    xref:set_default(xref, [{warnings,
-                             rebar_config:get(Config, xref_warnings, false)},
-                            {verbose, rebar_config:is_verbose(Config)}]),
+    setup(Config, AppConfig),
 
-    setup(Config, AppFile),
-
-    %% Get list of xref checks we want to run
-    XrefChecks = rebar_config:get(Config, xref_checks,
-                                  [exports_not_used,
-                                   deprecated_function_calls,
-                                   undefined_function_calls]),
-
-    AnalyseOk = analyse(Config, XrefChecks),
+    AnalyseOk = analyse(Config),
 
     %% Run custom queries
     QueryChecks = rebar_config:get(Config, xref_queries, []),
@@ -82,13 +72,20 @@ xref(Config, AppFileName) ->
 %% Internal functions
 %% ===================================================================
 
-setup(Config, AppFile) ->
-    Deps = add_deps(Config),
-    OptsDeps = add_otp_deps(Config, AppFile),
+app_config(AppFileName) ->
+    {ok, [{application, _, AppConfig}]} = file:consult(AppFileName),
+    AppConfig.
+
+setup(Config, AppConfig) ->
+    xref:set_default(xref, [{warnings,
+                             rebar_config:get(Config, xref_warnings, false)},
+                            {verbose, rebar_config:is_verbose(Config)}]),
+    Deps = add_rebar_deps(Config),
+    OptsDeps = add_application_deps(Config, AppConfig),
     set_lib_path(Deps ++ OptsDeps),
     xref:add_directory(xref, rebar_utils:ebin_dir()).
 
-add_deps(Config) ->
+add_rebar_deps(Config) ->
     Deps = rebar_config:get_local(Config, deps, []),
     DepsNames = lists:map(fun(T) when is_tuple(T) -> element(1, T);
                              (A) when is_atom(A) -> A
@@ -101,18 +98,24 @@ add_deps(Config) ->
         Dep <- DepsNames],
     DepsNames.
 
-add_otp_deps(Config, AppFile) ->
+add_application_deps(Config, AppConfig) ->
     %% fixme take from release files if exists.
     rebar_config:get_local(Config, xref_extra_otp_deps, []) ++
-        proplists:get_value(applications, AppFile, []).
+        proplists:get_value(applications, AppConfig, []).
 
 set_lib_path(Libs) ->
     ok = xref:set_library_path(xref, [code:lib_dir(Dep, ebin) || Dep <- Libs]).
 
 
-analyse(Config, Analysis) ->
-    lists:filter(fun(Analyse) -> do_analyse(Config, Analyse) end,
-                 Analysis).
+analyse(Config) ->
+    %% Get list of xref checks we want to run
+    XrefChecks = rebar_config:get(Config, xref_checks,
+                                  [exports_not_used,
+                                   deprecated_function_calls,
+                                   undefined_function_calls]),
+    Res = lists:filter(fun(Analyse) -> do_analyse(Config, Analyse) end,
+                       XrefChecks),
+    Res == [].
 
 do_analyse(Config, Analyse) ->
     ?DEBUG("Running xref ~p~n", [Analyse]),
@@ -225,5 +228,5 @@ do_find_mfa_source(Code, F, A) ->
         %% do not crash if functions are exported, even though they
         %% are not in the source.
         %% parameterized modules add new/1 and instance/1 for example.
-        [] -> {Source, function_not_found}
+        [] -> {Source, 0}
     end.
