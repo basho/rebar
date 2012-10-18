@@ -100,7 +100,7 @@ add_rebar_deps(Config) ->
 
 add_application_deps(Config, AppConfig) ->
     %% fixme take from release files if exists.
-    rebar_config:get_local(Config, xref_extra_otp_deps, []) ++
+    rebar_config:get_local(Config, xref_extra_applications, []) ++
         proplists:get_value(applications, AppConfig, []).
 
 set_lib_path(Libs) ->

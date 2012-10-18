@@ -177,6 +177,15 @@
 %% xref checks to run
 {xref_checks, [exports_not_used, undefined_function_calls]}.
 
+%% Application not in analysed application .app file that should be in
+%% the analysis.
+{xref_extra_application, [tools]}.
+
+%% All warnings includingin these modules will be ignored.
+{xref_ignore_modules, [rebar_config]}.
+
+
+
 %% Optional custom xref queries (xref manual has details) specified as
 %%     {xref_queries, [{query_string(), expected_query_result()},...]}
 %% The following for example removes all references to ejabberd:*_msg/4
