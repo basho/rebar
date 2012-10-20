@@ -40,43 +40,16 @@
 %% Public API
 %% ===================================================================
 
-xref(Config, _) ->
+xref(Config, AppFileName) ->
+    AppConfig = app_config(AppFileName),
+    OrigPath = code:get_path(),
+
     %% Spin up xref
     {ok, _} = xref:start(xref),
-    ok = xref:set_library_path(xref, code_path()),
 
-    xref:set_default(xref, [{warnings,
-                             rebar_config:get(Config, xref_warnings, false)},
-                            {verbose, rebar_config:is_verbose(Config)}]),
+    setup(Config, AppConfig),
 
-    {ok, _} = xref:add_directory(xref, "ebin"),
-
-    %% Save the code path prior to doing anything
-    OrigPath = code:get_path(),
-    true = code:add_path(rebar_utils:ebin_dir()),
-
-    %% Get list of xref checks we want to run
-    XrefChecks = rebar_config:get(Config, xref_checks,
-                                  [exports_not_used,
-                                   undefined_function_calls]),
-
-    %% Look for exports that are unused by anything
-    ExportsNoWarn =
-        case lists:member(exports_not_used, XrefChecks) of
-            true ->
-                check_exports_not_used();
-            false ->
-                true
-        end,
-
-    %% Look for calls to undefined functions
-    UndefNoWarn =
-        case lists:member(undefined_function_calls, XrefChecks) of
-            true ->
-                check_undefined_function_calls();
-            false ->
-                true
-        end,
+    AnalyseOk = analyse(Config),
 
     %% Run custom queries
     QueryChecks = rebar_config:get(Config, xref_queries, []),
@@ -88,7 +61,7 @@ xref(Config, _) ->
     %% Stop xref
     stopped = xref:stop(xref),
 
-    case lists:member(false, [ExportsNoWarn, UndefNoWarn, QueryNoWarn]) of
+    case lists:member(false, [AnalyseOk, QueryNoWarn]) of
         true ->
             ?FAIL;
         false ->
@@ -99,26 +72,95 @@ xref(Config, _) ->
 %% Internal functions
 %% ===================================================================
 
-check_exports_not_used() ->
-    {ok, UnusedExports0} = xref:analyze(xref, exports_not_used),
-    UnusedExports = filter_away_ignored(UnusedExports0),
+app_config(AppFileName) ->
+    {ok, [{application, _, AppConfig}]} = file:consult(AppFileName),
+    AppConfig.
 
-    %% Report all the unused functions
-    display_mfas(UnusedExports, "is unused export (Xref)"),
-    UnusedExports =:= [].
+setup(Config, AppConfig) ->
+    case rebar_config:get_local(Config, xref_lib_path, code_path) of
+        code_path ->
+            ok = xref:set_library_path(xref, code_path());
+        app_file ->
+            setup_from_app_file(Config, AppConfig)
+    end.
 
-check_undefined_function_calls() ->
-    {ok, UndefinedCalls0} = xref:analyze(xref, undefined_function_calls),
-    UndefinedCalls =
-        [{find_mfa_source(Caller), format_fa(Caller), format_mfa(Target)}
-         || {Caller, Target} <- UndefinedCalls0],
+code_path() ->
+    [P || P <- code:get_path(),
+          filelib:is_dir(P)] ++ [filename:join(rebar_utils:get_cwd(), "ebin")].
 
-    lists:foreach(
-      fun({{Source, Line}, FunStr, Target}) ->
-              ?CONSOLE("~s:~w: Warning ~s calls undefined function ~s\n",
-                       [Source, Line, FunStr, Target])
-      end, UndefinedCalls),
-    UndefinedCalls =:= [].
+setup_from_app_file(Config, AppConfig) ->
+    xref:set_default(xref, [{warnings,
+                             rebar_config:get(Config, xref_warnings, false)},
+                            {verbose, rebar_config:is_verbose(Config)}]),
+    Deps = add_rebar_deps(Config),
+    OptsDeps = add_application_deps(Config, AppConfig),
+    set_lib_path(Deps ++ OptsDeps),
+    xref:add_directory(xref, rebar_utils:ebin_dir()).
+
+add_rebar_deps(Config) ->
+    Deps = rebar_config:get_local(Config, deps, []),
+    DepsNames = lists:map(fun(T) when is_tuple(T) -> element(1, T);
+                             (A) when is_atom(A) -> A
+                          end,
+                          Deps),
+    ?DEBUG("Adding deps ~p~n", [DepsNames]),
+    CWD = rebar_utils:get_cwd(),
+    DepsDir = rebar_config:get_local(Config, deps_dir, "deps"),
+    [code:add_path(filename:join([CWD, DepsDir, Dep, "ebin"])) ||
+        Dep <- DepsNames],
+    DepsNames.
+
+add_application_deps(Config, AppConfig) ->
+    %% fixme take from release files if exists.
+    rebar_config:get_local(Config, xref_extra_applications, []) ++
+        proplists:get_value(applications, AppConfig, []).
+
+set_lib_path(Libs) ->
+    ok = xref:set_library_path(xref, [code:lib_dir(Dep, ebin) || Dep <- Libs]).
+
+
+analyse(Config) ->
+    %% Get list of xref checks we want to run
+    XrefChecks = rebar_config:get(Config, xref_checks,
+                                  [exports_not_used,
+                                   deprecated_function_calls,
+                                   undefined_function_calls]),
+    Res = lists:filter(fun(Analyse) -> do_analyse(Config, Analyse) end,
+                       XrefChecks),
+    Res == [].
+
+do_analyse(Config, Analyse) ->
+    ?DEBUG("Running xref ~p~n", [Analyse]),
+    {ok, Result0} = xref:analyse(xref, Analyse),
+    Result1 = [Res || Res <- Result0,
+                      filter_ignore_modules(Config, Res)],
+    Result = filter_away_ignored(Analyse, Result1),
+    ?DEBUG("~p result ~p~n", [Analyse, Result]),
+    out_if_res(Analyse, Result).
+
+filter_ignore_modules(Config, {MFA1, MFA2}) ->
+    filter_ignore_modules(Config, MFA1) andalso
+        filter_ignore_modules(Config, MFA2);
+filter_ignore_modules(Config, {M, _F, _A}) ->
+    not lists:member(M, ignore_modules(Config)).
+
+ignore_modules(Config) ->
+    rebar_config:get_local(Config, xref_ignore_modules, []) ++
+        [erlang, init].
+
+out_if_res(_Analyse, []) -> false;
+out_if_res(Analyse, Result) ->
+    ?CONSOLE("Errors in ~p:~n~s", [Analyse, pp_result(Result)]),
+    true.
+
+pp_result(List) when is_list(List) -> [[pp_result(Item), "\n"] || Item <- List];
+pp_result({MFA1, MFA2}) -> [pp_mfa(MFA1), " -> ", pp_mfa(MFA2)];
+pp_result(MFA) -> pp_mfa(MFA).
+
+pp_mfa({M, F, A} = MFA) ->
+    {Source, Line} = find_mfa_source(MFA),
+    [atom_to_list(M),":", atom_to_list(F),"/", integer_to_list(A),
+     " (", Source, ":", integer_to_list(Line), ")"].
 
 check_query({Query, Value}) ->
     {ok, Answer} = xref:q(xref, Query),
@@ -131,14 +173,10 @@ check_query({Query, Value}) ->
             true
     end.
 
-code_path() ->
-    [P || P <- code:get_path(),
-          filelib:is_dir(P)] ++ [filename:join(rebar_utils:get_cwd(), "ebin")].
-
 %%
 %% Ignore behaviour functions, and explicitly marked functions
 %%
-filter_away_ignored(UnusedExports) ->
+filter_away_ignored(exports_not_used, UnusedExports) ->
     %% Functions can be ignored by using
     %% -ignore_xref([{F, A}, ...]).
 
@@ -155,24 +193,12 @@ filter_away_ignored(UnusedExports) ->
     AttrIgnore =
         lists:flatten(
           lists:map(F, lists:usort([M || {M, _, _} <- UnusedExports]))),
-    [X || X <- UnusedExports, not lists:member(X, AttrIgnore)].
+    [X || X <- UnusedExports, not lists:member(X, AttrIgnore)];
+filter_away_ignored(_, UnusedExports) -> UnusedExports.
+
 
 keyall(Key, List) ->
     lists:flatmap(fun({K, L}) when Key =:= K -> L; (_) -> [] end, List).
-
-display_mfas([], _Message) ->
-    ok;
-display_mfas([{_Mod, Fun, Args} = MFA | Rest], Message) ->
-    {Source, Line} = find_mfa_source(MFA),
-    ?CONSOLE("~s:~w: Warning: function ~s/~w ~s\n",
-             [Source, Line, Fun, Args, Message]),
-    display_mfas(Rest, Message).
-
-format_mfa({M, F, A}) ->
-    ?FMT("~s:~s/~w", [M, F, A]).
-
-format_fa({_M, F, A}) ->
-    ?FMT("~s/~w", [F, A]).
 
 %%
 %% Extract an element from a tuple, or undefined if N > tuple size
@@ -192,9 +218,16 @@ safe_element(N, Tuple) ->
 %% being too paranoid here.
 %%
 find_mfa_source({M, F, A}) ->
-    {M, Bin, _} = code:get_object_code(M),
-    AbstractCode = beam_lib:chunks(Bin, [abstract_code]),
-    {ok, {M, [{abstract_code, {raw_abstract_v1, Code}}]}} = AbstractCode,
+    try
+        {M, Bin, _} = code:get_object_code(M),
+        AbstractCode = beam_lib:chunks(Bin, [abstract_code]),
+        {ok, {M, [{abstract_code, {raw_abstract_v1, Code}}]}} = AbstractCode,
+        do_find_mfa_source(Code, F, A)
+    catch _:_ ->
+            {"?", 0}
+    end.
+
+do_find_mfa_source(Code, F, A) ->
     %% Extract the original source filename from the abstract code
     [{attribute, 1, file, {Source, _}} | _] = Code,
     %% Extract the line number for a given function def
@@ -207,5 +240,5 @@ find_mfa_source({M, F, A}) ->
         %% do not crash if functions are exported, even though they
         %% are not in the source.
         %% parameterized modules add new/1 and instance/1 for example.
-        [] -> {Source, function_not_found}
+        [] -> {Source, 0}
     end.
