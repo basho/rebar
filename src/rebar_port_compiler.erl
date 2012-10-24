@@ -228,13 +228,13 @@ needs_compile(Source, Bin) ->
     %% check for include changes
     filelib:last_modified(Bin) < filelib:last_modified(Source).
 
-needs_link(SoName, []) ->
-    filelib:last_modified(SoName) == 0;
-needs_link(SoName, NewBins) ->
+needs_link(Target, []) ->
+    filelib:last_modified(Target) == 0;
+needs_link(Target, NewBins) ->
     MaxLastMod = lists:max([filelib:last_modified(B) || B <- NewBins]),
-    case filelib:last_modified(SoName) of
+    case filelib:last_modified(Target) of
         0 ->
-            ?DEBUG("Last mod is 0 on ~s\n", [SoName]),
+            ?DEBUG("Last mod is 0 on ~s\n", [Target]),
             true;
         Other ->
             ?DEBUG("Checking ~p >= ~p\n", [MaxLastMod, Other]),
