@@ -96,7 +96,7 @@ compile(Config0, AppFile) ->
     {Config, AppName} = rebar_app_utils:app_name(Config0, AppFile),
     case get_specs(Config, AppName) of
         [] ->
-            {ok, Config};
+            ok;
         Specs ->
             SharedEnv = rebar_config:get_env(Config, ?MODULE),
 
@@ -125,12 +125,11 @@ compile(Config0, AppFile) ->
                                                    Target),
                               rebar_utils:sh(Cmd, [{env, Env}]);
                           false ->
-                              ?INFO("Skipping relink of ~s\n", [Target]),
-                              ok
+                              ?INFO("Skipping relink of ~s\n", [Target])
                       end
-              end, Specs),
-            {ok, Config}
-    end.
+              end, Specs)
+    end,
+    {ok, Config}.
 
 clean(Config0, AppFile) ->
     {Config, AppName} = rebar_app_utils:app_name(Config0, AppFile),
