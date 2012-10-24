@@ -92,10 +92,11 @@
                objects = [] :: [file:filename(), ...],
                opts = [] ::list() | []}).
 
-compile(Config, _AppFile) ->
-    case get_specs(Config) of
+compile(Config0, AppFile) ->
+    {Config, AppName} = rebar_app_utils:app_name(Config0, AppFile),
+    case get_specs(Config, AppName) of
         [] ->
-            ok;
+            {ok, Config};
         Specs ->
             SharedEnv = rebar_config:get_env(Config, ?MODULE),
 
@@ -127,11 +128,13 @@ compile(Config, _AppFile) ->
                               ?INFO("Skipping relink of ~s\n", [Target]),
                               ok
                       end
-              end, Specs)
+              end, Specs),
+            {ok, Config}
     end.
 
-clean(Config, _AppFile) ->
-    case get_specs(Config) of
+clean(Config0, AppFile) ->
+    {Config, AppName} = rebar_app_utils:app_name(Config0, AppFile),
+    case get_specs(Config, AppName) of
         [] ->
             ok;
         Specs ->
@@ -140,7 +143,7 @@ clean(Config, _AppFile) ->
                                   rebar_file_utils:delete_each(Objects)
                           end, Specs)
     end,
-    ok.
+    {ok, Config}.
 
 setup_env(Config) ->
     setup_env(Config, []).
@@ -242,11 +245,57 @@ needs_link(SoName, NewBins) ->
 %% == port_specs ==
 %%
 
-get_specs(Config) ->
-    PortSpecs = rebar_config:get_local(Config, port_specs, []),
+get_specs(Config, AppName) ->
+    PortSpecs = get_specs1(Config, AppName),
     Filtered = filter_port_specs(PortSpecs),
     OsType = os:type(),
     [get_port_spec(Config, OsType, Spec) || Spec <- Filtered].
+
+get_specs1(Config, AppName) ->
+    case rebar_config:get_local(Config, port_specs, []) of
+        [] ->
+            %% No port_specs found. See if we have C sources.
+            SrcDir = "c_src",
+            case rebar_utils:find_files(SrcDir, ".*\\.c$", false) of
+                [] ->
+                    [];
+                _ ->
+                    %% Found C sources. If a conventional project is
+                    %% found, build the right target with all sources
+                    %% as input.
+                    spec_by_convention(SrcDir, AppName)
+            end;
+        Specs ->
+            Specs
+    end.
+
+spec_by_convention(SrcDir, AppName) ->
+    TargetDir = "priv",
+    Sources = [filename:join(SrcDir, "*.c")],
+    DrvSrc = rebar_utils:find_files(SrcDir, ".*_drv\\.c$", false),
+    NifSrc = rebar_utils:find_files(SrcDir, ".*_nif\\.c$", false),
+    case {DrvSrc, NifSrc} of
+        {[_DrvC], []} ->
+            %% Single c_src/*_drv.c. Build priv/AppName_drv.so.
+            auto_port_spec(AppName, "_drv.so", TargetDir, Sources);
+        {[], [_NifC]} ->
+            %% Single c_src/*_nif.c. Build priv/AppName_nif.so.
+            auto_port_spec(AppName, "_nif.so", TargetDir, Sources);
+        {[], []} ->
+            %% Neither c_src/*_drv.c nor c_src/*_nif.c found. Build
+            %% single executable from c_src/*.c.
+            auto_port_spec(AppName, "", TargetDir, Sources);
+        {DrvSrc, NifSrc} when length(DrvSrc) > 0
+                              andalso length(NifSrc) > 0 ->
+            ?INFO("Found c_src/*_drv.c and c_src/*_nif.c."
+                  " port_specs required.~n", []),
+            []
+    end.
+
+auto_port_spec(AppName, Suffix, TargetDir, Sources) ->
+    TargetName = ?FMT("~s~s", [AppName, Suffix]),
+    Target = filename:join(TargetDir, TargetName),
+    [{Target, Sources}].
 
 filter_port_specs(Specs) ->
     [S || S <- Specs, filter_port_spec(S)].
