@@ -510,19 +510,19 @@ default_env() ->
       "-bundle -flat_namespace -undefined suppress $ERL_LDFLAGS"},
 
      %% Solaris specific flags
-     {"solaris.*-64$", "CFLAGS", "-D_REENTRANT -m64 $CFLAGS"},
-     {"solaris.*-64$", "CXXFLAGS", "-D_REENTRANT -m64 $CXXFLAGS"},
-     {"solaris.*-64$", "LDFLAGS", "-m64 $LDFLAGS"},
+     {"solaris.*-64-", "CFLAGS", "-D_REENTRANT -m64 $CFLAGS"},
+     {"solaris.*-64-", "CXXFLAGS", "-D_REENTRANT -m64 $CXXFLAGS"},
+     {"solaris.*-64-", "LDFLAGS", "-m64 $LDFLAGS"},
 
      %% OS X Leopard flags for 64-bit
-     {"darwin9.*-64$", "CFLAGS", "-m64 $CFLAGS"},
-     {"darwin9.*-64$", "CXXFLAGS", "-m64 $CXXFLAGS"},
-     {"darwin9.*-64$", "LDFLAGS", "-arch x86_64 $LDFLAGS"},
+     {"darwin9.*-64-", "CFLAGS", "-m64 $CFLAGS"},
+     {"darwin9.*-64-", "CXXFLAGS", "-m64 $CXXFLAGS"},
+     {"darwin9.*-64-", "LDFLAGS", "-arch x86_64 $LDFLAGS"},
 
      %% OS X Snow Leopard, Lion, and Mountain Lion flags for 32-bit
-     {"darwin1[0-2].*-32", "CFLAGS", "-m32 $CFLAGS"},
-     {"darwin1[0-2].*-32", "CXXFLAGS", "-m32 $CXXFLAGS"},
-     {"darwin1[0-2].*-32", "LDFLAGS", "-arch i386 $LDFLAGS"},
+     {"darwin1[0-2].*-32-", "CFLAGS", "-m32 $CFLAGS"},
+     {"darwin1[0-2].*-32-", "CXXFLAGS", "-m32 $CXXFLAGS"},
+     {"darwin1[0-2].*-32-", "LDFLAGS", "-arch i386 $LDFLAGS"},
 
      %% Windows specific flags
      %% add MS Visual C++ support to rebar on Windows
