@@ -105,14 +105,14 @@ compile(Config0, AppFile) ->
 
             %% Make sure that the target directories exist
             ?INFO("Using specs ~p\n", [Specs]),
-            lists:foreach(fun(#spec{target=Target}) ->
+            lists:foreach(fun(#spec{target = Target}) ->
                                   ok = filelib:ensure_dir(Target)
                           end, Specs),
 
             %% Only relink if necessary, given the Target
             %% and list of new binaries
             lists:foreach(
-              fun(#spec{target=Target, objects=Bins, opts=Opts}) ->
+              fun(#spec{target = Target, objects = Bins, opts = Opts}) ->
                       AllBins = [sets:from_list(Bins),
                                  sets:from_list(NewBins)],
                       Intersection = sets:intersection(AllBins),
@@ -181,7 +181,7 @@ replace_extension(File, OldExt, NewExt) ->
 
 compile_sources(Config, Specs, SharedEnv) ->
     lists:foldl(
-      fun(#spec{sources=Sources, type=Type, opts=Opts}, NewBins) ->
+      fun(#spec{sources = Sources, type = Type, opts = Opts}, NewBins) ->
               Env = proplists:get_value(env, Opts, SharedEnv),
               compile_each(Config, Sources, Type, Env, NewBins)
       end, [], Specs).
@@ -313,11 +313,11 @@ get_port_spec(Config, OsType, {Arch, Target, Sources}) ->
 get_port_spec(Config, OsType, {_Arch, Target, Sources, Opts}) ->
     SourceFiles = port_sources(Sources),
     ObjectFiles = port_objects(SourceFiles),
-    #spec{type=target_type(Target),
-          target=maybe_switch_extension(OsType, Target),
-          sources=SourceFiles,
-          objects=ObjectFiles,
-          opts=port_opts(Config, Opts)}.
+    #spec{type = target_type(Target),
+          target = maybe_switch_extension(OsType, Target),
+          sources = SourceFiles,
+          objects = ObjectFiles,
+          opts = port_opts(Config, Opts)}.
 
 port_sources(Sources) ->
     lists:flatmap(fun filelib:wildcard/1, Sources).
