@@ -399,7 +399,7 @@ expand_vars_loop([], Recurse, Vars, Count) ->
     expand_vars_loop(Recurse, [], Vars, Count-1);
 expand_vars_loop([{K, V} | Rest], Recurse, Vars, Count) ->
     %% Identify the variables that need expansion in this value
-    ReOpts = [global, {capture, all_but_first, list}],
+    ReOpts = [global, {capture, all_but_first, list}, unicode],
     case re:run(V, "\\\${?(\\w+)}?", ReOpts) of
         {match, Matches} ->
             %% Identify the unique variables that need to be expanded
