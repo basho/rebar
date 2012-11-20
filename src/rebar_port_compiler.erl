@@ -472,7 +472,7 @@ erts_dir() ->
     lists:concat([code:root_dir(), "/erts-", erlang:system_info(version)]).
 
 os_env() ->
-    Os = [list_to_tuple(re:split(S, "=", [{return, list}, {parts, 2}])) ||
+    Os = [list_to_tuple(re:split(S, "=", [{return, list}, {parts, 2}, unicode])) ||
              S <- os:getenv()],
     %% Drop variables without a name (win32)
     [T1 || {K, _V} = T1 <- Os, K =/= []].
