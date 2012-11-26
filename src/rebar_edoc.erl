@@ -90,7 +90,11 @@ setup_code_path() ->
     %% and the like can work properly when generating their own
     %% documentation.
     CodePath = code:get_path(),
-    true = code:add_patha(rebar_utils:ebin_dir()),
+
+    %% If we haven't yet compiled, we might not have an ebin dir.
+    EbinDir = rebar_utils:ebin_dir(),
+    ok = filelib:ensure_dir(filename:join(EbinDir, "dummy")),
+    true = code:add_patha(EbinDir),
     CodePath.
 
 -type path_spec() :: {'file', file:filename()} | file:filename().
