@@ -117,7 +117,7 @@ clean(_Config, _AppFile) ->
 test_compile(Config, Cmd, OutDir) ->
     %% Obtain all the test modules for inclusion in the compile stage.
     %% Notice: this could also be achieved with the following
-    %% rebar.config option: {test_compile_opts, [{src_dirs, ["test"]}]}
+    %% rebar.config option: {test_compile_opts, [{src_dirs, ["src", "test"]}]}
     TestErls = rebar_utils:find_files("test", ".*\\.erl\$"),
 
     %% Copy source files to eunit dir for cover in case they are not directly
@@ -265,11 +265,6 @@ doterl_compile(Config, OutDir, MoreSources) ->
     true = code:set_path(CurrPath),
     ok.
 
-
-%% ===================================================================
-%% Internal functions
-%% ===================================================================
-
 -spec include_path(file:filename(),
                    rebar_config:config()) -> [file:filename(), ...].
 include_path(Source, Config) ->
@@ -413,7 +408,6 @@ gather_src([], Srcs) ->
     Srcs;
 gather_src([Dir|Rest], Srcs) ->
     gather_src(Rest, Srcs ++ rebar_utils:find_files(Dir, ".*\\.erl\$")).
-
 
 -spec dirs(file:filename()) -> [file:filename()].
 dirs(Dir) ->
