@@ -113,8 +113,8 @@ compile(Config, _AppFile) ->
                                      option(source_ext, DtlOpts),
                                      option(out_dir, DtlOpts),
                                      option(module_ext, DtlOpts) ++ ".beam",
-                                     fun(S, T, _C) ->
-                                        compile_dtl(S, T, DtlOpts)
+                                     fun(S, T, C) ->
+                                        compile_dtl(C, S, T, DtlOpts)
                                      end,
                                      [{check_last_mod, false},
                                       {recursive, option(recursive, DtlOpts)}])
@@ -150,10 +150,10 @@ default(out_dir)  -> "ebin";
 default(source_ext) -> ".dtl";
 default(module_ext) -> "_dtl";
 default(custom_tags_dir) -> "";
-default(compiler_options) -> [report, return];
+default(compiler_options) -> [];
 default(recursive) -> true.
 
-compile_dtl(Source, Target, DtlOpts) ->
+compile_dtl(Config, Source, Target, DtlOpts) ->
     case code:which(erlydtl) of
         non_existing ->
             ?ERROR("~n===============================================~n"
@@ -166,13 +166,13 @@ compile_dtl(Source, Target, DtlOpts) ->
         _ ->
             case needs_compile(Source, Target, DtlOpts) of
                 true ->
-                    do_compile(Source, Target, DtlOpts);
+                    do_compile(Config, Source, Target, DtlOpts);
                 false ->
                     skipped
             end
     end.
 
-do_compile(Source, Target, DtlOpts) ->
+do_compile(Config, Source, Target, DtlOpts) ->
     %% TODO: Check last mod on target and referenced DTLs here..
 
     %% ensure that doc_root and out_dir are defined,
@@ -183,24 +183,23 @@ do_compile(Source, Target, DtlOpts) ->
                 [{out_dir, option(out_dir, DtlOpts)},
                  {doc_root, option(doc_root, DtlOpts)},
                  {custom_tags_dir, option(custom_tags_dir, DtlOpts)},
-                 {compiler_options, option(compiler_options, DtlOpts)}])),
+                 {compiler_options,
+                  option(compiler_options, DtlOpts) ++ [return]}])),
     ?INFO("Compiling \"~s\" -> \"~s\" with options:~n    ~s~n",
         [Source, Target, io_lib:format("~p", [Opts])]),
     case erlydtl:compile(Source,
                          module_name(Target),
                          Opts) of
-        ok -> ok;
-        {error, {File, [{Pos, _Mod, Err}]}} ->
-            ?ERROR("Compiling template ~p failed:~n    (~s): ~p~n",
-                [File, err_location(Pos), Err]);
-        Reason ->
-            ?ERROR("Compiling template ~s failed:~n  ~p~n",
-                   [Source, Reason]),
-            ?FAIL
+        {ok, _Mod, _Bin} ->
+            ok;
+        {ok, _Mod, _Bin, Ws} ->
+            rebar_base_compiler:ok_tuple(Config, Source, Ws);
+        {error, {_File, _Msgs} = Error} ->
+            rebar_base_compiler:error_tuple(Config, Source, [Error], [], Opts);
+        {error, Msg} ->
+            Es = [{Source, [{erlydtl_parser, Msg}]}],
+            rebar_base_compiler:error_tuple(Config, Source, Es, [], Opts)
     end.
-
-err_location({L,C}) -> io_lib:format("line:~w, col:~w", [L, C]);
-err_location(L)     -> io_lib:format("line:~w", [L]).
 
 module_name(Target) ->
     F = filename:basename(Target),
