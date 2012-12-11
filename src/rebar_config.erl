@@ -28,7 +28,7 @@
 
 -export([new/0, new/1, base_config/1, consult_file/1,
          get/3, get_local/3, get_list/3,
-         get_all/2,
+         get_all/2, get_dir/1,
          set/3,
          set_global/2, get_global/2,
          is_verbose/0, get_jobs/0,
@@ -103,6 +103,11 @@ get_local(Config, Key, Default) ->
 get_all(Config, Key) ->
     proplists:get_all_values(Key, Config#config.opts).
 
+get_dir(#config{dir=Dir}) ->
+    Dir;
+get_dir(_) ->
+    undefined. 
+    
 set(Config, Key, Value) ->
     Opts = proplists:delete(Key, Config#config.opts),
     Config#config { opts = [{Key, Value} | Opts] }.

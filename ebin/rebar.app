@@ -34,6 +34,7 @@
               rebar_templater,
               rebar_upgrade,
               rebar_utils,
+              rebar_version,
               rebar_xref,
               getopt,
               mustache ]},

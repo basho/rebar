@@ -38,6 +38,8 @@
          'delete-deps'/2,
          'list-deps'/2]).
 
+%% For testing
+-export([get_value/2, set_value/2, del_key/1]).
 
 -record(dep, { dir,
                app,
@@ -147,6 +149,9 @@ setup_env(_Config) ->
     end.
 
 'get-deps'(Config, _) ->
+    %% Make Config available
+    set_value(config, Config),
+    
     %% Determine what deps are available and missing
     Deps = rebar_config:get_local(Config, deps, []),
     {_AvailableDeps, MissingDeps} = find_deps(find, Deps),
@@ -157,6 +162,9 @@ setup_env(_Config) ->
     %% Add each pulled dep to our list of dirs for post-processing. This yields
     %% the necessary transitivity of the deps
     erlang:put(?MODULE, [D#dep.dir || D <- PulledDeps]),
+    
+    del_key(config),
+    
     ok.
 
 'update-deps'(Config, _) ->
@@ -331,24 +339,36 @@ require_source_engine(Source) ->
     true = source_engine_avail(Source),
     ok.
 
-is_app_available(App, VsnRegex, Path) ->
+is_app_available(App, VsnCheck, Path) ->
     ?DEBUG("is_app_available, looking for App ~p with Path ~p~n", [App, Path]),
     case rebar_app_utils:is_app_dir(Path) of
         {true, AppFile} ->
             case rebar_app_utils:app_name(AppFile) of
-                App ->
+                App ->    
                     Vsn = rebar_app_utils:app_vsn(AppFile),
-                    ?INFO("Looking for ~s-~s ; found ~s-~s at ~s\n",
-                          [App, VsnRegex, App, Vsn, Path]),
-                    case re:run(Vsn, VsnRegex, [{capture, none}]) of
-                        match ->
+                    ?INFO("Looking for ~s ~1000p ; found ~s-~s at ~s\n",
+                            [App, VsnCheck, App, Vsn, Path]),
+                    case rebar_version:check(Vsn, VsnCheck) of
+                        true ->
+                            memoize_dependency(App, VsnCheck),
                             {true, Path};
-                        nomatch ->
-                            ?WARN("~s has version ~p; requested regex was ~s\n",
-                                  [AppFile, Vsn, VsnRegex]),
-                            {false, {version_mismatch,
-                                     {AppFile,
-                                      {expected, VsnRegex}, {has, Vsn}}}}
+                        _ ->
+                            ?WARN("~s has version ~p; requested was ~1000p\n",
+                                [AppFile, Vsn, VsnCheck]),
+                            case can_resolve_dependency(App, VsnCheck) of
+                                true ->
+                                    %% We need to clear the cache of the app_vsn
+                                    %% Because in a next round we probably have
+                                    %% a new version available in the directory
+                                    rebar_app_utils:app_vsn_reset(AppFile),
+                                    {false, resolvable_version_mismatch};  
+                                {false, Reason} ->     
+                                    {false, {version_mismatch,
+                                             {AppFile,
+                                              {wanted, VsnCheck}, 
+                                               {has, Vsn}, 
+                                               Reason}}}
+                            end
                     end;
                 OtherApp ->
                     ?WARN("~s has application id ~p; expected ~p\n",
@@ -361,71 +381,113 @@ is_app_available(App, VsnRegex, Path) ->
                   "but no .app found.\n", [Path]),
             {false, {missing_app_file, Path}}
     end.
+          
 
 use_source(Dep) ->
-    use_source(Dep, 3).
+    use_source(Dep, 3, false).
 
-use_source(Dep, 0) ->
+use_source(Dep, 0, _) ->
     ?ABORT("Failed to acquire source from ~p after 3 tries.\n",
            [Dep#dep.source]);
-use_source(Dep, Count) ->
-    case filelib:is_dir(Dep#dep.dir) of
+use_source(Dep, Count, Force) ->
+    case Force of
         true ->
-            %% Already downloaded -- verify the versioning matches the regex
-            case is_app_available(Dep#dep.app,
-                                  Dep#dep.vsn_regex, Dep#dep.dir) of
-                {true, _} ->
-                    Dir = filename:join(Dep#dep.dir, "ebin"),
-                    ok = filelib:ensure_dir(filename:join(Dir, "dummy")),
-                    %% Available version matches up -- we're good to go;
-                    %% add the app dir to our code path
-                    true = code:add_patha(Dir),
-                    Dep;
-                {false, Reason} ->
-                    %% The app that was downloaded doesn't match up (or had
-                    %% errors or something). For the time being, abort.
-                    ?ABORT("Dependency dir ~s failed application validation "
-                           "with reason:~n~p.\n", [Dep#dep.dir, Reason])
-            end;
-        false ->
-            %% The shared deps dir might already exist, in that case we only
-            %% need to symlink. So construct the download dir and check if it
-            %% already exists.
-            {true, TargetDir} = get_deps_dir(Dep#dep.app),
-            {true, SharedTargetDir} = get_shared_deps_dir(Dep#dep.app),
-            {AppDir, UseVersionedDir} = case SharedTargetDir of
-                                undefined ->
-                                    {TargetDir, false};
-                                _ ->
-                                    {SharedTargetDir, true}
-                            end,  
-                        
-            Version = parse_version(Dep#dep.source),
-            DownloadDir = get_download_dir(AppDir, Version, UseVersionedDir),
-            
-            %% If the (possibly versioned) downloads dir already exists, just
-            %% skip downloading the source
-            case filelib:is_dir(DownloadDir) of
+            %% When forcing the retrieve, we need to make sure the directory
+            %% does not already exist
+            case filelib:is_dir(Dep#dep.dir) of
                 true ->
-                    ok;
+                    rebar_file_utils:rm_rf(Dep#dep.dir);
                 false ->
-                    ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
-                    require_source_engine(Dep#dep.source),
-                    download_source(DownloadDir, Dep#dep.source)
+                    ok
             end,
+            retrieve_source_and_retry(Dep, Count, Force);
+        _ ->
+            case filelib:is_dir(Dep#dep.dir) of
+                true ->
+                    %% Already downloaded -- verify the versioning matches the regex
+                    case is_app_available(Dep#dep.app,
+                                          Dep#dep.vsn_regex, Dep#dep.dir) of
+                        {false, resolvable_version_mismatch} ->
+                            ?WARN("Dependency dir ~s failed version-check, but able to resolve.\n", 
+                                   [Dep#dep.dir]),
+                            use_source(Dep, Count, true); 
+                        {true, _} ->
+                            Dir = filename:join(Dep#dep.dir, "ebin"),
+                            ok = filelib:ensure_dir(filename:join(Dir, "dummy")),
+                            %% Available version matches up -- we're good to go;
+                            %% add the app dir to our code path
+                            true = code:add_patha(Dir),
+                            Dep;
+                        {false, Reason} ->
+                            %% The app that was downloaded doesn't match up (or had
+                            %% errors or something). 
+                            ?WARN("Dependency dir ~s failed application validation "
+                                   "with reason:~n~p.Will retry by removing previous deps dir.\n", [Dep#dep.dir, Reason]),
+                            rebar_file_utils:rm_rf(Dep#dep.dir),
+                            use_source(Dep, Count-1, true)
+                    end;
+                false ->
+                    retrieve_source_and_retry(Dep, Count, Force)
+            end
+    end.
 
-            %% If we used the shared dir, we need to symlink from the shared
-            %% dir to the regular deps dir, so it becomes available in deps_dir
-            case SharedTargetDir of
-                undefined ->
-                    ok;
-                _ ->
-                    'symlink-shared-deps-to-deps'(DownloadDir, TargetDir)
+
+retrieve_source_and_retry(Dep, Count, Force) ->
+    %% The shared deps dir might already exist, in that case we only
+    %% need to symlink. So construct the download dir and check if it
+    %% already exists.
+    {true, TargetDir} = get_deps_dir(Dep#dep.app),
+    {true, SharedTargetDir} = get_shared_deps_dir(Dep#dep.app),
+    {AppDir, UseVersionedDir} = case SharedTargetDir of
+                        undefined ->
+                            {TargetDir, false};
+                        _ ->
+                            {SharedTargetDir, true}
+                    end,  
+                
+    Version = parse_version(Dep#dep.source),
+    DownloadDir = get_download_dir(AppDir, Version, UseVersionedDir),
+    
+    %% If the (possibly versioned) downloads dir already exists, just
+    %% skip downloading the source
+    DownloadDirExists = filelib:is_dir(DownloadDir),
+    
+    if 
+        Force orelse DownloadDirExists =:= false ->
+            if 
+                DownloadDirExists =:= true ->
+                    rebar_file_utils:rm_rf(DownloadDir);
+                true ->
+                    ok
             end,
             
-            %% Recurse so we check the downloaded versions
-            use_source(Dep#dep { dir = TargetDir }, Count-1)
-    end.
+            ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
+            require_source_engine(Dep#dep.source),
+            download_source(DownloadDir, Dep#dep.source);
+        
+        true ->
+            ok  
+    end,
+
+    %% If we used the shared dir, we need to symlink from the shared
+    %% dir to the regular deps dir, so it becomes available in deps_dir
+    case SharedTargetDir of
+        undefined ->
+            ok;
+        _ ->
+            rebar_file_utils:rm_rf(TargetDir),
+            'symlink-shared-deps-to-deps'(DownloadDir, TargetDir)
+	end,
+
+    case rebar_app_utils:is_app_dir(Dep#dep.dir) of
+        {true, AppFile} ->
+            rebar_app_utils:app_vsn_reset(AppFile);
+        _ ->
+            ?WARN("Failed to reload .app file for ~p.\n", [Dep#dep.app])
+    end,
+
+    use_source(Dep#dep { dir = TargetDir }, Count-1, false).
+
 
 
 %% Helper creates a versioned download
@@ -543,8 +605,50 @@ update_source(AppDir, {rsync, Url}) ->
     rebar_utils:sh(?FMT("rsync -az --delete ~s/ ~s",[Url,AppDir]),[]).
 
 
+%% Remember downloaded dependencies
+memoize_dependency(App, VsnCheck) ->
+    PreviousAppVersionRestrictions = get_value({dep,App}, []), 
+    Config = get_value(config, undefined),
+    Dir = rebar_config:get_dir(Config),
+    NewAppVersionRestrictions = [{Dir, VsnCheck}] ++ PreviousAppVersionRestrictions, 
+    set_value({dep,App}, NewAppVersionRestrictions).
 
+%% Check if we can resolve this new dependency
+can_resolve_dependency(App, VsnCheck) ->
+    AppDepConstraints = get_value({dep,App}, []), 
+    VsnConstraints = [ Constraint || {_, Constraint} <- AppDepConstraints],
+    Res = check_dependencies(VsnCheck, VsnConstraints, true),
+    case Res of
+        false ->
+            {false, {reason, {cannot_satisfy, AppDepConstraints}}};     
+        true ->
+            true
+    end.
 
+check_dependencies(_, _, false) ->
+    false;
+check_dependencies(_, [], Res) ->
+    Res;
+check_dependencies(Vsn, [H|T], _) ->
+    check_dependencies(Vsn, T, rebar_version:check(Vsn, H)).
+  
+%% Remember some values using rebar_config.
+%% TODO: there should be a generic KV storage system
+get_value(Key, Default) ->
+    Config = rebar_config:get_global(rebar_deps_config, []),
+    proplists:get_value(Key, Config, Default).
+
+set_value(Key, Value) ->
+    Config = rebar_config:get_global(rebar_deps_config, []),
+    TempConfig = proplists:delete(Key, Config),
+    NewConfig = [{Key, Value}] ++ TempConfig,
+    rebar_config:set_global(rebar_deps_config, NewConfig).
+
+del_key(Key) ->
+    Config = rebar_config:get_global(rebar_deps_config, []),
+    NewConfig = proplists:delete(Key, Config),
+    rebar_config:set_global(rebar_deps_config, NewConfig).
+    
 %% ===================================================================
 %% Source helper functions
 %% ===================================================================
