@@ -35,7 +35,7 @@
 
 %% For testing:
 -export([compare/2, check_constraints/2]).
-   
+
 -type version() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.       % {Major, Minor, Patch}
 -type comparator() :: string().                                                     % ">" | ">=" | "=" | "<=" | "<" .
 -type constraint() :: {comparator(), version()}.
@@ -77,7 +77,7 @@ check(Vsn, VsnRegex) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Check if all constraints are satisfied. 
+%% Check if all constraints are satisfied.
 -spec check_constraints(string(), [string()]) -> boolean().
 %% @end
 %%--------------------------------------------------------------------
@@ -85,19 +85,19 @@ check_constraints(Vsn, Constraints) ->
     ParsedVersion = parse_version(Vsn),
     ParsedConstraints = parse_constraints(Constraints),
     verify_constraints(ParsedVersion, ParsedConstraints, true).
- 
+
 verify_constraints(_, _, false) ->
     false;
 verify_constraints(_, [], Result) ->
     Result;
 verify_constraints(Vsn, [{Comparator, ConstraintVsn}|Tail], _) ->
     Comparison = compare(Vsn, ConstraintVsn),
-    Result = case Comparator of 
-                ">" -> Comparison > 0; 
+    Result = case Comparator of
+                ">" -> Comparison > 0;
                 ">=" -> Comparison >= 0;
                 "=" -> Comparison =:= 0;
                 "<=" -> Comparison =< 0;
-                "<" -> Comparison < 0     
+                "<" -> Comparison < 0
             end,
     verify_constraints(Vsn, Tail, Result).
 
@@ -148,36 +148,13 @@ parse_version(Vsn) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Compare two versions, 
+%% Compare two versions,
 %% returns:  0 if equal
 %%          -1 if left is smaller
 %%           1 if left is bigger
 -spec compare(version(), version()) -> -1 | 0 | 1.
 %% @end
 %%--------------------------------------------------------------------
-compare({MajorA,MinorA,PatchA}, {MajorB,MinorB,PatchB}) ->
-    if
-        MajorA =:= MajorB andalso MinorA =:= MinorB andalso PatchA =:= PatchB ->
-           0;
-        true->
-            if 
-                MajorA < MajorB ->
-                   -1;
-                MajorA =:= MajorB ->
-                    if
-                        MinorA < MinorB ->
-                            -1;
-                        MinorA =:= MinorB ->
-                            if
-                                PatchA < PatchB ->
-                                    -1;
-                                true ->
-                                    1
-                            end;
-                        true ->
-                            1
-                    end;
-                true ->
-                    1
-            end
-    end.
+compare(A, B) when A > B -> 1;
+compare(A, B) when A < B -> -1;
+compare(_, _) -> 0.
