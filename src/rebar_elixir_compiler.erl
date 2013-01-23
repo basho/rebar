@@ -64,7 +64,7 @@ compile(_Config, _AppFile) ->
     end.
 
 clean(_Config, _AppFile) ->
-    delete_each(rebar_utils:find_files("ebin", "^Elixir-.*\\beam$")).
+    delete_each(rebar_utils:find_files("ebin", "^Elixir-.*\\.beam$")).
 
 %% ===================================================================
 %% Internal functions
