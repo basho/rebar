@@ -28,7 +28,7 @@
 
 -module(rebar_elixir_compiler).
 
--export([compile/2]).
+-export([compile/2, clean/2]).
 
 -include("rebar.hrl").
 
@@ -36,44 +36,49 @@
 %% Public API
 %% ===================================================================
 
-compile(Config, _AppFile) ->
-    FirstFiles = rebar_config:get_list(Config, elixir_first_files, []),
-    rebar_base_compiler:run(Config, FirstFiles, "src", ".ex", "ebin", ".beam",
-                            fun compile_elixir/3).
+compile(_Config, _AppFile) ->
+    case rebar_utils:find_files("src", ".*\\.ex$") of
+        [] ->
+            ok;
+        FoundFiles ->
+            application:start(elixir),
+            OutDir = "ebin",
+            case code:which(elixir) of
+                non_existing ->
+                    ?ERROR("~n"
+                        "*** Missing Elixir compiler ***~n"
+                        "  You must do one of the following:~n"
+                        "    a) Install Elixir globally in your erl libs~n"
+                        "    b) Add Elixir as a dep for your project, eg:~n"
+                        "      {deps, [{elixir, \"0.7.2\",~n"
+                        "        {git, \"git://github.com/elixir-lang/elixir\",~n"
+                        "         {tag, \"v0.7.2\"}}}]}.~n"
+                        "      {lib_dirs, [\"deps/elixir/lib\"]}.~n" 
+                        "~n", []),
+                    ?FAIL;
+                _ ->
+                    [_|_] = 'Elixir-Kernel-ParallelCompiler':files_to_path(
+                        lists:map(fun list_to_binary/1, FoundFiles), list_to_binary(OutDir)),
+                    ok
+            end
+    end.
+
+clean(_Config, _AppFile) ->
+    delete_each(rebar_utils:find_files("ebin", "^Elixir-.*\\beam$")).
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
-compile_elixir(Source, _Target, Config) ->
-    case code:which(elixir) of
-        non_existing ->
-            ?ERROR("~n"
-                   "*** Missing Elixir compiler ***~n"
-                   "  You must do one of the following:~n"
-                   "    a) Install Elixir globally in your erl libs~n"
-                   "    b) Add Elixir as a dep for your project, eg:~n"
-                   "      {deps, [{elixir, \"0.7.2\",~n"
-                   "        {git, \"git://github.com/elixir-lang/elixir\",~n"
-                   "         {tag, \"v0.7.2\"}}}]}.~n"
-                   "      {lib_dirs, [\"deps/elixir/lib\"]}.~n" 
-                   "~n", []),
-            ?FAIL;
-        _ ->
-            application:start(elixir),
-            Options = orddict:from_list(rebar_config:get_local(Config, ex_opts, 
-                    [{ignore_module_conflict, true}])),
-            OutDir = "ebin",
-            try
-                elixir_compiler:file_to_path(list_to_binary(Source), list_to_binary(OutDir)),
-                io:format("Successful compile...~n", []),
-                rebar_base_compiler:ok_tuple(Config, Source, [])
-            catch _:{'Elixir-CompileError',
-                     '__exception__',
-                     Reason, File, Line} ->
-                     rebar_base_compiler:error_tuple(Config, Source, [{File, Line, Reason}], [], Options);
-                 _:Reason -> 
-                     ?ERROR("~p~n", [Reason]),
-                     ?FAIL
-            end
-    end.
+delete_each([]) ->
+    ok;
+delete_each([File | Rest]) ->
+    case file:delete(File) of
+        ok ->
+            ok;
+        {error, enoent} ->
+            ok;
+        {error, Reason} ->
+            ?ERROR("Failed to delete ~s: ~p\n", [File, Reason])
+    end,
+    delete_each(Rest).
