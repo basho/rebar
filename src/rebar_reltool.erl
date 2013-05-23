@@ -81,6 +81,14 @@ clean(Config, ReltoolFile) ->
 %% ===================================================================
 
 check_vsn() ->
+	OtpRelease = erlang:system_info(otp_release),
+	case OtpRelease =< "R14B04" of
+		true -> check_vsn_preR14A();
+		_ -> check_vsn_postR14A()    	 
+    end.
+
+
+check_vsn_preR14A()->
     %% TODO: use application:load and application:get_key once we require
     %%       R14A or newer. There's no reltool.app before R14A.
     case code:lib_dir(reltool) of
@@ -97,6 +105,26 @@ check_vsn() ->
                     ok
             end
     end.
+
+check_vsn_postR14A()->
+    application:load(reltool),
+    ReltoolVsn =
+        case lists:keysearch(reltool, 1, application:loaded_applications()) of
+            {value, {_, _, V}} ->
+                V;
+            _ ->
+                ""
+        end,
+    case ReltoolVsn < "0.5.2" of
+        true ->
+            ?ABORT("Reltool support requires at least reltool-0.5.2; "
+                   "this VM is using ~s\n", [ReltoolVsn]);
+        false ->
+            ok
+    end.
+
+
+
 
 process_overlay(Config, ReltoolConfig) ->
     TargetDir = rebar_rel_utils:get_target_dir(Config, ReltoolConfig),
