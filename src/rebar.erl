@@ -150,7 +150,16 @@ run_aux(BaseConfig, Commands) ->
 
     %% Determine the location of the rebar executable; important for pulling
     %% resources out of the escript
-    ScriptName = filename:absname(escript:script_name()),
+    ScriptName = case catch escript:script_name() of
+                     {'EXIT', _} ->
+                         %% This wouldn't normally happen. Only
+                         %% if we run this function outside of a escript,
+                         %% i.e. directly from Erlang shell.
+                         %% Useful for debugging purposes.
+                         filename:join(rebar_utils:get_cwd(), "rebar");
+                     SName ->
+                         filename:absname(SName)
+                 end,
     BaseConfig1 = rebar_config:set_xconf(BaseConfig, escript, ScriptName),
     ?DEBUG("Rebar location: ~p\n", [ScriptName]),
 
