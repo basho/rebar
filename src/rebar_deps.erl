@@ -510,6 +510,9 @@ update_source1(AppDir, {git, _Url, Refspec}) ->
     ShOpts = [{cd, AppDir}],
     rebar_utils:sh("git fetch origin", ShOpts),
     rebar_utils:sh(?FMT("git checkout -q ~s", [Refspec]), ShOpts);
+update_source1(AppDir, {git_p4, _Url}) ->
+    ShOpts = [{cd, AppDir}],
+    rebar_utils:sh("git p4 sync", ShOpts);
 update_source1(AppDir, {svn, _Url, Rev}) ->
     rebar_utils:sh(?FMT("svn up -r ~s", [Rev]), [{cd, AppDir}]);
 update_source1(AppDir, {hg, _Url, Rev}) ->
@@ -595,6 +598,8 @@ vcs_client_vsn(fossil) ->
 
 has_vcs_dir(git, Dir) ->
     filelib:is_dir(filename:join(Dir, ".git"));
+has_vcs_dir(git_p4, Dir) ->
+    filelib:is_dir(filename:join(Dir, ".git")); % looks like vanilla git
 has_vcs_dir(hg, Dir) ->
     filelib:is_dir(filename:join(Dir, ".hg"));
 has_vcs_dir(bzr, Dir) ->
@@ -618,6 +623,8 @@ format_source(App, {git, Url, {branch, Branch}}) ->
     ?FMT("~p BRANCH ~s ~s", [App, Branch, Url]);
 format_source(App, {git, Url, {tag, Tag}}) ->
     ?FMT("~p TAG ~s ~s", [App, Tag, Url]);
+format_source(App, {git_p4, Url}) ->
+    format_source(App, {git, Url});
 format_source(App, {_, Url, Rev}) ->
     ?FMT("~p REV ~s ~s", [App, Rev, Url]);
 format_source(App, undefined) ->
