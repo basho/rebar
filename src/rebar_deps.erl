@@ -445,6 +445,11 @@ download_source(AppDir, {git, Url, Rev}) ->
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
                    [{cd, filename:dirname(AppDir)}]),
     rebar_utils:sh(?FMT("git checkout -q ~s", [Rev]), [{cd, AppDir}]);
+download_source(AppDir, {git_p4, Url}) ->
+    ok = filelib:ensure_dir(AppDir),
+    rebar_utils:sh(?FMT("git p4 clone --silent ~s ~s", 
+                        [Url, filename:basename(AppDir)]),
+                   [{cd, filename:dirname(AppDir)}]);
 download_source(AppDir, {bzr, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("bzr branch -r ~s ~s ~s",
@@ -532,8 +537,8 @@ source_engine_avail(Source) ->
     source_engine_avail(Name, Source).
 
 source_engine_avail(Name, Source)
-  when Name == hg; Name == git; Name == svn; Name == bzr; Name == rsync;
-       Name == fossil ->
+  when Name == hg; Name == git; Name == git_p4; Name == svn; Name == bzr; 
+       Name == rsync; Name == fossil ->
     case vcs_client_vsn(Name) >= required_vcs_client_vsn(Name) of
         true ->
             true;
@@ -556,6 +561,7 @@ vcs_client_vsn(Path, VsnArg, VsnRegex) ->
 
 required_vcs_client_vsn(hg)     -> {1, 1};
 required_vcs_client_vsn(git)    -> {1, 5};
+required_vcs_client_vsn(git_p4) -> {1}; % does 'git-p4' exist?
 required_vcs_client_vsn(bzr)    -> {2, 0};
 required_vcs_client_vsn(svn)    -> {1, 6};
 required_vcs_client_vsn(rsync)  -> {2, 0};
@@ -567,6 +573,13 @@ vcs_client_vsn(hg) ->
 vcs_client_vsn(git) ->
     vcs_client_vsn(rebar_utils:find_executable("git"), " --version",
                    "git version (\\d+).(\\d+)");
+vcs_client_vsn(git_p4) ->
+    {ok, Info} = rebar_utils:sh(rebar_utils:find_executable("git")++" help -a", 
+                                [{env,[{"LANG","C"}]},{use_stdout,false}]),
+    case re:run(Info, "\\bp4\\b", [{capture, none}]) of
+        match -> {1};
+        nomatch -> {0}
+    end;
 vcs_client_vsn(bzr) ->
     vcs_client_vsn(rebar_utils:find_executable("bzr"), " --version",
                    "Bazaar \\(bzr\\) (\\d+).(\\d+)");
