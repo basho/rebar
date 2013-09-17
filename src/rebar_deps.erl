@@ -445,6 +445,11 @@ download_source(AppDir, {git, Url, Rev}) ->
     rebar_utils:sh(?FMT("git clone -n ~s ~s", [Url, filename:basename(AppDir)]),
                    [{cd, filename:dirname(AppDir)}]),
     rebar_utils:sh(?FMT("git checkout -q ~s", [Rev]), [{cd, AppDir}]);
+download_source(AppDir, {git_p4, Url}) ->
+    ok = filelib:ensure_dir(AppDir),
+    rebar_utils:sh(?FMT("git p4 clone --silent ~s ~s", 
+                        [Url, filename:basename(AppDir)]),
+                   [{cd, filename:dirname(AppDir)}]);
 download_source(AppDir, {bzr, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("bzr branch -r ~s ~s ~s",
@@ -505,6 +510,9 @@ update_source1(AppDir, {git, _Url, Refspec}) ->
     ShOpts = [{cd, AppDir}],
     rebar_utils:sh("git fetch origin", ShOpts),
     rebar_utils:sh(?FMT("git checkout -q ~s", [Refspec]), ShOpts);
+update_source1(AppDir, {git_p4, _Url}) ->
+    ShOpts = [{cd, AppDir}],
+    rebar_utils:sh("git p4 sync", ShOpts);
 update_source1(AppDir, {svn, _Url, Rev}) ->
     rebar_utils:sh(?FMT("svn up -r ~s", [Rev]), [{cd, AppDir}]);
 update_source1(AppDir, {hg, _Url, Rev}) ->
@@ -532,8 +540,8 @@ source_engine_avail(Source) ->
     source_engine_avail(Name, Source).
 
 source_engine_avail(Name, Source)
-  when Name == hg; Name == git; Name == svn; Name == bzr; Name == rsync;
-       Name == fossil ->
+  when Name == hg; Name == git; Name == git_p4; Name == svn; Name == bzr; 
+       Name == rsync; Name == fossil ->
     case vcs_client_vsn(Name) >= required_vcs_client_vsn(Name) of
         true ->
             true;
@@ -556,6 +564,7 @@ vcs_client_vsn(Path, VsnArg, VsnRegex) ->
 
 required_vcs_client_vsn(hg)     -> {1, 1};
 required_vcs_client_vsn(git)    -> {1, 5};
+required_vcs_client_vsn(git_p4) -> {1}; % does 'git-p4' exist?
 required_vcs_client_vsn(bzr)    -> {2, 0};
 required_vcs_client_vsn(svn)    -> {1, 6};
 required_vcs_client_vsn(rsync)  -> {2, 0};
@@ -567,6 +576,13 @@ vcs_client_vsn(hg) ->
 vcs_client_vsn(git) ->
     vcs_client_vsn(rebar_utils:find_executable("git"), " --version",
                    "git version (\\d+).(\\d+)");
+vcs_client_vsn(git_p4) ->
+    {ok, Info} = rebar_utils:sh(rebar_utils:find_executable("git")++" help -a", 
+                                [{env,[{"LANG","C"}]},{use_stdout,false}]),
+    case re:run(Info, "\\bp4\\b", [{capture, none}]) of
+        match -> {1};
+        nomatch -> {0}
+    end;
 vcs_client_vsn(bzr) ->
     vcs_client_vsn(rebar_utils:find_executable("bzr"), " --version",
                    "Bazaar \\(bzr\\) (\\d+).(\\d+)");
@@ -582,6 +598,8 @@ vcs_client_vsn(fossil) ->
 
 has_vcs_dir(git, Dir) ->
     filelib:is_dir(filename:join(Dir, ".git"));
+has_vcs_dir(git_p4, Dir) ->
+    filelib:is_dir(filename:join(Dir, ".git")); % looks like vanilla git
 has_vcs_dir(hg, Dir) ->
     filelib:is_dir(filename:join(Dir, ".hg"));
 has_vcs_dir(bzr, Dir) ->
@@ -605,6 +623,8 @@ format_source(App, {git, Url, {branch, Branch}}) ->
     ?FMT("~p BRANCH ~s ~s", [App, Branch, Url]);
 format_source(App, {git, Url, {tag, Tag}}) ->
     ?FMT("~p TAG ~s ~s", [App, Tag, Url]);
+format_source(App, {git_p4, Url}) ->
+    format_source(App, {git, Url});
 format_source(App, {_, Url, Rev}) ->
     ?FMT("~p REV ~s ~s", [App, Rev, Url]);
 format_source(App, undefined) ->
