@@ -129,8 +129,10 @@ doterl_compile(Config, OutDir, MoreSources) ->
     %% contain erlang source. This might be used, for example, should
     %% eunit tests be separated from the core application source.
     SrcDirs = rebar_utils:src_dirs(proplists:append_values(src_dirs, ErlOpts)),
-    RestErls  = [Source || Source <- gather_src(SrcDirs, []) ++ MoreSources,
+    RestErls  = [Source || Source <- gather_src(SrcDirs, [], erl) ++ MoreSources,
                            not lists:member(Source, FirstErls)],
+
+    Cores  = [Source || Source <- gather_src(SrcDirs, [], core) ++ MoreSources],
 
     %% Split RestErls so that parse_transforms and behaviours are instead added
     %% to erl_first_files, parse transforms first.
@@ -159,6 +161,10 @@ doterl_compile(Config, OutDir, MoreSources) ->
                             fun(S, C) ->
                                     internal_erl_compile(S, C, OutDir, ErlOpts)
                             end),
+    rebar_base_compiler:run(Config, [], Cores,
+                            fun(S, C) ->
+                                    internal_core_compile(S, C, OutDir, ErlOpts)
+                            end),
     true = code:set_path(CurrPath),
     ok.
 
@@ -177,7 +183,8 @@ include_path(Source, Config) ->
 -spec inspect(Source::file:filename(),
               IncludePath::[file:filename(), ...]) -> {string(), [string()]}.
 inspect(Source, IncludePath) ->
-    ModuleDefault = filename:basename(Source, ".erl"),
+    Extension = filename:extension(Source),
+    ModuleDefault = filename:basename(Source, Extension),
     case epp:open(Source, IncludePath) of
         {ok, Epp} ->
             inspect_epp(Epp, Source, ModuleDefault, []);
@@ -228,6 +235,37 @@ needs_compile(Source, Target, Hrls) ->
     TargetLastMod = filelib:last_modified(Target),
     lists:any(fun(I) -> TargetLastMod < filelib:last_modified(I) end,
               [Source] ++ Hrls).
+
+-spec internal_core_compile(Source::file:filename(),
+                            Config::rebar_config:config(),
+                            Outdir::file:filename(),
+                            ErlOpts::list()) -> 'ok' | 'skipped'.
+internal_core_compile(Source, Config, Outdir, ErlOpts) ->
+    %% Determine the target name and includes list by inspecting the source file
+    {Module, Hrls} = inspect(Source, include_path(Source, Config)),
+
+    %% Construct the target filename
+    Target = filename:join([Outdir | string:tokens(Module, ".")]) ++ ".beam",
+    ok = filelib:ensure_dir(Target),
+
+    %% If the file needs compilation, based on last mod date of includes or
+    %% the target
+    case needs_compile(Source, Target, Hrls) of
+        true ->
+            Opts = [from_core, {outdir, filename:dirname(Target)}] ++
+                ErlOpts ++ [{i, "include"}, return],
+            case compile:file(Source, Opts) of
+                {ok, _Mod} ->
+                    ok;
+                {ok, _Mod, Ws} ->
+                    rebar_base_compiler:ok_tuple(Source, Ws);
+                {error, Es, Ws} ->
+                    rebar_base_compiler:error_tuple(Source, Es, Ws, Opts)
+            end;
+        false ->
+            skipped
+    end.
+
 
 -spec internal_erl_compile(Source::file:filename(),
                            Config::rebar_config:config(),
@@ -306,10 +344,14 @@ compile_xrl_yrl(Source, Target, Opts, Mod) ->
             skipped
     end.
 
-gather_src([], Srcs) ->
+gather_src([], Srcs, _Type) ->
     Srcs;
-gather_src([Dir|Rest], Srcs) ->
-    gather_src(Rest, Srcs ++ rebar_utils:find_files(Dir, ".*\\.erl\$")).
+gather_src([Dir|Rest], Srcs, erl) ->
+    Erls = rebar_utils:find_files(Dir, ".*\\.erl\$"),
+    gather_src(Rest, Srcs ++ Erls, erl);
+gather_src([Dir|Rest], Srcs, core) ->
+    Cores = rebar_utils:find_files(Dir, ".*\\.core\$"),
+    gather_src(Rest, Srcs ++ Cores, core).
 
 
 -spec dirs(Dir::file:filename()) -> [file:filename()].
