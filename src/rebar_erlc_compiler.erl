@@ -245,7 +245,7 @@ internal_core_compile(Source, Config, Outdir, ErlOpts) ->
     {Module, Hrls} = inspect(Source, include_path(Source, Config)),
 
     %% Construct the target filename
-    Target = filename:join([Outdir | string:tokens(Module, ".")]) ++ ".beam",
+    Target = filename:join([Outdir,Module]) ++ ".beam",
     ok = filelib:ensure_dir(Target),
 
     %% If the file needs compilation, based on last mod date of includes or
