@@ -39,7 +39,7 @@
 %%        <li>Reset OTP application environment variables</li>
 %%       </ul>
 %%   </li>
-%%   <li>reset_after_eacH_eunit::boolean() - default = false.
+%%   <li>reset_after_each_eunit::boolean() - default = false.
 %%       If true, try to "reset" VM state to approximate state prior to
 %%       running each EUnit test in the contstructed list of tests:
 %%       <ul>
@@ -178,11 +178,12 @@ run_eunit(Config, CodePath, SrcErls) ->
 
     DoClean = rebar_config:get_global(Config, reset_after_eunit, true),
     EunitResult = case rebar_config:get_global(Config, reset_after_each_eunit, false) of
+        false ->
+            ?DEBUG("running all tests", []),
+            perform_eunit(Config, Tests, StatusBefore, DoClean);
         _IsTrue ->
             ?DEBUG("running cleanup after each test", []),
-            [perform_eunit(Config, T, StatusBefore, true) || T <- Tests];
-        false ->
-            perform_eunit(Config, Tests, StatusBefore, DoClean)
+            [perform_eunit(Config, T, StatusBefore, true) || T <- Tests]
     end,
 
     perform_cover(Config, FilteredModules, SrcModules),
@@ -418,7 +419,7 @@ perform_eunit(Config, Tests, StatusBeforeEunit, DoClean) ->
     Cwd = rebar_utils:get_cwd(),
     ok = file:set_cwd(?EUNIT_DIR),
     
-    io:format("running tests:~w with options:~w~n", [Tests, EunitOpts]),
+    ?DEBUG("running tests:~w with options:~w~n", [Tests, EunitOpts]),
     EunitResult = (catch eunit:test(Tests, EunitOpts)),
 
     %% Return to original working dir
