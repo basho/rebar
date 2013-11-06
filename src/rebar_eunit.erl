@@ -203,13 +203,10 @@ run_eunit(Config, CodePath, SrcErls) ->
     true = code:set_path(CodePath),
     ok.
 
-maybe_cleanup(StatusBefore, DoClean) ->
-    case DoClean of
-        true ->
-            reset_after_eunit(StatusBefore);
-        false ->
-            ok
-    end.
+maybe_cleanup(StatusBefore, true) ->
+    reset_after_eunit(StatusBefore);
+maybe_cleanup(_StatusBefore, false) ->
+    ok.
 
 ensure_dirs() ->
     %% Make sure ?EUNIT_DIR/ and ebin/ directory exists (append dummy module)
