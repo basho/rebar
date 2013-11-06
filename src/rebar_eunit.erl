@@ -176,8 +176,7 @@ run_eunit(Config, CodePath, SrcErls) ->
     StatusBefore = status_before_eunit(),
 
     DoClean = rebar_config:get_global(Config, reset_after_eunit, true),
-    io:format("RESET_AFTER_EUNIT: ~p~n", [DoClean]),
-    io:format("RESET_AFTER_EACH_EUNIT: ~p~n", [rebar_config:get_global(Config, reset_after_each_eunit, false)]),
+
     EunitResult = case rebar_config:get_global(Config, reset_after_each_eunit, false) of
         false ->
             ?DEBUG("running all tests", []),
