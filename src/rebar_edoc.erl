@@ -53,13 +53,27 @@ doc(Config, File) ->
     CodePath = setup_code_path(),
 
     %% Get the edoc_opts and app file info
-    EDocOpts = rebar_config:get(Config, edoc_opts, []),
+    EDocConfig = rebar_config:get(Config, edoc_opts, []),
     {ok, Config1, AppName, _AppData} =
         rebar_app_utils:load_app_file(Config, File),
 
-    case needs_regen(EDocOpts) of
+    %% Check whether to force the regeneration; if so, set 'new'
+    Force = rebar_config:get_global(Config, force, "0") == "1",
+    case Force of
         true ->
-            ?INFO("Regenerating edocs for ~p\n", [AppName]),
+            ?INFO("Forcing regeneration of edocs for ~p\n", [AppName]),
+            EDocOpts = [new | proplists:delete(new, EDocConfig)];
+        false ->
+            EDocOpts = EDocConfig
+    end,
+
+    %% Regenerate when forced or if any of the dependency files have changed
+    ConfigName = rebar_config:source_file(Config),
+    Regenerate = Force orelse needs_regen(EDocOpts, ConfigName),
+    case Regenerate of
+        true ->
+            ?CONSOLE("Regenerating edocs for ~s\n", [AppName]),
+            ?DEBUG("EDoc options: ~p\n", [EDocOpts]),
             ok = edoc:application(AppName, ".", EDocOpts);
         false ->
             ?INFO("Skipping regeneration of edocs for ~p\n", [AppName]),
@@ -87,44 +101,55 @@ setup_code_path() ->
     %% and the like can work properly when generating their own
     %% documentation.
     CodePath = code:get_path(),
-    true = code:add_patha(rebar_utils:ebin_dir()),
+
+    %% If we haven't yet compiled, we might not have an ebin dir.
+    EbinDir = rebar_utils:ebin_dir(),
+    ok = filelib:ensure_dir(filename:join(EbinDir, "dummy")),
+    true = code:add_patha(EbinDir),
     CodePath.
 
 -type path_spec() :: {'file', file:filename()} | file:filename().
 -spec newer_file_exists(Paths::[path_spec()], OldFile::string()) -> boolean().
 newer_file_exists(Paths, OldFile) ->
     OldModTime = filelib:last_modified(OldFile),
+    ?DEBUG("Checking doc deps: ~p\n", [Paths]),
 
     ThrowIfNewer = fun(Fn, _Acc) ->
                            FModTime = filelib:last_modified(Fn),
-                           (FModTime > OldModTime) andalso
-                               throw({newer_file_exists, {Fn, FModTime}})
+                           Result = (FModTime > OldModTime) andalso
+                               throw({newer_file_exists, {Fn, FModTime}}),
+                           ?DEBUG("Skipped ~s\n", [Fn]),
+                           Result
                    end,
 
     try
         lists:foldl(fun({file, F}, _) ->
                             ThrowIfNewer(F, false);
                        (P, _) ->
-                            filelib:fold_files(P, ".*.erl", true,
+                            filelib:fold_files(P, ".*.(erl|hrl)", true,
                                                ThrowIfNewer, false)
                     end, undefined, Paths)
     catch
         throw:{newer_file_exists, {Filename, FMod}} ->
-            ?DEBUG("~p is more recent than ~p: "
-                   "~120p > ~120p\n",
-                   [Filename, OldFile, FMod, OldModTime]),
+            ?DEBUG("~p \"~s\" is more recent than:\n", [FMod, Filename]),
+            ?DEBUG("~p \"~s\", need to rebuild.\n", [OldModTime, OldFile]),
             true
     end.
 
 %% Needs regen if any dependent file is changed since the last
-%% edoc run. Dependent files are the erlang source files,
-%% and the overview file, if it exists.
--spec needs_regen(proplists:proplist()) -> boolean().
-needs_regen(EDocOpts) ->
+%% edoc run. Dependent files are the erlang source files, the erlang header
+%% files, the rebar config file, and the overview file, if it exists.
+-spec needs_regen(proplists:proplist(), file:filename()) -> boolean().
+needs_regen(EDocOpts, ConfigName) ->
     DocDir = proplists:get_value(dir, EDocOpts, "doc"),
     EDocInfoName = filename:join(DocDir, "edoc-info"),
     OverviewFile = proplists:get_value(overview, EDocOpts, "overview.edoc"),
     EDocOverviewName = filename:join(DocDir, OverviewFile),
+    EDocOverviewPath = [{file, EDocOverviewName}],
+    ConfigPath = [{file, ConfigName}],
     SrcPaths = proplists:get_value(source_path, EDocOpts, ["src"]),
+    IncludePaths = proplists:get_value(source_path, EDocOpts, ["include"]),
+    AllPaths = lists:append([EDocOverviewPath, ConfigPath,
+                             IncludePaths, SrcPaths]),
 
-    newer_file_exists([{file, EDocOverviewName} | SrcPaths], EDocInfoName).
+    newer_file_exists(AllPaths, EDocInfoName).

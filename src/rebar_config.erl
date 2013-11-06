@@ -26,7 +26,7 @@
 %% -------------------------------------------------------------------
 -module(rebar_config).
 
--export([new/0, new/1, base_config/1, consult_file/1,
+-export([new/0, new/1, base_config/1, source_file/1, consult_file/1,
          get/3, get_local/3, get_list/3,
          get_all/2,
          set/3,
@@ -113,6 +113,11 @@ get_global(Config, Key, Default) ->
 is_verbose(Config) ->
     DefaulLevel = rebar_log:default_level(),
     get_global(Config, verbose, DefaulLevel) > DefaulLevel.
+
+source_file(Config) ->
+    ConfName = rebar_config:get_global(Config, config, ?DEFAULT_NAME),
+    Dir = rebar_utils:get_cwd(),
+    filename:join([Dir, ConfName]).
 
 consult_file(File) ->
     case filename:extension(File) of
