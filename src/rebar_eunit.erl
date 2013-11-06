@@ -179,10 +179,10 @@ run_eunit(Config, CodePath, SrcErls) ->
 
     EunitResult = case rebar_config:get_global(Config, reset_after_each_eunit, false) of
         false ->
-            ?DEBUG("running all tests", []),
+            ?DEBUG("running all tests~n", []),
             perform_eunit(Config, Tests, StatusBefore, DoClean);
-        _IsTrue ->
-            ?DEBUG("running cleanup after each test", []),
+        true ->
+            ?DEBUG("running cleanup after each test~n", []),
             [perform_eunit(Config, T, StatusBefore, true) || T <- Tests]
     end,
 
