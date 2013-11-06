@@ -176,6 +176,8 @@ run_eunit(Config, CodePath, SrcErls) ->
     StatusBefore = status_before_eunit(),
 
     DoClean = rebar_config:get_global(Config, reset_after_eunit, true),
+    io:format("RESET_AFTER_EUNIT: ~p~n", [DoClean]),
+    io:format("RESET_AFTER_EACH_EUNIT: ~p~n", [rebar_config:get_global(Config, reset_after_each_eunit, false)]),
     EunitResult = case rebar_config:get_global(Config, reset_after_each_eunit, false) of
         false ->
             ?DEBUG("running all tests", []),
@@ -203,10 +205,10 @@ run_eunit(Config, CodePath, SrcErls) ->
     true = code:set_path(CodePath),
     ok.
 
-maybe_cleanup(StatusBefore, true) ->
-    reset_after_eunit(StatusBefore);
 maybe_cleanup(_StatusBefore, false) ->
-    ok.
+    ok;
+maybe_cleanup(StatusBefore, true) ->
+    reset_after_eunit(StatusBefore).
 
 ensure_dirs() ->
     %% Make sure ?EUNIT_DIR/ and ebin/ directory exists (append dummy module)

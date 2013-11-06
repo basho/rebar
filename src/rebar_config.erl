@@ -107,7 +107,14 @@ get_global(Config, Key, Default) ->
         error ->
             Default;
         {ok, Value} ->
-            Value
+            case string:to_lower(Value) of
+                "true" ->
+                    true;
+                "false" ->
+                    false;
+                _ ->
+                    Value
+                end
     end.
 
 is_verbose(Config) ->
