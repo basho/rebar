@@ -46,17 +46,18 @@
 
 eunit_test_() ->
     {"Ensure EUnit runs with tests in a 'test' dir and no defined suite",
-     setup, fun() -> setup_basic_project(), rebar("-v eunit") end,
+     setup, fun() -> setup_core_project(), rebar("-v eunit") end,
      fun teardown/1,
      fun(RebarOut) ->
              [{"Tests in 'test' directory are found and run",
                ?_assert(string:str(RebarOut, "myapp_mymod_tests:") =/= 0)},
+              {"", fun() -> ?assertEqual(RebarOut, false) end},
 
               {"Tests in 'src' directory are found and run",
                ?_assert(string:str(RebarOut, "myapp_mymod:") =/= 0)},
 
               {"Tests are only run once",
-               ?_assert(string:str(RebarOut, "All 2 tests passed") =/= 0)}]
+               ?_assert(string:str(RebarOut, "All 3 tests passed") =/= 0)}]
      end}.
 
 cover_test_() ->
@@ -141,9 +142,26 @@ basic_setup_test_() ->
                          ["test/myapp_mymod_tests.erl",
                           "src/myapp_mymod.erl"])}.
 
+basic_core_test_() ->
+    {"Create a core project with a 'test' directory, a test, and a module",
+     setup, fun setup_core_project/0, fun teardown/1,
+
+     %% Test the setup function
+     assert_dirs_in("Core Project",
+                    ["src", "ebin", "test"]) ++
+         assert_files_in("Core Project",
+                         ["src/myapp_mycoremod.core"])}.
+
 %% ====================================================================
 %% Setup and Teardown
 %% ====================================================================
+
+-define(myapp_mycoremod,
+        ["module 'myapp_mycoremod' [ 'myfunc'/0 ] attributes [ ]\n",
+         "\n",
+         "'myfunc'/0 = fun() ->\n",
+         "  []\n",
+         "end"]).
 
 -define(myapp_mymod,
         ["-module(myapp_mymod).\n",
@@ -156,7 +174,8 @@ basic_setup_test_() ->
         ["-module(myapp_mymod_tests).\n",
          "-compile([export_all]).\n",
          "-include_lib(\"eunit/include/eunit.hrl\").\n",
-         "myfunc_test() -> ?assertMatch(ok, myapp_mymod:myfunc()).\n"]).
+         "myfunc_test() -> ?assertMatch(ok, myapp_mymod:myfunc()).\n",
+         "myfunc_core_test() -> ?assertMatch([], myapp_mycoremod:myfunc()).\n"]).
 
 -define(mysuite,
         ["-module(mysuite).\n",
@@ -185,6 +204,10 @@ setup_basic_project() ->
     ok = file:make_dir("test"),
     ok = file:write_file("test/myapp_mymod_tests.erl", ?myapp_mymod_tests),
     ok = file:write_file("src/myapp_mymod.erl", ?myapp_mymod).
+
+setup_core_project() ->
+    setup_basic_project(),
+    ok = file:write_file("src/myapp_mycoremod.core", ?myapp_mycoremod).
 
 setup_cover_project() ->
     setup_basic_project(),
