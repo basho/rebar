@@ -93,7 +93,11 @@
 {proto_compiler, protobuffs}.
 %% Available compilers for protocol buffer files (*.proto):
 %%   protobuffs  (default)
+%%   gpb
 
+%% Options for the gpb protocol buffer compiler,
+%% if selected by the proto_compiler option
+{gpb_opts, []}.
 
 %% == EUnit ==
 
