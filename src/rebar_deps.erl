@@ -478,12 +478,44 @@ use_source(Config, Dep, Count) ->
                            "with reason:~n~p.\n", [Dep#dep.dir, Reason])
             end;
         false ->
-            ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
-            require_source_engine(Dep#dep.source),
+            CacheTargetDir = ensure_local_cache(Dep),
             {true, TargetDir} = get_deps_dir(Config, Dep#dep.app),
-            download_source(TargetDir, Dep#dep.source),
+            rebar_file_utils:cp_r([CacheTargetDir], TargetDir),
             use_source(Config, Dep#dep { dir = TargetDir }, Count-1)
     end.
+
+local_cache_base_dir(Dep) ->
+    {ok, [[Home]]} = init:get_argument(home),
+    CacheBaseDir = filename:join([Home, ".rebar", "cache", Dep#dep.app]),
+    filelib:ensure_dir(CacheBaseDir++"/"),
+    CacheBaseDir.
+
+local_cache_target_dir(Dep) ->
+    CacheBaseDir = local_cache_base_dir(Dep),
+    VersionDirs = case Dep#dep.source of
+        {_,_,{B,Version}} when is_atom(B) -> [atom_to_list(B), Version];
+        {_,_,{B,Version}} -> [B, Version];
+        {_,_,Version} -> [Version]
+    end,
+    filename:join([CacheBaseDir]++VersionDirs).
+
+ensure_local_cache(Dep) ->
+    ?CONSOLE("Checking local cache for ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
+    CacheTargetDir = local_cache_target_dir(Dep),
+    case filelib:is_dir(CacheTargetDir) of
+        true ->
+            %% Attempting to update always, and catch timeouts. After N
+            %% timeouts, set source as 'unreachable' and just carry on
+            %% In the future, version branches by most recent commit,
+            %% and compare against remote HEAD
+            require_source_engine(Dep#dep.source),
+            update_source(CacheTargetDir, Dep, CacheTargetDir);
+        false ->
+            ?CONSOLE("Pulling ~p from ~p to local cache\n", [Dep#dep.app, Dep#dep.source]),
+            require_source_engine(Dep#dep.source),
+            download_source(CacheTargetDir, Dep#dep.source)
+    end,
+    CacheTargetDir.
 
 download_source(AppDir, {hg, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
@@ -536,11 +568,14 @@ download_source(AppDir, {fossil, Url, Version}) ->
                    []).
 
 update_source(Config, Dep) ->
+    {true, AppDir} = get_deps_dir(Config, Dep#dep.app),
+    update_source(Config, Dep, AppDir).
+
+update_source(_Config, Dep, AppDir) ->
     %% It's possible when updating a source, that a given dep does not have a
     %% VCS directory, such as when a source archive is built of a project, with
     %% all deps already downloaded/included. So, verify that the necessary VCS
     %% directory exists before attempting to do the update.
-    {true, AppDir} = get_deps_dir(Config, Dep#dep.app),
     case has_vcs_dir(element(1, Dep#dep.source), AppDir) of
         true ->
             ?CONSOLE("Updating ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
