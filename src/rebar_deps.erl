@@ -478,7 +478,7 @@ use_source(Config, Dep, Count) ->
                            "with reason:~n~p.\n", [Dep#dep.dir, Reason])
             end;
         false ->
-            CacheTargetDir = ensure_local_cache(Dep),
+            CacheTargetDir = ensure_local_cache(Config, Dep),
             {true, TargetDir} = get_deps_dir(Config, Dep#dep.app),
             rebar_file_utils:cp_r([CacheTargetDir], TargetDir),
             use_source(Config, Dep#dep { dir = TargetDir }, Count-1)
@@ -495,11 +495,12 @@ local_cache_target_dir(Dep) ->
     VersionDirs = case Dep#dep.source of
         {_,_,{B,Version}} when is_atom(B) -> [atom_to_list(B), Version];
         {_,_,{B,Version}} -> [B, Version];
-        {_,_,Version} -> [Version]
+        {_,_,Version} -> [Version];
+        {_,_} -> ["master"]
     end,
     filename:join([CacheBaseDir]++VersionDirs).
 
-ensure_local_cache(Dep) ->
+ensure_local_cache(Config, Dep) ->
     ?CONSOLE("Checking local cache for ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
     CacheTargetDir = local_cache_target_dir(Dep),
     case filelib:is_dir(CacheTargetDir) of
@@ -509,10 +510,11 @@ ensure_local_cache(Dep) ->
             %% In the future, version branches by most recent commit,
             %% and compare against remote HEAD
             require_source_engine(Dep#dep.source),
-            update_source(CacheTargetDir, Dep, CacheTargetDir);
+            update_source(Config, Dep, CacheTargetDir);
         false ->
-            ?CONSOLE("Pulling ~p from ~p to local cache\n", [Dep#dep.app, Dep#dep.source]),
+            ?CONSOLE("Pulling ~p from ~p into local cache\n", [Dep#dep.app, Dep#dep.source]),
             require_source_engine(Dep#dep.source),
+            ?CONSOLE("CacheTargetDir: ~p\n", [CacheTargetDir]),
             download_source(CacheTargetDir, Dep#dep.source)
     end,
     CacheTargetDir.
