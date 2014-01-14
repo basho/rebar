@@ -489,6 +489,7 @@ use_source(Config, Dep, Count) ->
                 false ->
                     CacheTargetDir = ensure_local_cache(Config, Dep),
                     {true, TargetDir} = get_deps_dir(Config, Dep#dep.app),
+                    ok = filelib:ensure_dir(TargetDir),
                     rebar_file_utils:cp_r([CacheTargetDir], TargetDir),
                     TargetDir
             end,
