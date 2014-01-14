@@ -478,10 +478,21 @@ use_source(Config, Dep, Count) ->
                            "with reason:~n~p.\n", [Dep#dep.dir, Reason])
             end;
         false ->
-            CacheTargetDir = ensure_local_cache(Config, Dep),
-            {true, TargetDir} = get_deps_dir(Config, Dep#dep.app),
-            rebar_file_utils:cp_r([CacheTargetDir], TargetDir),
-            use_source(Config, Dep#dep { dir = TargetDir }, Count-1)
+            DepDir = case is_local_source(Dep) of
+                true  ->
+                    %% Repo source is a local directory, skip local cache
+                    ?CONSOLE("Pulling ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
+                    require_source_engine(Dep#dep.source),
+                    {true, TargetDir} = get_deps_dir(Config, Dep#dep.app),
+                    download_source(TargetDir, Dep#dep.source),
+                    TargetDir;
+                false ->
+                    CacheTargetDir = ensure_local_cache(Config, Dep),
+                    {true, TargetDir} = get_deps_dir(Config, Dep#dep.app),
+                    rebar_file_utils:cp_r([CacheTargetDir], TargetDir),
+                    TargetDir
+            end,
+            use_source(Config, Dep#dep { dir = DepDir }, Count-1)
     end.
 
 local_cache_base_dir(Dep) ->
@@ -499,6 +510,21 @@ local_cache_target_dir(Dep) ->
         {_,_} -> ["master"]
     end,
     filename:join([CacheBaseDir]++VersionDirs).
+
+%% the hallmarks of a local file
+maybe_local_dir(".")  -> true;
+maybe_local_dir("/")  -> true;
+maybe_local_dir("\\") -> true;
+maybe_local_dir(_)    -> false.
+
+is_local_source(Dep) ->
+    case Dep#dep.source of
+        {_,Local,_} when is_list(Local) ->
+            maybe_local_dir(string:substr(Local, 1, 1));
+        {_,Local} when is_list(Local) ->
+            maybe_local_dir(string:substr(Local, 1, 1));
+        _ -> false
+    end.
 
 ensure_local_cache(Config, Dep) ->
     ?CONSOLE("Checking local cache for ~p from ~p\n", [Dep#dep.app, Dep#dep.source]),
