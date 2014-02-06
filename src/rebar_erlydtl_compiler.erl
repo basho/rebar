@@ -210,6 +210,8 @@ do_compile(Config, Source, Target, DtlOpts) ->
                          Opts) of
         ok ->
             ok;
+        {ok, _Module} ->
+            ok;
         error ->
             rebar_base_compiler:error_tuple(Config, Source, [], [], Opts);
         {error, {_File, _Msgs} = Error} ->
