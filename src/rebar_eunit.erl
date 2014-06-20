@@ -461,7 +461,7 @@ make_test_primitives(RawTests) ->
                             %% Generator
                             MakePrimitive(generator, M, F2)
                     end,
-                [NewFunction|Acc]
+                [eunit_module_suite(M, NewFunction)|Acc]
         end,
     lists:foldl(F, [], RawTests).
 
@@ -472,6 +472,11 @@ pre15b02_eunit_primitive(test, M, F) ->
     eunit_test:function_wrapper(M, F);
 pre15b02_eunit_primitive(generator, M, F) ->
     {generator, eunit_test:function_wrapper(M, F)}.
+
+% Add a test group for eunit_surefire to be able to deduce the testsuite.
+% Calling eunit:test({module, M}) does exactly this as well.
+eunit_module_suite(M, X) ->
+    {"module '" ++ atom_to_list(M) ++ "'", X}.
 
 %%
 %% == run tests ==
