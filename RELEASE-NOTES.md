@@ -1,3 +1,13 @@
+# Rebar 2.5.1
+
+* rebar/299: [Fix OS X resource fork handling (Reported-by: Richard O'Keefe)](https://github.com/rebar/rebar/pull/299)
+* rebar/307: [bootstrap now accepts --help usage flag](https://github.com/rebar/rebar/pull/307)
+* rebar/316: [fix for #314 (rebar shell somehow blocks using io:format in gen_server handle_call)](https://github.com/rebar/rebar/pull/316)
+* rebar/327: [Adapt arch string to versioning scheme changes (>= 17.x)](https://github.com/rebar/rebar/pull/327)
+* rebar/328: [Follow-up typo fixes for #327](https://github.com/rebar/rebar/pull/328)
+* rebar/330: [Remove experimental label from 'eunit tests='](https://github.com/rebar/rebar/pull/330)
+* rebar/332: [Update dialyzer_reference](https://github.com/rebar/rebar/pull/332)
+
 # Rebar 2.5.0
 
 * Reverted rebar/281: [Move include/rebar.hrl to src/rebar.hrl](https://github.com/rebar/rebar/pull/281) as it broke backwards compatibility
