@@ -104,13 +104,8 @@ run(RawArgs) ->
 
     case rebar_config:get_xconf(BaseConfig1, enable_profiling, false) of
         true ->
-            io:format("Profiling!\n"),
-            try
-                fprof:apply(fun run_aux/2, [BaseConfig1, Cmds])
-            after
-                ok = fprof:profile(),
-                ok = fprof:analyse([{dest, "fprof.analysis"}])
-            end;
+            ?CONSOLE("Profiling!\n", []),
+            profile(BaseConfig1, Cmds);
         false ->
             run_aux(BaseConfig1, Cmds)
     end.
@@ -159,6 +154,42 @@ init_config1(BaseConfig) ->
     %% Note the top-level directory for reference
     AbsCwd = filename:absname(rebar_utils:get_cwd()),
     rebar_config:set_xconf(BaseConfig1, base_dir, AbsCwd).
+
+profile(BaseConfig1, Commands) ->
+    Profiler = rebar_config:get_global(BaseConfig1, profiler, "fprof"),
+    profile(BaseConfig1, Commands, list_to_atom(Profiler)).
+
+profile(Config, Commands, fprof) ->
+    try
+        fprof:apply(fun run_aux/2, [Config, Commands])
+    after
+        ok = fprof:profile(),
+        ok = fprof:analyse([{dest, "fprof.analysis"}]),
+        ?CONSOLE("See fprof.analysis (generated from fprof.trace)~n", []),
+        ok
+    end;
+profile(Config, Commands, eflame) ->
+    case code:lib_dir(eflame) of
+        {error, bad_name} ->
+            ?ABORT("eflame not found in code path~n", []),
+            ok;
+        EflameDir ->
+            Trace = "eflame.trace",
+            try
+                eflame:apply(normal_with_children, Trace,
+                             rebar, run, [Config, Commands])
+            after
+                %% generate flame graph
+                Script = filename:join(EflameDir, "stack_to_flame.sh"),
+                Svg = "eflame.svg",
+                %% stack_to_flame.sh < eflame.trace > eflame.png
+                Cmd = ?FMT("~s < ~s > ~s", [Script, Trace, Svg]),
+                {ok, []} = rebar_utils:sh(Cmd, [{use_stdout, false},
+                                                abort_on_error]),
+                ?CONSOLE("See eflame.svg (generated from eflame.trace)~n", []),
+                ok
+            end
+    end.
 
 run_aux(BaseConfig, Commands) ->
     %% Make sure crypto is running
@@ -439,7 +470,10 @@ option_spec_list() ->
      {defines,  $D, undefined,  string,    "Define compiler macro"},
      {jobs,     $j, "jobs",     integer,   JobsHelp},
      {config,   $C, "config",   string,    "Rebar config file to use"},
-     {profile,  $p, "profile",  undefined, "Profile this run of rebar"},
+     {profile,  $p, "profile",  undefined,
+      "Profile this run of rebar. Via profiler= you can optionally select "
+      "either fprof (default) or eflame. The result can be found in "
+      "fprof.analysis or eflame.svg."},
      {keep_going, $k, "keep-going", undefined,
       "Keep running after a command fails"},
      {recursive, $r, "recursive", boolean,
