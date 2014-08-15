@@ -1,3 +1,9 @@
+**ATTENTION**: Please find the canonical repository here: https://github.com/rebar/rebar
+
+No more PR's or Issues will be handled on this repository, please see rebar/rebar for all of your erlang build tool needs!
+
+=====
+
 rebar
 =====
 
