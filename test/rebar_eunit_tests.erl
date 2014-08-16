@@ -325,6 +325,62 @@ basic_setup_test_() ->
                          ["test/myapp_mymod_tests.erl",
                           "src/myapp_mymod.erl"])}.
 
+code_path_test_() ->
+    [{"Ensuring that fast code path cleanup is correct for adds",
+      setup, fun make_tmp_dir/0,
+      fun(_) -> remove_tmp_dir() end,
+      fun() ->
+              OPath = code:get_path(),
+              PathZ = ?TMP_DIR ++ "some_path",
+              PathA = ?TMP_DIR ++ "some_other_path",
+              ok = file:make_dir(PathZ),
+              ok = file:make_dir(PathA),
+              true = code:add_pathz(PathZ),
+              true = code:add_patha(PathA),
+              %% make sure that they've been added
+              ?assertEqual([PathA] ++ OPath ++ [PathZ],
+                           code:get_path()),
+              true = rebar_utils:cleanup_code_path(OPath),
+              ?assertEqual(OPath, code:get_path())
+      end},
+     {"Ensuring that fast code path cleanup is correct for removes",
+      setup, fun make_tmp_dir/0,
+      fun(_) -> remove_tmp_dir() end,
+      fun() ->
+              OPath = code:get_path(),
+              Path1 = lists:nth(10, OPath),
+              Path2 = lists:nth(11, OPath),
+              true = code:del_path(Path1),
+              true = code:del_path(Path2),
+              %% make sure that they've been added
+              ?assertEqual(OPath -- [Path1, Path2],
+                           code:get_path()),
+              true = rebar_utils:cleanup_code_path(OPath),
+              ?assertEqual(OPath, code:get_path())
+      end},
+     {"Ensuring that fast code path cleanup is equivalent for adds",
+      setup, fun make_tmp_dir/0,
+      fun(_) -> remove_tmp_dir() end,
+      fun() ->
+              OPath = code:get_path(),
+              PathZ = ?TMP_DIR ++ "some_path",
+              PathA = ?TMP_DIR ++ "some_other_path",
+              ok = file:make_dir(PathZ),
+              ok = file:make_dir(PathA),
+              true = code:add_pathz(PathZ),
+              true = code:add_patha(PathA),
+              %% make sure that they've been added
+              ?assertEqual([PathA] ++ OPath ++ [PathZ],
+                           code:get_path()),
+              true = rebar_utils:cleanup_code_path(OPath),
+              CleanedPath = code:get_path(),
+              true = code:add_pathz(PathZ),
+              true = code:add_patha(PathA),
+              true = code:set_path(OPath),
+              ?assertEqual(CleanedPath, code:get_path())
+      end}].
+
+
 %% ====================================================================
 %% Setup and Teardown
 %% ====================================================================

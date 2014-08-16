@@ -355,7 +355,7 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
       fun(S, C) ->
               internal_erl_compile(C, S, OutDir1, ErlOpts, G)
       end),
-    true = code:set_path(CurrPath),
+    true = rebar_utils:cleanup_code_path(CurrPath),
     ok.
 
 %%

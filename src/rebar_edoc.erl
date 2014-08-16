@@ -67,7 +67,7 @@ doc(Config, File) ->
     end,
 
     %% Restore code path
-    true = code:set_path(CodePath),
+    true = rebar_utils:cleanup_code_path(CodePath),
     {ok, Config1}.
 
 %% ===================================================================

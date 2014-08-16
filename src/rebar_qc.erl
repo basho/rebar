@@ -161,7 +161,7 @@ run(Config, QC, QCOpts) ->
 
     case CompileOnly of
         "true" ->
-            true = code:set_path(CodePath),
+            true = rebar_utils:cleanup_code_path(CodePath),
             ?CONSOLE("Compiled modules for qc~n", []);
         false ->
             run1(QC, QCOpts, Config, CodePath, SrcErls)
@@ -187,7 +187,7 @@ run1(QC, QCOpts, Config, CodePath, SrcErls) ->
     rebar_cover_utils:close(CoverLog),
     ok = rebar_cover_utils:exit(),
 
-    true = code:set_path(CodePath),
+    true = rebar_utils:cleanup_code_path(CodePath),
 
     case QCResult of
         [] ->
