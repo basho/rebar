@@ -80,7 +80,7 @@ xref(Config, _) ->
     QueryNoWarn = lists:all(fun check_query/1, QueryChecks),
 
     %% Restore the original code path
-    true = code:set_path(OrigPath),
+    true = rebar_utils:cleanup_code_path(OrigPath),
 
     %% Stop xref
     stopped = xref:stop(xref),

@@ -123,7 +123,7 @@ compile(Config, _AppFile) ->
                                       {recursive, option(recursive, DtlOpts)}])
         end, ok, MultiDtlOpts),
 
-    true = code:set_path(OrigPath),
+    true = rebar_utils:cleanup_code_path(OrigPath),
     Result.
 
 %% ===================================================================

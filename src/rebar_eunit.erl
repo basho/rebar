@@ -89,7 +89,7 @@ eunit(Config, _AppFile) ->
                                                      ?EUNIT_DIR),
     case CompileOnly of
         "true" ->
-            true = code:set_path(CodePath),
+            true = rebar_utils:cleanup_code_path(CodePath),
             ?CONSOLE("Compiled modules for eunit~n", []);
         false ->
             run_eunit(Config, CodePath, SrcErls)
@@ -192,7 +192,7 @@ run_eunit(Config, CodePath, SrcErls) ->
     end,
 
     %% Restore code path
-    true = code:set_path(CodePath),
+    true = rebar_utils:cleanup_code_path(CodePath),
     ok.
 
 ensure_dirs() ->

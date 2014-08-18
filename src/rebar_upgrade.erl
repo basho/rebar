@@ -75,7 +75,7 @@
     ok = cleanup(NameVer),
 
     %% Restore original path
-    true = code:set_path(OrigPath),
+    true = rebar_utils:cleanup_code_path(OrigPath),
 
     {ok, Config}.
 
