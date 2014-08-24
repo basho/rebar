@@ -92,7 +92,7 @@ preprocess(Config, _) ->
             %% Also, if skip_deps=comma,separated,app,list, then only the given
             %% dependencies are skipped.
             NewConfig = case rebar_config:get_global(Config3, skip_deps, false) of
-                "true" ->
+                true ->
                     lists:foldl(
                         fun(#dep{dir = Dir}, C) ->
                                 rebar_config:set_skip_dir(C, Dir)
@@ -106,7 +106,7 @@ preprocess(Config, _) ->
                                     false -> C
                                 end
                         end, Config3, AvailableDeps);
-                _ ->
+                false ->
                     Config3
             end,
 

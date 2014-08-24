@@ -39,6 +39,16 @@
 %%        <li>Reset OTP application environment variables</li>
 %%       </ul>
 %%   </li>
+%%   <li>reset_after_each_eunit::boolean() - default = false.
+%%       If true, try to "reset" VM state to approximate state prior to
+%%       running each EUnit test in the contstructed list of tests:
+%%       <ul>
+%%        <li>Stop net_kernel if it was started</li>
+%%        <li>Stop OTP applications not running before EUnit tests were run</li>
+%%        <li>Kill processes not running before EUnit tests were run</li>
+%%        <li>Reset OTP application environment variables</li>
+%%       </ul>
+%%   </li>
 %% </ul>
 %% The following Global options are supported:
 %% <ul>
@@ -164,18 +174,20 @@ run_eunit(Config, CodePath, SrcErls) ->
     {ok, CoverLog} = cover_init(Config, ModuleBeamFiles),
 
     StatusBefore = status_before_eunit(),
-    EunitResult = perform_eunit(Config, Tests),
+
+    DoClean = rebar_config:get_global(Config, reset_after_eunit, true),
+
+    EunitResult = case rebar_config:get_global(Config, reset_after_each_eunit, false) of
+        false ->
+            ?DEBUG("running all tests~n", []),
+            perform_eunit(Config, Tests, StatusBefore, DoClean);
+        true ->
+            ?DEBUG("running cleanup after each test~n", []),
+            [perform_eunit(Config, T, StatusBefore, true) || T <- Tests]
+    end,
 
     perform_cover(Config, FilteredModules, SrcModules),
     cover_close(CoverLog),
-
-    case proplists:get_value(reset_after_eunit, get_eunit_opts(Config),
-                             true) of
-        true ->
-            reset_after_eunit(StatusBefore);
-        false ->
-            ok
-    end,
 
     %% Stop cover to clean the cover_server state. This is important if we want
     %% eunit+cover to not slow down when analyzing many Erlang modules.
@@ -191,6 +203,11 @@ run_eunit(Config, CodePath, SrcErls) ->
     %% Restore code path
     true = code:set_path(CodePath),
     ok.
+
+maybe_cleanup(_StatusBefore, false) ->
+    ok;
+maybe_cleanup(StatusBefore, true) ->
+    reset_after_eunit(StatusBefore).
 
 ensure_dirs() ->
     %% Make sure ?EUNIT_DIR/ and ebin/ directory exists (append dummy module)
@@ -391,18 +408,20 @@ pre15b02_eunit_primitive(generator, M, F) ->
 %% == run tests ==
 %%
 
-perform_eunit(Config, Tests) ->
+perform_eunit(Config, Tests, StatusBeforeEunit, DoClean) ->
     EunitOpts = get_eunit_opts(Config),
 
     %% Move down into ?EUNIT_DIR while we run tests so any generated files
     %% are created there (versus in the source dir)
     Cwd = rebar_utils:get_cwd(),
     ok = file:set_cwd(?EUNIT_DIR),
-
+    
+    ?DEBUG("running tests:~w with options:~w~n", [Tests, EunitOpts]),
     EunitResult = (catch eunit:test(Tests, EunitOpts)),
 
     %% Return to original working dir
     ok = file:set_cwd(Cwd),
+    maybe_cleanup(StatusBeforeEunit, DoClean),
 
     EunitResult.
 
@@ -416,6 +435,7 @@ get_eunit_opts(Config) ->
                end,
 
     BaseOpts ++ rebar_config:get_list(Config, eunit_opts, []).
+
 
 %%
 %% == code coverage ==
