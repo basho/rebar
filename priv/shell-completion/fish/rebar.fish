@@ -2,7 +2,7 @@
 
 function __fish_rebar_needs_command
   set cmd (commandline -opc)
-  if [ (count $cmd) -eq 1 -a $cmd[1] = 'rebar' ]
+  if [ (count $cmd) -eq 1 -a $cmd[1] = 'rebar' -o $cmd[1] = './rebar' ]
     return 0
   end
   return 1
