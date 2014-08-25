@@ -7,7 +7,7 @@
 %%
 %% -------------------------------------------------------------------
 main(Args) ->
-    ok = start_epmd(),
+    ok = check_epmd(),
     %% Extract the args
     {RestArgs, TargetNode} = process_args(Args, [], undefined),
 
@@ -118,8 +118,8 @@ process_args([Arg | Rest], Acc, Opts) ->
     process_args(Rest, [Arg | Acc], Opts).
 
 
-start_epmd() ->
-    [] = os:cmd(epmd_path() ++ " -daemon"),
+check_epmd() ->
+    epmd_path(),
     ok.
 
 epmd_path() ->
