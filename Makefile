@@ -3,7 +3,7 @@
 REBAR=$(PWD)/rebar
 RETEST=$(PWD)/deps/retest/retest
 OTPVSNCMD='io:fwrite("~s",[rebar_utils:otp_release()]), halt().'
-OTPVSN = $(shell erl -pa ebin/ -noshell -eval $(OTPVSNCMD))
+OTPVSN=$(shell erl -pa ebin/ -noshell -eval $(OTPVSNCMD))
 PLT_FILENAME=~/.dialyzer_rebar_$(OTPVSN)_plt
 
 all:
