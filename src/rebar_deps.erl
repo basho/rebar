@@ -514,6 +514,8 @@ download_source(AppDir, {bzr, Url, Rev}) ->
     rebar_utils:sh(?FMT("bzr branch -r ~s ~s ~s",
                         [Rev, Url, filename:basename(AppDir)]),
                    [{cd, filename:dirname(AppDir)}]);
+download_source(AppDir, {svn, Url}) ->
+    download_source(AppDir, {svn, Url, "HEAD"});
 download_source(AppDir, {svn, Url, Rev}) ->
     ok = filelib:ensure_dir(AppDir),
     rebar_utils:sh(?FMT("svn checkout -r ~s ~s ~s",
