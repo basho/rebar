@@ -141,7 +141,8 @@ clean(Config, AppFile) ->
         Specs ->
             lists:foreach(fun(#spec{target=Target, objects=Objects}) ->
                                   rebar_file_utils:delete_each([Target]),
-                                  rebar_file_utils:delete_each(Objects)
+                                  rebar_file_utils:delete_each(Objects),
+                                  rebar_file_utils:delete_each(port_deps(Objects))
                           end, Specs)
     end,
     ok.
@@ -251,9 +252,28 @@ exec_compiler(Config, Source, Cmd, ShOpts) ->
     end.
 
 needs_compile(Source, Bin) ->
-    %% TODO: Generate depends using gcc -MM so we can also
-    %% check for include changes
-    filelib:last_modified(Bin) < filelib:last_modified(Source).
+    needs_link(Bin, [Source|bin_deps(Bin)]).
+
+%% NOTE: This relies on -MMD being passed to the compiler and returns an
+%% empty list if the .d file is not available.  This means header deps are
+%% ignored on win32.
+bin_deps(Bin) ->
+    [DepFile] = port_deps([Bin]),
+    case file:read_file(DepFile) of
+        {ok, Deps} ->
+            Ds = parse_bin_deps(list_to_binary(Bin), Deps),
+            ?DEBUG("Deps of ~p: ~p\n", [Bin, Ds]),
+            Ds;
+        {error, Err} ->
+            ?DEBUG("Skipping deps parse of ~s: ~p\n", [DepFile, Err]),
+            []
+    end.
+
+parse_bin_deps(Bin, Deps) ->
+    Sz = size(Bin),
+    <<Bin:Sz/binary, ": ", X/binary>> = Deps,
+    Ds = re:split(X, "\\s*\\\\\\R\\s*|\\s+", [{return, binary}]),
+    [D || D <- Ds, D =/= <<>>].
 
 needs_link(SoName, []) ->
     filelib:last_modified(SoName) == 0;
@@ -333,6 +353,9 @@ port_sources(Sources) ->
 
 port_objects(SourceFiles) ->
     [replace_extension(O, ".o") || O <- SourceFiles].
+
+port_deps(SourceFiles) ->
+    [replace_extension(O, ".d") || O <- SourceFiles].
 
 port_opts(Config, Opts) ->
     [port_opt(Config, O) || O <- Opts].
@@ -560,9 +583,9 @@ default_env() ->
       "$CC -c $CFLAGS $EXE_CFLAGS $PORT_IN_FILES -o $PORT_OUT_FILE"},
      {"EXE_LINK_TEMPLATE",
       "$CC $PORT_IN_FILES $LDFLAGS $EXE_LDFLAGS -o $PORT_OUT_FILE"},
-     {"DRV_CFLAGS" , "-g -Wall -fPIC $ERL_CFLAGS"},
+     {"DRV_CFLAGS" , "-g -Wall -fPIC -MMD $ERL_CFLAGS"},
      {"DRV_LDFLAGS", "-shared $ERL_LDFLAGS"},
-     {"EXE_CFLAGS" , "-g -Wall -fPIC $ERL_CFLAGS"},
+     {"EXE_CFLAGS" , "-g -Wall -fPIC -MMD $ERL_CFLAGS"},
      {"EXE_LDFLAGS", "$ERL_LDFLAGS"},
 
      {"ERL_CFLAGS", lists:concat([" -I\"", erl_interface_dir(include),
