@@ -41,7 +41,9 @@ build_plt:
 		reltool \
 		snmp \
 		sasl
-	-dialyzer --add_to_plt --output_plt $(PLT_FILENAME) --apps diameter
+	-dialyzer --add_to_plt --plt $(PLT_FILENAME) \
+		--output_plt $(PLT_FILENAME) \
+		--apps diameter
 
 dialyzer: dialyzer_warnings
 	@diff -U0 dialyzer_reference dialyzer_warnings
