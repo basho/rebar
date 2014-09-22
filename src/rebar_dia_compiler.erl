@@ -39,12 +39,26 @@
 
 -spec compile(rebar_config:config(), file:filename()) -> 'ok'.
 compile(Config, _AppFile) ->
-    rebar_base_compiler:run(Config, filelib:wildcard("dia/*.dia"),
+    DiaOpts = rebar_config:get(Config, dia_opts, []),
+    IncludeEbin = proplists:get_value(include, DiaOpts, []),
+    DiaFiles = filelib:wildcard("dia/*.dia"),
+    code:add_pathsz(["ebin" | IncludeEbin]),
+    FileSequence = case rebar_config:get(Config, dia_first_files, []) of
+        [] ->
+            DiaFiles;
+        CompileFirst ->
+            CompileFirst ++
+            [F || F <- DiaFiles, not lists:member(F, CompileFirst)]
+    end,
+    rebar_base_compiler:run(Config, FileSequence,
                             "dia", ".dia", "src", ".erl",
                             fun compile_dia/3).
 
 -spec clean(rebar_config:config(), file:filename()) -> 'ok'.
-clean(_Config, _AppFile) ->
+clean(Config, _AppFile) ->
+    DiaOpts = rebar_config:get(Config, dia_opts, []),
+    IncludeEbin = proplists:get_value(include, DiaOpts, []),
+    code:add_pathsz(["ebin" | IncludeEbin]),
     GeneratedFiles = dia_generated_files("dia", "src", "include"),
     ok = rebar_file_utils:delete_each(GeneratedFiles),
     ok.
@@ -63,7 +77,9 @@ info_help(Description) ->
        "~s.~n"
        "~n"
        "Valid rebar.config options:~n"
-       "  {dia_opts, []} (see diameter_codegen:from_dict/4 documentation)~n",
+       "  {dia_opts, []} (options from diameter_make:codec/2 supported with "
+       "exception of inherits)~n"
+       "  {dia_first_files, []} (list of files in sequence to compile first)~n",
        [Description]).
 
 -spec compile_dia(file:filename(), file:filename(),
@@ -78,6 +94,9 @@ compile_dia(Source, Target, Config) ->
             _ = diameter_codegen:from_dict(FileName, Spec, Opts, erl),
             _ = diameter_codegen:from_dict(FileName, Spec, Opts, hrl),
             HrlFile = filename:join("src", FileName ++ ".hrl"),
+            ErlFile = filename:join("src", FileName ++ ".erl"),
+            ErlCOpts = [{outdir, "ebin"}] ++ rebar_config:get(Config, erl_opts, []),
+            _ = compile:file(ErlFile, ErlCOpts),
             case filelib:is_regular(HrlFile) of
                 true ->
                     ok = rebar_file_utils:mv(HrlFile, "include");
@@ -85,15 +104,19 @@ compile_dia(Source, Target, Config) ->
                     ok
             end;
         {error, Reason} ->
-            ?ERROR("~s~n", [diameter_dict_util:format_error(Reason)])
+            ?ABORT("Compiling ~s failed: ~s~n", [Source, diameter_dict_util:format_error(Reason)])
     end.
 
 dia_generated_files(DiaDir, SrcDir, IncDir) ->
     F = fun(File, Acc) ->
-            {ok, Spec} = diameter_dict_util:parse({path, File}, []),
-            FileName = dia_filename(File, Spec),
-            [filename:join([IncDir, FileName ++ ".hrl"]) |
-             filelib:wildcard(filename:join([SrcDir, FileName ++ ".*"]))] ++ Acc
+            case catch diameter_dict_util:parse({path, File}, []) of
+                {ok, Spec} ->
+                    FileName = dia_filename(File, Spec),
+                    [filename:join([IncDir, FileName ++ ".hrl"]) |
+                    filelib:wildcard(filename:join([SrcDir, FileName ++ ".*"]))] ++ Acc;
+                _ ->
+                    Acc
+            end
     end,
     lists:foldl(F, [], filelib:wildcard(filename:join([DiaDir, "*.dia"]))).
 
