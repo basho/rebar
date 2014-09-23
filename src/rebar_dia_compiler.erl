@@ -77,9 +77,9 @@ info_help(Description) ->
        "~s.~n"
        "~n"
        "Valid rebar.config options:~n"
-       "  {dia_opts, []} (options from diameter_make:codec/2 supported with "
-       "exception of inherits)~n"
-       "  {dia_first_files, []} (list of files in sequence to compile first)~n",
+       "  {dia_opts, []} (options from diameter_make:codec/2 supported with~n"
+       "                  exception of inherits)~n"
+       "  {dia_first_files, []} (files in sequence to compile first)~n",
        [Description]).
 
 -spec compile_dia(file:filename(), file:filename(),
@@ -95,7 +95,8 @@ compile_dia(Source, Target, Config) ->
             _ = diameter_codegen:from_dict(FileName, Spec, Opts, hrl),
             HrlFile = filename:join("src", FileName ++ ".hrl"),
             ErlFile = filename:join("src", FileName ++ ".erl"),
-            ErlCOpts = [{outdir, "ebin"}] ++ rebar_config:get(Config, erl_opts, []),
+            ErlCOpts = [{outdir, "ebin"}] ++
+                        rebar_config:get(Config, erl_opts, []),
             _ = compile:file(ErlFile, ErlCOpts),
             case filelib:is_regular(HrlFile) of
                 true ->
@@ -104,7 +105,10 @@ compile_dia(Source, Target, Config) ->
                     ok
             end;
         {error, Reason} ->
-            ?ABORT("Compiling ~s failed: ~s~n", [Source, diameter_dict_util:format_error(Reason)])
+            ?ABORT(
+                "Compiling ~s failed: ~s~n",
+                [Source, diameter_dict_util:format_error(Reason)]
+            )
     end.
 
 dia_generated_files(DiaDir, SrcDir, IncDir) ->
@@ -112,8 +116,12 @@ dia_generated_files(DiaDir, SrcDir, IncDir) ->
             case catch diameter_dict_util:parse({path, File}, []) of
                 {ok, Spec} ->
                     FileName = dia_filename(File, Spec),
-                    [filename:join([IncDir, FileName ++ ".hrl"]) |
-                    filelib:wildcard(filename:join([SrcDir, FileName ++ ".*"]))] ++ Acc;
+                    [
+                        filename:join([IncDir, FileName ++ ".hrl"]) |
+                        filelib:wildcard(
+                            filename:join([SrcDir, FileName ++ ".*"])
+                        )
+                    ] ++ Acc;
                 _ ->
                     Acc
             end
