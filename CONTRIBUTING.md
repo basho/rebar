@@ -71,7 +71,7 @@ Committing your changes
 -----------------------
 
 Please ensure that all commits pass all tests, and do not have extra Dialyzer warnings.  
-To do that run `make check`. If you didn't build via `make debug` at first, the beam files in  
+To do that, run `make check`. If you didn't build via `make debug` at first, the beam files in  
 `ebin/` might be missing debug_info required for [xref](http://www.erlang.org/doc/man/xref.html) 
 and [Dialyzer](http://www.erlang.org/doc/man/dialyzer.html), causing a test 
 failure.  
