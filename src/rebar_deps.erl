@@ -816,5 +816,7 @@ format_source(App, {git, Url, {tag, Tag}}) ->
     ?FMT("~p TAG ~s ~s", [App, Tag, Url]);
 format_source(App, {_, Url, Rev}) ->
     ?FMT("~p REV ~s ~s", [App, Rev, Url]);
+format_source(App, {SrcType, Url}) ->
+    ?FMT("~p ~p ~s", [App, SrcType, Url]);
 format_source(App, undefined) ->
     ?FMT("~p", [App]).
