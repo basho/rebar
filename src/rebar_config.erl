@@ -41,11 +41,11 @@
 
 -record(config, { dir :: file:filename(),
                   opts = [] :: list(),
-                  globals = new_globals() :: dict(),
-                  envs = new_env() :: dict(),
+                  globals = new_globals() :: dict:dict(),
+                  envs = new_env() :: dict:dict(),
                   %% cross-directory/-command config
-                  skip_dirs = new_skip_dirs() :: dict(),
-                  xconf = new_xconf() :: dict() }).
+                  skip_dirs = new_skip_dirs() :: dict:dict(),
+                  xconf = new_xconf() :: dict:dict() }).
 
 -export_type([config/0]).
 
