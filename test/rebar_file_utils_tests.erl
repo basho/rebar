@@ -35,9 +35,14 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(TMP_DIR, "tmp_file_utils").
--define(DIR_TREE, [{d,"source",[{f,"file1"},
-                                {f,"file2"}]},
-                   {d,"dest",[]}]).
+
+-define(SRC, "source dir?").
+-define(DST, "dest (dir)").
+-define(FILE1, "file 1").
+-define(FILE2, "file(2)").
+-define(DIR_TREE, [{d,?SRC,[{f,?FILE1},
+                            {f,?FILE2}]},
+                   {d,?DST,[]}]).
 -define(FILE_CONTENT, <<"1234567890">>).
 
 %% ====================================================================
@@ -57,7 +62,7 @@ delete_each_test_() ->
              rebar_file_utils:delete_each(file_list())
      end,
      fun teardown/1,
-     [assert_files_not_in("source", file_list())]}.
+     [assert_files_not_in(?SRC, file_list())]}.
 
 %% ====================================================================
 %% rm_rf tests
@@ -68,20 +73,20 @@ rm_rf_wildcard_test_() ->
      setup,
      fun() ->
              setup(),
-             rebar_file_utils:rm_rf(filename:join([?TMP_DIR,"source","file*"]))
+             rebar_file_utils:rm_rf(filename:join([?TMP_DIR,?SRC,"file*"]))
      end,
      fun teardown/1,
-     [assert_files_not_in("source", file_list())]}.
+     [assert_files_not_in(?SRC, file_list())]}.
 
 rm_rf_dir_test_() ->
     {"rm_rf removes directory tree",
      setup,
      fun() ->
              setup(),
-             rebar_file_utils:rm_rf(filename:join([?TMP_DIR,"source"]))
+             rebar_file_utils:rm_rf(filename:join([?TMP_DIR,?SRC]))
      end,
      fun teardown/1,
-     [?_assertNot(filelib:is_dir(filename:join([?TMP_DIR,"source"])))]}.
+     [?_assertNot(filelib:is_dir(filename:join([?TMP_DIR,?SRC])))]}.
 
 %% ====================================================================
 %% cp_r tests
@@ -92,47 +97,47 @@ cp_r_file_to_file_test_() ->
      setup,
      fun() ->
              setup(),
-             rebar_file_utils:cp_r([filename:join([?TMP_DIR,"source","file1"])],
-                                   filename:join([?TMP_DIR,"dest","new_file"]))
+             rebar_file_utils:cp_r([filename:join([?TMP_DIR,?SRC,?FILE1])],
+                                   filename:join([?TMP_DIR,?DST,"new_file"]))
      end,
      fun teardown/1,
-     [?_assert(filelib:is_regular(filename:join([?TMP_DIR,"dest","new_file"])))]}.
+     [?_assert(filelib:is_regular(filename:join([?TMP_DIR,?DST,"new_file"])))]}.
 
 cp_r_file_to_dir_test_() ->
     {"cp_r copies a file to directory",
      setup,
      fun() ->
              setup(),
-             rebar_file_utils:cp_r([filename:join([?TMP_DIR,"source","file1"])],
-                                   filename:join([?TMP_DIR,"dest"]))
+             rebar_file_utils:cp_r([filename:join([?TMP_DIR,?SRC,?FILE1])],
+                                   filename:join([?TMP_DIR,?DST]))
      end,
      fun teardown/1,
-     [?_assert(filelib:is_regular(filename:join([?TMP_DIR,"dest","file1"])))]}.
+     [?_assert(filelib:is_regular(filename:join([?TMP_DIR,?DST,?FILE1])))]}.
 
 cp_r_dir_to_dir_test_() ->
     {"cp_r copies a directory to directory",
      setup,
      fun() ->
              setup(),
-             rebar_file_utils:cp_r([filename:join([?TMP_DIR,"source"])],
-                                   filename:join([?TMP_DIR,"dest"]))
+             rebar_file_utils:cp_r([filename:join([?TMP_DIR,?SRC])],
+                                   filename:join([?TMP_DIR,?DST]))
      end,
      fun teardown/1,
-     [?_assert(filelib:is_dir(filename:join([?TMP_DIR,"dest","source"]))),
+     [?_assert(filelib:is_dir(filename:join([?TMP_DIR,?DST,?SRC]))),
       assert_files_in("dest/source",
-                      [filename:join([?TMP_DIR,"dest","source",F]) ||
-                          F <- ["file1","file2"]])]}.
+                      [filename:join([?TMP_DIR,?DST,?SRC,F]) ||
+                          F <- [?FILE1,?FILE2]])]}.
 
 cp_r_wildcard_file_to_dir_test_() ->
     {"cp_r copies wildcard files to directory",
      setup,
      fun() ->
              setup(),
-             rebar_file_utils:cp_r([filename:join([?TMP_DIR,"source","*1"])],
-                                   filename:join([?TMP_DIR,"dest"]))
+             rebar_file_utils:cp_r([filename:join([?TMP_DIR,?SRC,"*1"])],
+                                   filename:join([?TMP_DIR,?DST]))
      end,
      fun teardown/1,
-     [?_assert(filelib:is_regular(filename:join([?TMP_DIR,"dest","file1"])))]}.
+     [?_assert(filelib:is_regular(filename:join([?TMP_DIR,?DST,?FILE1])))]}.
 
 cp_r_wildcard_dir_to_dir_test_() ->
     {"cp_r copies wildcard directory to directory",
@@ -140,45 +145,45 @@ cp_r_wildcard_dir_to_dir_test_() ->
      fun() ->
              setup(),
              rebar_file_utils:cp_r([filename:join([?TMP_DIR,"sour*"])],
-                                   filename:join([?TMP_DIR,"dest"]))
+                                   filename:join([?TMP_DIR,?DST]))
      end,
      fun teardown/1,
-     [?_assert(filelib:is_dir(filename:join([?TMP_DIR,"dest","source"]))),
+     [?_assert(filelib:is_dir(filename:join([?TMP_DIR,?DST,?SRC]))),
       assert_files_in("dest/source",
-                      [filename:join([?TMP_DIR,"dest","source",F]) ||
-                          F <- ["file1","file2"]])]}.
+                      [filename:join([?TMP_DIR,?DST,?SRC,F]) ||
+                          F <- [?FILE1,?FILE2]])]}.
 
 cp_r_overwrite_file_test_() ->
     {"cp_r overwrites destination file",
      setup,
      fun() ->
              setup(),
-             ok = file:write_file(filename:join([?TMP_DIR,"dest","file1"]),
+             ok = file:write_file(filename:join([?TMP_DIR,?DST,?FILE1]),
                                   <<"test">>),
-             rebar_file_utils:cp_r([filename:join([?TMP_DIR,"source","file1"])],
-                                   filename:join([?TMP_DIR,"dest"]))
+             rebar_file_utils:cp_r([filename:join([?TMP_DIR,?SRC,?FILE1])],
+                                   filename:join([?TMP_DIR,?DST]))
      end,
      fun teardown/1,
      [?_assertMatch({ok,?FILE_CONTENT},
                     file:read_file(
-                      filename:join([?TMP_DIR,"dest","file1"])))]}.
+                      filename:join([?TMP_DIR,?DST,?FILE1])))]}.
 
 cp_r_overwrite_dir_test_() ->
     {"cp_r overwrites destination file (xcopy case on win32)",
      setup,
      fun() ->
              setup(),
-             ok = file:make_dir(filename:join([?TMP_DIR,"dest","source"])),
+             ok = file:make_dir(filename:join([?TMP_DIR,?DST,?SRC])),
              ok = file:write_file(
-                    filename:join([?TMP_DIR,"dest","source","file1"]),
+                    filename:join([?TMP_DIR,?DST,?SRC,?FILE1]),
                     <<"test">>),
-             rebar_file_utils:cp_r([filename:join([?TMP_DIR,"source"])],
-                                   filename:join([?TMP_DIR,"dest"]))
+             rebar_file_utils:cp_r([filename:join([?TMP_DIR,?SRC])],
+                                   filename:join([?TMP_DIR,?DST]))
      end,
      fun teardown/1,
      [?_assertMatch({ok,?FILE_CONTENT},
                     file:read_file(
-                      filename:join([?TMP_DIR,"dest","source","file1"])))]}.
+                      filename:join([?TMP_DIR,?DST,?SRC,?FILE1])))]}.
 
 cp_r_overwrite_file_fail_test_() ->
     {"cp_r fails to fs permission errors (file:copy/2 case on win32)",
@@ -186,15 +191,15 @@ cp_r_overwrite_file_fail_test_() ->
      fun() ->
              setup(),
              ok = file:write_file(
-                    filename:join([?TMP_DIR,"dest","file1"]),<<"test">>),
+                    filename:join([?TMP_DIR,?DST,?FILE1]),<<"test">>),
              ok = file:change_mode(
-                    filename:join([?TMP_DIR,"dest","file1"]),0)
+                    filename:join([?TMP_DIR,?DST,?FILE1]),0)
      end,
      fun teardown/1,
      [?_assertThrow(rebar_abort,
                     rebar_file_utils:cp_r(
-                      [filename:join([?TMP_DIR,"source","file1"])],
-                      filename:join([?TMP_DIR,"dest"])))]}.
+                      [filename:join([?TMP_DIR,?SRC,?FILE1])],
+                      filename:join([?TMP_DIR,?DST])))]}.
 
 cp_r_overwrite_dir_fail_test_() ->
     {"cp_r fails to fs permission error (xcopy case on win32)",
@@ -202,50 +207,49 @@ cp_r_overwrite_dir_fail_test_() ->
      fun() ->
              setup(),
              ok = file:make_dir(
-                    filename:join([?TMP_DIR,"dest","source"])),
+                    filename:join([?TMP_DIR,?DST,?SRC])),
              ok = file:write_file(
-                    filename:join([?TMP_DIR,"dest","source","file1"]),
+                    filename:join([?TMP_DIR,?DST,?SRC,?FILE1]),
                     <<"test">>),
              ok = file:change_mode(
-                    filename:join([?TMP_DIR,"dest","source","file1"]),0)
+                    filename:join([?TMP_DIR,?DST,?SRC,?FILE1]),0)
      end,
      fun teardown/1,
      [?_assertThrow(rebar_abort,
                     rebar_file_utils:cp_r(
-                      [filename:join([?TMP_DIR,"source"])],
-                      filename:join([?TMP_DIR,"dest"])))]}.
+                      [filename:join([?TMP_DIR,?SRC])],
+                      filename:join([?TMP_DIR,?DST])))]}.
 
 mv_file_test_() ->
     {"move a file to folder",
      setup,
      fun() ->
              setup(),
-             rebar_file_utils:mv(filename:join([?TMP_DIR,"source","file1"]),
-                                 filename:join([?TMP_DIR,"dest"]))
+             rebar_file_utils:mv(filename:join([?TMP_DIR,?SRC,?FILE1]),
+                                 filename:join([?TMP_DIR,?DST]))
      end,
      fun teardown/1,
-     [?_assert(filelib:is_regular(filename:join([?TMP_DIR,"dest","file1"]))),
+     [?_assert(filelib:is_regular(filename:join([?TMP_DIR,?DST,?FILE1]))),
       ?_assertNot(filelib:is_regular(
-                    filename:join([?TMP_DIR,"source","file1"])))]}.
+                    filename:join([?TMP_DIR,?SRC,?FILE1])))]}.
 
 %% ====================================================================
 %% Utilities
 %% ====================================================================
 
 file_list() ->
-    [filename:join([?TMP_DIR,"source",F]) || F <- ["file1","file2"]].
+    [filename:join([?TMP_DIR,?SRC,F]) || F <- [?FILE1,?FILE2]].
 
 %% ====================================================================
 %% Setup and Teardown
 %% ====================================================================
 
 setup() ->
-    file:make_dir(?TMP_DIR),
     make_dir_tree(?TMP_DIR,?DIR_TREE).
 
 make_dir_tree(Parent, [{d,Dir,Contents} | Rest]) ->
     NewDir = filename:join(Parent,Dir),
-    ok = file:make_dir(NewDir),
+    ok = filelib:ensure_dir(filename:join(NewDir, "tmp")),
     ok = make_dir_tree(NewDir,Contents),
     ok = make_dir_tree(Parent,Rest);
 make_dir_tree(Parent, [{f,File} | Rest]) ->
