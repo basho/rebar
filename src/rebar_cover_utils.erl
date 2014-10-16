@@ -238,7 +238,7 @@ print_coverage(Coverage) ->
     %% Print the output the console
     ?CONSOLE("~nCode Coverage:~n", []),
     lists:foreach(fun({Mod, C, N}) ->
-                          ?CONSOLE("~*s : ~3s~n",
+                          ?CONSOLE("~*s : ~4s~n",
                                    [Width, Mod, percentage(C, N)])
                   end, Coverage),
     ?CONSOLE("~n~*s : ~s~n", [Width, "Total", TotalCoverage]).
