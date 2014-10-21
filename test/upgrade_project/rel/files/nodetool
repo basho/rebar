@@ -95,9 +95,23 @@ main(Args) ->
                 Other ->
                     io:format("~p\n", [Other])
             end;
+        ["eval", Str0] ->
+            Str = string:strip(Str0, right, $.) ++ ".",
+            Bindings = erl_eval:new_bindings(),
+            case rpc:call(TargetNode,
+                          erl_eval,
+                          exprs,
+                          [parse(Str), Bindings],
+                          60000) of
+                {badrpc, Reason} ->
+                    io:format("RPC to ~p failed: ~p\n", [TargetNode, Reason]),
+                    halt(1);
+                {value, Value, _Bindings} ->
+                    io:format("~p\n", [Value])
+            end;
         Other ->
             io:format("Other: ~p\n", [Other]),
-            io:format("Usage: nodetool {chkconfig|getpid|ping|stop|restart|reboot|rpc|rpc_infinity|rpcterms}\n")
+            io:format("Usage: nodetool {chkconfig|getpid|ping|stop|restart|reboot|rpc|rpc_infinity|rpcterms|eval}\n")
     end,
     net_kernel:stop().
 
@@ -180,3 +194,8 @@ consult(Cont, Str, Acc) ->
         {more, Cont1} ->
             consult(Cont1, eof, Acc)
     end.
+
+parse(Str) ->
+    {ok, Tokens, _} = erl_scan:string(Str),
+    {ok, Exprs} = erl_parse:parse_exprs(Tokens),
+    Exprs.
