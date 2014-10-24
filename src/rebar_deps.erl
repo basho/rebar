@@ -307,8 +307,9 @@ get_deps_dir(Config) ->
 
 get_deps_dir(Config, App) ->
     BaseDir = rebar_utils:base_dir(Config),
-    DepsDir = get_shared_deps_dir(Config, "deps"),
-    {true, filename:join([BaseDir, DepsDir, App])}.
+    DepsDir0 = get_shared_deps_dir(Config, "deps"),
+    DepsDir = filename:dirname(filename:join([BaseDir, DepsDir0, "dummy"])),
+    {true, filename:join([DepsDir, App])}.
 
 dep_dirs(Deps) ->
     [D#dep.dir || D <- Deps].
