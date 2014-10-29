@@ -98,7 +98,7 @@ check_output1(Cmd, Captured, Expected, Unexpected) ->
                           false;
                       {match, [Match]} ->
                           retest:log(
-                            console,
+                            error,
                             "Unexpected output when running cmd '~s':~n~s~n",
                             [Cmd, Match]),
                           {true, Match}
