@@ -26,11 +26,12 @@
 %% -------------------------------------------------------------------
 -module(rebar_protobuffs_compiler).
 
--export([compile/2,
-         clean/2]).
+-export([key/0,
+         proto_compile/3,
+         proto_clean/3]).
 
 %% for internal use only
--export([info/2]).
+-export([proto_info/2]).
 
 -include("rebar.hrl").
 
@@ -38,58 +39,48 @@
 %% Public API
 %% ===================================================================
 
-compile(Config, _AppFile) ->
-    case rebar_utils:find_files("src", "^[^._].*\\.proto$") of
-        [] ->
-            ok;
-        FoundFiles ->
-            %% Check for protobuffs library -- if it's not present, fail
-            %% since we have.proto files that need building
-            case protobuffs_is_present() of
-                true ->
-                    %% Build a list of output files - { Proto, Beam, Hrl }
-                    Targets = [{Proto, beam_file(Proto), hrl_file(Proto)} ||
-                                  Proto <- FoundFiles],
+key() ->
+    protobuffs.
 
-                    %% Compile each proto file
-                    compile_each(Config, Targets);
-                false ->
-                    ?ERROR("Protobuffs library not present in code path!\n",
-                           []),
-                    ?FAIL
-            end
+proto_compile(Config, _AppFile, ProtoFiles) ->
+    %% Check for protobuffs library -- if it's not present, fail
+    %% since we have.proto files that need building
+    case protobuffs_is_present() of
+        true ->
+            %% Build a list of output files - { Proto, Beam, Hrl }
+            Targets = [{Proto, beam_file(Proto), hrl_file(Proto)} ||
+                          Proto <- ProtoFiles],
+
+            %% Compile each proto file
+            compile_each(Config, Targets);
+        false ->
+            ?ERROR("Protobuffs library not present in code path!\n",
+                   []),
+            ?FAIL
     end.
 
-clean(_Config, _AppFile) ->
+proto_clean(_Config, _AppFile, ProtoFiles) ->
     %% Get a list of generated .beam and .hrl files and then delete them
-    Protos = rebar_utils:find_files("src", ".*\\.proto$"),
-    BeamFiles = [fq_beam_file(F) || F <- Protos],
-    HrlFiles = [fq_hrl_file(F) || F <- Protos],
+    BeamFiles = [fq_beam_file(F) || F <- ProtoFiles],
+    HrlFiles = [fq_hrl_file(F) || F <- ProtoFiles],
     Targets = BeamFiles ++ HrlFiles,
-    case Targets of
-        [] ->
-            ok;
-        _ ->
-            delete_each(Targets)
-    end.
+    delete_each(Targets).
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
-info(help, compile) ->
-    info_help("Build Protobuffs (*.proto) sources");
-info(help, clean) ->
-    info_help("Delete Protobuffs (*.proto) build results").
+proto_info(help, compile) ->
+    info_help();
+proto_info(help, clean) ->
+    info_help().
 
-info_help(Description) ->
+info_help() ->
     ?CONSOLE(
-       "~s.~n"
-       "~n"
        "Valid rebar.config options:~n"
        "  erl_opts is passed as compile_flags to "
        "protobuffs_compile:scan_file/2~n",
-       [Description]).
+       []).
 
 protobuffs_is_present() ->
     code:which(protobuffs_compile) =/= non_existing.

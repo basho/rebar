@@ -1,0 +1,12 @@
+// -*- c-basic-offset: 4; indent-tabs-mode: nil -*-
+// ex: ts=4 sw=4 et
+
+message m1
+{
+    optional string str = 1;
+}
+
+message m2
+{
+    optional string str = 1;
+}
