@@ -16,7 +16,6 @@ clean:
 distclean: clean
 	@rm -f dialyzer_warnings
 	@rm -rf deps
-	@rm -f ~/.dialyzer_rebar_*_plt
 
 debug:
 	@./bootstrap debug
