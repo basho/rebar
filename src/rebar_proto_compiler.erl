@@ -85,12 +85,12 @@ info_help(GeneralDescr, Cmd) ->
        ++ "~s~n",
        [GeneralDescr, format_proto_compiler_list()]),
     %% Print info for each proto compiler
-    [begin
-         ?CONSOLE("--- ~p ---~n", [Key]),
-         CompilerModule:proto_info(help, Cmd)
-     end
-     || #proto_compiler{key=Key,
-                        module=CompilerModule} <- find_proto_compilers()],
+    _ = [begin
+             ?CONSOLE("--- ~p ---~n", [Key]),
+             CompilerModule:proto_info(help, Cmd)
+         end
+         || #proto_compiler{key=Key,
+                            module=CompilerModule} <- find_proto_compilers()],
     ok.
 
 get_default_compiler() ->
