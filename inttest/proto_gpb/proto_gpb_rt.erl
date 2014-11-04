@@ -29,6 +29,8 @@
          run/1]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/file.hrl").
+-include_lib("deps/retest/include/retest.hrl").
 
 -define(MODULES,
         [foo,
@@ -41,6 +43,13 @@
          test3_gpb,
          test4_gpb,
          test5_gpb]).
+
+-define(SOURCE_PROTO_FILES,
+        ["test.proto",
+         "a/test2.proto",
+         "a/b/test3.proto",
+         "c/test4.proto",
+         "c/d/test5.proto"]).
 
 files() ->
     [
@@ -60,6 +69,17 @@ run(_Dir) ->
     %% generating the test_gpb.hrl file, and also that it generated
     %% the .hrl file was generated before foo was compiled.
     ok = check_beams_generated(),
+
+    ?DEBUG("Verifying recompilation~n", []),
+    TestErl = hd(generated_erl_files()),
+    TestProto = hd(source_proto_files()),
+    make_proto_newer_than_erl(TestProto, TestErl),
+    TestMTime1 = read_mtime(TestErl),
+    ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
+    TestMTime2 = read_mtime(TestErl),
+    ?assert(TestMTime2 > TestMTime1),
+
+    ?DEBUG("Verify cleanup~n", []),
     ?assertMatch({ok, _}, retest_sh:run("./rebar clean", [])),
     ok = check_files_deleted(),
     ok.
@@ -81,6 +101,12 @@ generated_erl_files() ->
 generated_hrl_files() ->
     add_dir("include", add_ext(?GENERATED_MODULES, ".hrl")).
 
+generated_beam_files() ->
+    add_dir("ebin", add_ext(?GENERATED_MODULES, ".beam")).
+
+source_proto_files() ->
+    add_dir("src", ?SOURCE_PROTO_FILES).
+
 file_does_not_exist(F) ->
     not filelib:is_regular(F).
 
@@ -89,6 +115,30 @@ add_ext(Modules, Ext) ->
 
 add_dir(Dir, Files) ->
     [filename:join(Dir, File) || File <- Files].
+
+read_mtime(File) ->
+    {ok, #file_info{mtime=MTime}} = file:read_file_info(File),
+    MTime.
+
+
+make_proto_newer_than_erl(Proto, Erl) ->
+    %% Do this by back-dating the erl file instead of touching the
+    %% proto file.  Do this instead of sleeping for a second to get a
+    %% reliable test.  Sleeping would have been needed sin ce the
+    %% #file_info{} (used by eg. filelib:last_modified) does not have
+    %% sub-second resolution (even though most file systems have).
+    {ok, #file_info{mtime=ProtoMTime}} = file:read_file_info(Proto),
+    {ok, ErlInfo} = file:read_file_info(Erl),
+    OlderMTime = update_seconds_to_datetime(ProtoMTime, -2),
+    OlderErlInfo = ErlInfo#file_info{mtime = OlderMTime},
+    ok = file:write_file_info(Erl, OlderErlInfo).
+
+update_seconds_to_datetime(DT, ToAdd) ->
+    calendar:gregorian_seconds_to_datetime(
+      calendar:datetime_to_gregorian_seconds(DT) + ToAdd).
+
+touch_file(File) ->
+    ?assertMatch({ok, _}, retest_sh:run("touch " ++ File, [])).
 
 check(Check, Files) ->
     lists:foreach(
