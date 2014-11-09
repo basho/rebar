@@ -40,23 +40,40 @@ run(_Dir) ->
     SharedExpected = "==> logging_rt \\(compile\\)",
     %% provoke ERROR due to an invalid app file
     retest:log(info, "Check 'compile' failure output~n"),
+    {ERROR, WARN, INFO, DEBUG} =
+        case application:get_env(rebar, log_colored) of
+            {ok, true} ->
+                {
+                 "\\e\\[1m\\e\\[31mERROR: \\e\\[0m",
+                 "\\e\\[33mWARN: \\e\\[0m",
+                 "\\e\\[32mINFO: \\e\\[0m",
+                 "\\e\\[34mDEBUG: \\e\\[0m"
+                };
+            _ ->
+                {
+                 "ERROR: ",
+                 "WARN: ",
+                 "INFO: ",
+                 "DEBUG: "
+                }
+        end,
     ok = check_output("./rebar compile -q", should_fail,
-                      [SharedExpected, "ERROR: "],
-                      ["WARN: ", "INFO: ", "DEBUG: "]),
+                      [SharedExpected, ERROR],
+                      [WARN, INFO, DEBUG]),
     %% fix bad app file
     ok = file:write_file(?APP_FILE, app(logging, [])),
     retest:log(info, "Check 'compile' success output~n"),
     ok = check_output("./rebar compile", should_succeed,
                       [SharedExpected],
-                      ["ERROR: ", "WARN: ", "INFO: ", "DEBUG: "]),
+                      [ERROR, WARN, INFO, DEBUG]),
     retest:log(info, "Check 'compile -v' success output~n"),
     ok = check_output("./rebar compile -v", should_succeed,
                       [SharedExpected],
-                      ["ERROR: ", "INFO: ", "DEBUG: "]),
+                      [ERROR, INFO, DEBUG]),
     retest:log(info, "Check 'compile -vv' success output~n"),
     ok = check_output("./rebar compile -vv", should_succeed,
-                      [SharedExpected, "DEBUG: "],
-                      ["ERROR: ", "INFO: "]),
+                      [SharedExpected, DEBUG],
+                      [ERROR, INFO]),
     ok.
 
 check_output(Cmd, FailureMode, Expected, Unexpected) ->
@@ -73,7 +90,7 @@ check_output(Cmd, FailureMode, Expected, Unexpected) ->
     end.
 
 check_output1(Cmd, Captured, Expected, Unexpected) ->
-    ReOpts = [{capture, all, list}],
+    ReOpts = [{capture, all, list}, unicode],
     ExMatches =
         lists:zf(
           fun(Pattern) ->
