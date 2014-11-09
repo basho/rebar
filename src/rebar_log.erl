@@ -60,9 +60,10 @@ log(Level, Str, Args) ->
 
 log(Device, Level, Str, Args) ->
     {ok, LogLevel} = application:get_env(rebar, log_level),
+    {ok, LogColored} = application:get_env(rebar, log_colored),
     case should_log(LogLevel, Level) of
         true ->
-            io:format(Device, log_prefix(Level) ++ Str, Args);
+            io:format(Device, log_prefix(Level, LogColored) ++ Str, Args);
         false ->
             ok
     end.
@@ -90,7 +91,33 @@ should_log(error, error) -> true;
 should_log(error, _)     -> false;
 should_log(_, _)         -> false.
 
+log_prefix(Level, _Colored = false) ->
+    log_prefix(Level);
+log_prefix(Level, _Colored = true) ->
+    color_from_level(Level) ++ log_prefix(Level) ++ reset_color().
+
 log_prefix(debug) -> "DEBUG: ";
 log_prefix(info)  -> "INFO:  ";
 log_prefix(warn)  -> "WARN:  ";
 log_prefix(error) -> "ERROR: ".
+
+color_from_level(debug) ->
+    color_foreground(blue);
+color_from_level(info) ->
+    color_foreground(green);
+color_from_level(warn) ->
+    color_foreground(yellow);
+color_from_level(error) ->
+    color_bold() ++ color_foreground(red).
+
+color_foreground(black)   -> "\e[30m";
+color_foreground(red)     -> "\e[31m";
+color_foreground(green)   -> "\e[32m";
+color_foreground(yellow)  -> "\e[33m";
+color_foreground(blue)    -> "\e[34m";
+color_foreground(magenta) -> "\e[35m";
+color_foreground(cyan)    -> "\e[36m";
+color_foreground(white)   -> "\e[37m".
+
+color_bold()  -> "\e[1m".
+reset_color() -> "\e[0m".
