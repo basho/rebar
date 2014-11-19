@@ -50,17 +50,25 @@ init(Config) ->
         ?WARN_LEVEL  -> set_level(warn);
         ?INFO_LEVEL  -> set_level(info);
         ?DEBUG_LEVEL -> set_level(debug)
-    end.
+    end,
+    LogColored = rebar_config:get_global(Config, log_colored, true),
+    set_log_colored(LogColored).
+
 
 set_level(Level) ->
-    ok = application:set_env(rebar, log_level, Level).
+    erlang:put(rebar_log_level, Level).
+
+set_log_colored(true) ->
+    erlang:put(rebar_log_colored, true);
+set_log_colored(_LogColored) ->
+    erlang:put(rebar_log_colored, false).
 
 log(Level, Str, Args) ->
     log(standard_io, Level, Str, Args).
 
 log(Device, Level, Str, Args) ->
-    {ok, LogLevel} = application:get_env(rebar, log_level),
-    {ok, LogColored} = application:get_env(rebar, log_colored),
+    LogLevel = erlang:get(rebar_log_level),
+    LogColored = erlang:get(rebar_log_colored),
     case should_log(LogLevel, Level) of
         true ->
             io:format(Device, log_prefix(Level, LogColored) ++ Str, Args);
