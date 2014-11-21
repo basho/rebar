@@ -35,6 +35,7 @@
          get_rel_apps/2,
          get_previous_release_path/1,
          get_rel_file_path/2,
+         get_rel_file_path/3,
          load_config/2,
          get_sys_tuple/1,
          get_excl_lib_tuple/1,
@@ -106,9 +107,18 @@ get_rel_apps(Name, Path) ->
 
 %% Get rel file path from name and path
 get_rel_file_path(Name, Path) ->
-    [RelFile] = filelib:wildcard(filename:join([Path, "releases", "*",
-                                                Name ++ ".rel"])),
-    RelFile.
+    PVer = get_permanent_version(Path),
+    get_rel_file_path(Name, Path, PVer).
+
+get_rel_file_path(Name, Path, Version) ->
+    Dir = filename:join([Path, "releases", Version]),
+    Path1 = filename:join([Dir, Name ++ "_" ++ Version ++".rel"]),
+    Path2 = filename:join([Dir, Name ++ ".rel"]),
+    case {filelib:is_file(Path1), filelib:is_file(Path2)} of
+        {true, _} -> Path1;
+        {_, true} -> Path2;
+        _ -> ?ABORT("can not find .rel file for version ~p~n", [Version])
+    end.
 
 %% Get the previous release path from a global variable
 get_previous_release_path(Config) ->
@@ -128,7 +138,7 @@ load_config(Config, ReltoolFile) ->
         {ok, Terms} ->
             expand_version(Config, Terms, filename:dirname(ReltoolFile));
         Other ->
-            ?ABORT("Failed to load expected config from ~s: ~p\n",
+            ?ABORT("Failed to load expected config from ~s: ~p~n",
                    [ReltoolFile, Other])
     end.
 
@@ -141,7 +151,7 @@ get_sys_tuple(ReltoolConfig) ->
         {sys, _} = SysTuple ->
             SysTuple;
         false ->
-            ?ABORT("Failed to find {sys, [...]} tuple in reltool.config.", [])
+            ?ABORT("Failed to find {sys, [...]} tuple in reltool.config~n", [])
     end.
 
 %%
@@ -244,3 +254,16 @@ expand_rel_version(Config, {rel, Name, Version, Apps}, Dir) ->
     {NewConfig, {rel, Name, VsnString, Apps}};
 expand_rel_version(Config, Other, _Dir) ->
     {Config, Other}.
+
+%% get permanent version from start_erl.data
+get_permanent_version(Path) ->
+    DataFile = filename:join([Path, "releases", "start_erl.data"]),
+    case file:read_file(DataFile) of
+        {ok, DataBin} ->
+            [_, Version] = string:tokens(
+                             string:strip(binary_to_list(DataBin), right, $\n),
+                             " "),
+            Version;
+        {error, enoent} ->
+            ?ABORT("~s is missing~n", [DataFile])
+    end.
