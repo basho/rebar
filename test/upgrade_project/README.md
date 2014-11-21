@@ -38,3 +38,8 @@
 
     erl> release_handler:which_releases().
     erl> dummy_server:get_state().
+
+#### Building version 0.3
+    rm -r rel/dummy
+
+    # Now repeat steps in 'Building version 0.2' and 'Deploying with release_handler'

@@ -52,9 +52,10 @@
     OldVerPath = filename:join([TargetParentDir, PrevRelPath]),
 
     %% Run checks to make sure that building a package is possible
-    {NewVerPath, NewName, NewVer} = run_checks(Config, OldVerPath,
-                                               ReltoolConfig),
+    {NewVerPath, NewName, NewVer, OldVer} = run_checks(Config, OldVerPath,
+                                                       ReltoolConfig),
     NameVer = NewName ++ "_" ++ NewVer,
+    OldRelName = get_old_rel_name(OldVerPath, OldVer, NewName),
 
     %% Save the code path prior to doing anything
     OrigPath = code:get_path(),
@@ -63,7 +64,7 @@
     ok = setup(OldVerPath, NewVerPath, NewName, NewVer, NameVer),
 
     %% Build the package
-    run_systools(NameVer, NewName),
+    run_systools(NameVer, OldRelName),
 
     %% Boot file changes
     {ok, _} = boot_files(TargetDir, NewVer, NewName),
@@ -122,7 +123,7 @@ run_checks(Config, OldVerPath, ReltoolConfig) ->
         rebar_utils:prop_check(Ver == NewVer,
                                "Reltool and .rel versions do not match~n", []),
 
-    {NewVerPath, NewName, NewVer}.
+    {NewVerPath, NewName, NewVer, OldVer}.
 
 setup(OldVerPath, NewVerPath, NewName, NewVer, NameVer) ->
     Src = filename:join([NewVerPath, "releases",
@@ -139,9 +140,9 @@ setup(OldVerPath, NewVerPath, NewName, NewVer, NameVer) ->
                                                          "lib", "*", "ebin"]))
                         ])).
 
-run_systools(NewVer, Name) ->
+run_systools(NewVer, OldRelName) ->
     Opts = [silent],
-    NameList = [Name],
+    NameList = [OldRelName],
     case systools:make_relup(NewVer, NameList, NameList, Opts) of
         {error, _, Msg} ->
             ?ABORT("Systools [systools:make_relup/4] aborted with: ~p~n",
@@ -264,3 +265,7 @@ file_info(Path) ->
         Error ->
             Error
     end.
+
+get_old_rel_name(OldVerPath, OldVer, Name) ->
+    OldRelFile = rebar_rel_utils:get_rel_file_path(Name, OldVerPath, OldVer),
+    filename:basename(OldRelFile, ".rel").
