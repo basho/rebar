@@ -111,13 +111,13 @@ get_rel_file_path(Name, Path) ->
     get_rel_file_path(Name, Path, PVer).
 
 get_rel_file_path(Name, Path, Version) ->
-    Dir   = filename:join([Path, "releases", Version]),
+    Dir = filename:join([Path, "releases", Version]),
     Path1 = filename:join([Dir, Name ++ "_" ++ Version ++".rel"]),
     Path2 = filename:join([Dir, Name ++ ".rel"]),
     case {filelib:is_file(Path1), filelib:is_file(Path2)} of
         {true, _} -> Path1;
         {_, true} -> Path2;
-        _ -> ?ABORT("can not find .rel file for version ~p", [Version])
+        _ -> ?ABORT("can not find .rel file for version ~p~n", [Version])
     end.
 
 %% Get the previous release path from a global variable
@@ -138,7 +138,7 @@ load_config(Config, ReltoolFile) ->
         {ok, Terms} ->
             expand_version(Config, Terms, filename:dirname(ReltoolFile));
         Other ->
-            ?ABORT("Failed to load expected config from ~s: ~p\n",
+            ?ABORT("Failed to load expected config from ~s: ~p~n",
                    [ReltoolFile, Other])
     end.
 
@@ -151,7 +151,7 @@ get_sys_tuple(ReltoolConfig) ->
         {sys, _} = SysTuple ->
             SysTuple;
         false ->
-            ?ABORT("Failed to find {sys, [...]} tuple in reltool.config.", [])
+            ?ABORT("Failed to find {sys, [...]} tuple in reltool.config~n", [])
     end.
 
 %%
@@ -265,5 +265,5 @@ get_permanent_version(Path) ->
                              " "),
             Version;
         {error, enoent} ->
-            ?ABORT("start_erl.data is missing", [])
+            ?ABORT("~s is missing~n", [DataFile])
     end.
