@@ -35,7 +35,7 @@
 
 %% for internal use only
 -export([info/2,
-         version_tuple/2]).
+         version_tuple/3]).
 
 %% ===================================================================
 %% Public API
@@ -71,6 +71,10 @@ info_help() ->
        ]).
 
 check_versions(Config) ->
+    ShouldAbort = case rebar_config:get_xconf(Config, keep_going, false) of
+                      true -> keep_going;
+                      false -> abort
+                  end,
     ErtsRegex = rebar_config:get(Config, require_erts_vsn, ".*"),
     ReOpts = [{capture, none}],
     case re:run(erlang:system_info(version), ErtsRegex, ReOpts) of
@@ -78,8 +82,10 @@ check_versions(Config) ->
             ?DEBUG("Matched required ERTS version: ~s -> ~s\n",
                    [erlang:system_info(version), ErtsRegex]);
         nomatch ->
-            ?ABORT("ERTS version ~s does not match required regex ~s\n",
-                   [erlang:system_info(version), ErtsRegex])
+            maybe_abort(
+              ShouldAbort,
+              "ERTS version ~s does not match required regex ~s\n",
+              [erlang:system_info(version), ErtsRegex])
     end,
 
     OtpRegex = rebar_config:get(Config, require_otp_vsn, ".*"),
@@ -88,15 +94,19 @@ check_versions(Config) ->
             ?DEBUG("Matched required OTP release: ~s -> ~s\n",
                    [erlang:system_info(otp_release), OtpRegex]);
         nomatch ->
-            ?ABORT("OTP release ~s does not match required regex ~s\n",
-                   [erlang:system_info(otp_release), OtpRegex])
+            maybe_abort(
+              ShouldAbort,
+              "OTP release ~s does not match required regex ~s\n",
+              [erlang:system_info(otp_release), OtpRegex])
     end,
 
     case rebar_config:get(Config, require_min_otp_vsn, undefined) of
         undefined -> ?DEBUG("Min OTP version unconfigured~n", []);
         MinOtpVsn ->
-            {MinMaj, MinMin} = version_tuple(MinOtpVsn, "configured"),
-            {OtpMaj, OtpMin} = version_tuple(erlang:system_info(otp_release),
+            {MinMaj, MinMin} = version_tuple(ShouldAbort, MinOtpVsn,
+                                             "configured"),
+            {OtpMaj, OtpMin} = version_tuple(ShouldAbort,
+                                             erlang:system_info(otp_release),
                                              "OTP Release"),
             case {OtpMaj, OtpMin} >= {MinMaj, MinMin} of
                 true ->
@@ -104,19 +114,27 @@ check_versions(Config) ->
                            [erlang:system_info(otp_release),
                             MinOtpVsn]);
                 false ->
-                    ?ABORT("OTP release ~s or later is required, you have: ~s~n",
-                           [MinOtpVsn,
-                            erlang:system_info(otp_release)])
+                    maybe_abort(
+                      ShouldAbort,
+                      "OTP release ~s or later is required, you have: ~s~n",
+                      [MinOtpVsn,
+                       erlang:system_info(otp_release)])
             end
     end.
 
-version_tuple(OtpRelease, Type) ->
+version_tuple(ShouldAbort, OtpRelease, Type) ->
     case re:run(OtpRelease, "R?(\\d+)B?-?(\\d+)?", [{capture, all, list}]) of
         {match, [_Full, Maj, Min]} ->
             {list_to_integer(Maj), list_to_integer(Min)};
         {match, [_Full, Maj]} ->
             {list_to_integer(Maj), 0};
         nomatch ->
-            ?ABORT("Cannot parse ~s version string: ~s~n",
-                   [Type, OtpRelease])
+            maybe_abort(ShouldAbort,
+                        "Cannot parse ~s version string: ~s~n",
+                        [Type, OtpRelease])
     end.
+
+maybe_abort(abort, Format, Data) ->
+    ?ABORT(Format, Data);
+maybe_abort(keep_going, Format, Data) ->
+    ?WARN(Format, Data).
