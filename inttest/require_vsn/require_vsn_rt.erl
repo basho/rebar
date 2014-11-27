@@ -45,8 +45,8 @@ run(_Dir) ->
     %% Treat version constraints as warnings.
     retest:log(info, "Check require vsn success with -k/--keep-going~n"),
     ok = check_output("./rebar -k compile", should_succeed,
-                      [SharedExpected, "WARN: "],
-                      ["ERROR: "]),
+                      [SharedExpected, "ERROR: "],
+                      ["WARN: "]),
     ok.
 
 check_output(Cmd, FailureMode, Expected, Unexpected) ->

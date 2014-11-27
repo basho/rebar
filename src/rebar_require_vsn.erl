@@ -137,4 +137,4 @@ version_tuple(ShouldAbort, OtpRelease, Type) ->
 maybe_abort(abort, Format, Data) ->
     ?ABORT(Format, Data);
 maybe_abort(keep_going, Format, Data) ->
-    ?WARN(Format, Data).
+    ?ERROR(Format, Data).
