@@ -26,7 +26,8 @@
 %% -------------------------------------------------------------------
 -module(rebar_app_utils).
 
--export([is_app_dir/0, is_app_dir/1,
+-export([is_app_dir/0,
+         is_app_dir/1,
          is_app_src/1,
          app_src_to_app/1,
          app_name/2,

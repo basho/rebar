@@ -26,7 +26,8 @@
 %% -------------------------------------------------------------------
 -module(rebar_core).
 
--export([process_commands/2, help/2]).
+-export([process_commands/2,
+         help/2]).
 
 -include("rebar.hrl").
 

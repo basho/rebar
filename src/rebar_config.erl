@@ -26,16 +26,29 @@
 %% -------------------------------------------------------------------
 -module(rebar_config).
 
--export([new/0, new/1, base_config/1, consult_file/1,
-         get/3, get_local/3, get_list/3,
+-export([new/0,
+         new/1,
+         base_config/1,
+         consult_file/1,
+         get/3,
+         get_local/3,
+         get_list/3,
          get_all/2,
          set/3,
-         set_global/3, get_global/3,
+         set_global/3,
+         get_global/3,
          is_recursive/1,
-         save_env/3, get_env/2, reset_envs/1,
-         set_skip_dir/2, is_skip_dir/2, reset_skip_dirs/1,
+         save_env/3,
+         get_env/2,
+         reset_envs/1,
+         set_skip_dir/2,
+         is_skip_dir/2,
+         reset_skip_dirs/1,
          clean_config/2,
-         set_xconf/3, get_xconf/2, get_xconf/3, erase_xconf/2]).
+         set_xconf/3,
+         get_xconf/2,
+         get_xconf/3,
+         erase_xconf/2]).
 
 -include("rebar.hrl").
 

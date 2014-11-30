@@ -26,7 +26,10 @@
 %% -------------------------------------------------------------------
 -module(rebar_qc).
 
--export([qc/2, triq/2, eqc/2, clean/2]).
+-export([qc/2,
+         triq/2,
+         eqc/2,
+         clean/2]).
 
 %% for internal use only
 -export([info/2]).
