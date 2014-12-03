@@ -18,7 +18,7 @@ Building
 
 Information on building and installing [Erlang/OTP](http://www.erlang.org) can
 be found [here](https://github.com/erlang/otp/wiki/Installation) ([more
-info](https://github.com/erlang/otp/blob/master/INSTALL.md)).
+info](https://github.com/erlang/otp/blob/master/HOWTO/INSTALL.md)).
 
 ### Dependencies
 
