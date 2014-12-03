@@ -87,7 +87,12 @@ xref(Config, _) ->
 
     case lists:member(false, [XrefNoWarn, QueryNoWarn]) of
         true ->
-            ?FAIL;
+            case rebar_config:get_xconf(Config, keep_going, false) of
+                false ->
+                    ?FAIL;
+                true ->
+                    ok
+            end;
         false ->
             ok
     end.
