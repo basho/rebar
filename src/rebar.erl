@@ -165,8 +165,19 @@ profile(Config, Commands, fprof) ->
     after
         ok = fprof:profile(),
         ok = fprof:analyse([{dest, "fprof.analysis"}]),
-        ?CONSOLE("See fprof.analysis (generated from fprof.trace)~n", []),
-        ok
+        case rebar_utils:find_executable("erlgrind") of
+            false ->
+                ?CONSOLE(
+                   "See fprof.analysis (generated from fprof.trace)~n", []),
+                ok;
+            ErlGrind ->
+                Cmd = ?FMT("~s fprof.analysis fprof.cgrind", [ErlGrind]),
+                {ok, []} = rebar_utils:sh(Cmd, [{use_stdout, false},
+                                                abort_on_error]),
+                ?CONSOLE("See fprof.analysis (generated from fprof.trace)"
+                         " and fprof.cgrind~n", []),
+                ok
+        end
     end;
 profile(Config, Commands, eflame) ->
     case code:lib_dir(eflame) of
