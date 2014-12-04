@@ -26,7 +26,8 @@
 %% -------------------------------------------------------------------
 -module(rebar_dia_compiler).
 
--export([compile/2, clean/2]).
+-export([compile/2,
+         clean/2]).
 
 %% for internal use only
 -export([info/2]).
