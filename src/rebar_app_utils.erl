@@ -26,7 +26,8 @@
 %% -------------------------------------------------------------------
 -module(rebar_app_utils).
 
--export([is_app_dir/0, is_app_dir/1,
+-export([is_app_dir/0,
+         is_app_dir/1,
          is_app_src/1,
          app_src_to_app/1,
          app_name/2,
@@ -47,7 +48,7 @@ is_app_dir() ->
 
 is_app_dir(Dir) ->
     SrcDir = filename:join([Dir, "src"]),
-    AppSrc = filename:join([SrcDir, "*.app.src"]),
+    AppSrc = filename:join([SrcDir, "*.app.{src,src.script}"]),
     case filelib:wildcard(AppSrc) of
         [AppSrcFile] ->
             {true, AppSrcFile};
@@ -72,10 +73,17 @@ is_app_dir(Dir) ->
 is_app_src(Filename) ->
     %% If removing the extension .app.src yields a shorter name,
     %% this is an .app.src file.
-    Filename =/= filename:rootname(Filename, ".app.src").
+    Filename =/= filename:rootname(Filename, ".app.src") orelse
+        Filename =/= filename:rootname(Filename, ".app.src.script").
 
 app_src_to_app(Filename) ->
-    filename:join("ebin", filename:basename(Filename, ".app.src") ++ ".app").
+    Filebase =  case filename:rootname(Filename, ".app.src") of
+                    Filename ->
+                        filename:basename(Filename, ".app.src.script");
+                    _ ->
+                        filename:basename(Filename, ".app.src")
+                end,
+    filename:join("ebin", Filebase ++ ".app").
 
 app_name(Config, AppFile) ->
     case load_app_file(Config, AppFile) of
@@ -139,13 +147,13 @@ load_app_file(Config, Filename) ->
     case rebar_config:get_xconf(Config, {appfile, AppFile}, undefined) of
         undefined ->
             case consult_app_file(Filename) of
-                {ok, [{application, AppName, AppData}]} ->
+                {ok, {application, AppName, AppData}} ->
                     Config1 = rebar_config:set_xconf(Config,
                                                      {appfile, AppFile},
                                                      {AppName, AppData}),
                     {ok, Config1, AppName, AppData};
                 {error, _} = Error ->
-                    Error;
+                    {error, {error, Error}};
                 Other ->
                     {error, {unexpected_terms, Other}}
             end;
@@ -159,11 +167,17 @@ load_app_file(Config, Filename) ->
 %% config. However, in the case of *.app, rebar should not manipulate
 %% that file. This enforces that dichotomy between app and app.src.
 consult_app_file(Filename) ->
-    case lists:suffix(".app.src", Filename) of
-        false ->
-            file:consult(Filename);
-        true ->
-            rebar_config:consult_file(Filename)
+    Result = case lists:suffix(".app", Filename) of
+                 true ->
+                     file:consult(Filename);
+                 false ->
+                     rebar_config:consult_file(Filename)
+             end,
+    case Result of
+        {ok, [Term]} ->
+            {ok, Term};
+        _ ->
+            Result
     end.
 
 get_value(Key, AppInfo, AppFile) ->
