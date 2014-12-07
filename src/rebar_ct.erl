@@ -291,13 +291,14 @@ get_cover_config(Config, Cwd) ->
 
 collect_glob(Config, Cwd, Glob) ->
     {true, Deps} = rebar_deps:get_deps_dir(Config),
+    DepsDir = filename:basename(Deps),
     CwdParts = filename:split(Cwd),
     filelib:fold_files(Cwd, Glob, true, fun(F, Acc) ->
         %% Ignore any specs under the deps/ directory. Do this pulling
         %% the dirname off the F and then splitting it into a list.
         Parts = filename:split(filename:dirname(F)),
         Parts2 = remove_common_prefix(Parts, CwdParts),
-        case lists:member(Deps, Parts2) of
+        case lists:member(DepsDir, Parts2) of
             true ->
                 Acc;                % There is a directory named "deps" in path
             false ->
