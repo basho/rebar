@@ -37,7 +37,7 @@ files() ->
 
 run(_Dir) ->
     Cmd = "./rebar list-deps",
-    FprofFiles = ["fprof.trace", "fprof.analysis"],
+    FprofFiles = fprof_files(),
     EflameFiles = ["eflame.trace", "eflame.svg"],
 
     %% run a simple command (list-deps) without profiling
@@ -80,6 +80,18 @@ run(_Dir) ->
     end,
 
     ok.
+
+fprof_files() ->
+    FprofFiles = ["fprof.trace", "fprof.analysis"],
+    CgrindFiles = ["fprof.cgrind"],
+    case os:find_executable("erlgrind") of
+        false ->
+            retest:log(info,
+                       "erlgrind escript not found. skip fprof.cgrind check~n"),
+            FprofFiles;
+        _ErlGrind ->
+            FprofFiles ++ CgrindFiles
+    end.
 
 check(Cmd, FailureMode, ExpectedOutput, UnexpectedOutput,
       ExpectedFiles, UnexpectedFiles) ->
