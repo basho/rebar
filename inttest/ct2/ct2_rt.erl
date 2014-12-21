@@ -9,10 +9,16 @@ files() ->
     [{create, "ebin/foo.app", app(foo)},
      {copy, "../../rebar", "rebar"},
      {copy, "foo.test.spec", "foo.test.spec"},
+     {copy, "deps/bar.test.spec", "deps/bar.test.spec"},
      {copy, "foo_SUITE.erl", "test/foo_SUITE.erl"}].
 
 run(_Dir) ->
-    {ok, _} = retest:sh("./rebar compile ct -vvv"),
+    Ref = retest:sh("./rebar compile ct -vvv", [async]),
+    {ok, [[CTRunCmd]]} = retest:sh_expect(Ref, "^\"ct_run.*",
+                                  [global, {capture, first, binary}]),
+    {match, _} = re:run(CTRunCmd, "foo.test.spec", [global]),
+    %% deps/bar.test.spec should be ignored by rebar_ct:collect_glob/3
+    nomatch = re:run(CTRunCmd, "bar.test.spec", [global]),
     ok.
 
 %%
