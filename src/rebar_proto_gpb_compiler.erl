@@ -112,7 +112,6 @@ compile_gpb(Source, GpbOpts) ->
     SourceFullPath = filename:absname(Source),
     ok = filelib:ensure_dir(filename:join("ebin", "dummy")),
     ok = filelib:ensure_dir(filename:join("include", "dummy")),
-    ?CONSOLE("Compiling ~s\n", [Source]),
     case gpb_compile:file(SourceFullPath, GpbOpts) of
         ok ->
             ok;
