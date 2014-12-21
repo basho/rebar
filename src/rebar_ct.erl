@@ -226,10 +226,9 @@ make_cmd(TestDir, RawLogDir, Config) ->
                         filename:join(Cwd, TestDir)]) ++
                       get_cover_config(Config, Cwd) ++
                       get_ct_config_file(TestDir) ++
+                      get_config_file(TestDir) ++
                       get_suites(Config, TestDir) ++
-                      get_case(Config) ++
-                      get_extra_params(Config) ++
-                      get_config_file(TestDir);
+                      get_case(Config);
               SpecFlags ->
                   ?FMT("~s"
                        " -pa ~s"
@@ -243,12 +242,11 @@ make_cmd(TestDir, RawLogDir, Config) ->
                         build_name(Config),
                         LogDir,
                         filename:join(Cwd, TestDir)]) ++
-                      SpecFlags ++
-                      get_cover_config(Config, Cwd) ++
-                      get_extra_params(Config)
+                      SpecFlags ++ get_cover_config(Config, Cwd)
           end,
+    Cmd1 = Cmd ++ get_extra_params(Config),
     RawLog = filename:join(LogDir, "raw.log"),
-    {Cmd, RawLog}.
+    {Cmd1, RawLog}.
 
 build_name(Config) ->
     case rebar_config:get_local(Config, ct_use_short_names, false) of
@@ -328,7 +326,7 @@ get_config_file(TestDir) ->
         false ->
             " ";
         true ->
-            " -erl_args -config " ++ Config
+            " -config " ++ Config
     end.
 
 get_suites(Config, TestDir) ->
