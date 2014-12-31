@@ -79,6 +79,12 @@ run(_Dir) ->
     TestMTime2 = read_mtime(TestErl),
     ?assert(TestMTime2 > TestMTime1),
 
+    ?DEBUG("Verifying recompilation with no changes~n", []),
+    TestMTime3 = read_mtime(TestErl),
+    ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
+    TestMTime4 = read_mtime(TestErl),
+    ?assert(TestMTime3 =:= TestMTime4),
+
     ?DEBUG("Verify cleanup~n", []),
     ?assertMatch({ok, _}, retest_sh:run("./rebar clean", [])),
     ok = check_files_deleted(),
