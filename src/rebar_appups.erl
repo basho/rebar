@@ -69,8 +69,8 @@
     {_Added, _Removed, Upgraded} = get_apps(Name, OldVerPath, NewVerPath),
 
     %% Get a list of any appup files that exist in the new release
-    NewAppUpFiles = rebar_utils:find_files(
-                      filename:join([NewVerPath, "lib"]), "^[^._].*.appup$"),
+    NewAppUpFiles = rebar_utils:find_files_by_ext(
+                      filename:join([NewVerPath, "lib"]), ".appup"),
 
     %% Convert the list of appup files into app names
     AppUpApps = [file_to_name(File) || File <- NewAppUpFiles],
