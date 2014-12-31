@@ -44,7 +44,7 @@
 %% ===================================================================
 
 compile(Config, AppFile) ->
-    case rebar_utils:find_files_by_ext("src", ".proto", true) of
+    case rebar_utils:find_files_by_ext("src", ".proto") of
         [] ->
             ok;
         Protos ->
@@ -56,7 +56,7 @@ compile(Config, AppFile) ->
 
 clean(Config, AppFile) ->
     %% Get a list of generated .beam and .hrl files and then delete them
-    Protos = rebar_utils:find_files_by_ext("src", ".proto", true),
+    Protos = rebar_utils:find_files_by_ext("src", ".proto"),
     case Protos of
         [] ->
             ok;

@@ -47,9 +47,12 @@ proto_compile(Config, _AppFile, _ProtoFiles) ->
     %% since we have.proto files that need building
     case gpb_is_present() of
         true ->
+            GpbOpts = user_gpb_opts(Config),
+            Files = rebar_utils:find_files_by_ext("src", ".proto"),
+            Targets = [filename:join("src", target_filename(F, GpbOpts))
+                       || F <- Files],
             rebar_base_compiler:run(Config, [],
-                                    "src", ".proto",
-                                    "src", ".erl",
+                                    lists:zip(Files, Targets),
                                     fun compile_gpb/3,
                                     [{check_last_mod, true}]);
         false ->
@@ -57,14 +60,18 @@ proto_compile(Config, _AppFile, _ProtoFiles) ->
             ?FAIL
     end.
 
+target_filename(ProtoFileName, GpbOpts) ->
+    ModulePrefix = proplists:get_value(module_name_prefix, GpbOpts, ""),
+    ModuleSuffix = proplists:get_value(module_name_suffix, GpbOpts, ""),
+    Base = filename:basename(ProtoFileName, ".proto"),
+    ModulePrefix ++ Base ++ ModuleSuffix ++ ".erl".
+
 proto_clean(Config, _AppFile, ProtoFiles) ->
-    GpbOpts = gpb_opts(Config),
-    MPrefix = proplists:get_value(module_name_prefix, GpbOpts, ""),
-    MSuffix = proplists:get_value(module_name_suffix, GpbOpts, ""),
+    GpbOpts = user_gpb_opts(Config) ++ default_dest_opts(),
     rebar_file_utils:delete_each(
-      [beam_relpath(MPrefix, F, MSuffix) || F <- ProtoFiles]
-      ++ [erl_relpath(MPrefix, F, MSuffix) || F <- ProtoFiles]
-      ++ [hrl_relpath(MPrefix, F, MSuffix) || F <- ProtoFiles]),
+      [beam_file(F, GpbOpts) || F <- ProtoFiles]
+      ++ [erl_file(F, GpbOpts) || F <- ProtoFiles]
+      ++ [hrl_file(F, GpbOpts) || F <- ProtoFiles]),
     ok.
 
 %% ===================================================================
@@ -82,37 +89,55 @@ proto_info(help, compile) ->
 proto_info(help, clean) ->
     ?CONSOLE("", []).
 
-gpb_opts(Config) ->
-    rebar_config:get_local(Config, gpb_opts, []).
-
 gpb_is_present() ->
     code:which(gpb) =/= non_existing.
 
+user_gpb_opts(Config) ->
+    rebar_config:get_local(Config, gpb_opts, []).
+
+default_dest_opts() ->
+    [{o_erl, "src"}, {o_hrl, "include"}].
+
 compile_gpb(Source, _Target, Config) ->
     SourceFullPath = filename:absname(Source),
-    DefaultDestOpts = [{o_erl, "src"}, {o_hrl, "include"}],
-    SelfIncludeOpt = [{i,filename:dirname(SourceFullPath)}],
-    GpbOpts = gpb_opts(Config) ++ DefaultDestOpts ++ SelfIncludeOpt,
+    GpbOpts = user_gpb_opts(Config) ++ default_dest_opts()
+        ++ default_include_opts(SourceFullPath),
     ok = filelib:ensure_dir(filename:join("ebin", "dummy")),
     ok = filelib:ensure_dir(filename:join("include", "dummy")),
     case gpb_compile:file(SourceFullPath, GpbOpts) of
         ok ->
             ok;
-        {error, _Reason} ->
-            ?ERROR("Failed to compile ~s~n", [Source]),
+        {error, Reason} ->
+            ReasonStr = gpb_compile:format_error(Reason),
+            ?ERROR("Failed to compile ~s: ~s~n", [SourceFullPath, ReasonStr]),
             ?FAIL
     end.
 
-beam_relpath(Prefix, Proto, Suffix) ->
-    proto_filename_to_relpath("ebin", Prefix, Proto, Suffix, ".beam").
+default_include_opts(SourceFullPath) ->
+    [{i,filename:dirname(SourceFullPath)}].
 
-erl_relpath(Prefix, Proto, Suffix) ->
-    proto_filename_to_relpath("src", Prefix, Proto, Suffix, ".erl").
+beam_file(ProtoFile, GpbOpts) ->
+    proto_filename_to_path("ebin", ProtoFile, ".beam", GpbOpts).
 
-hrl_relpath(Prefix, Proto, Suffix) ->
-    proto_filename_to_relpath("include", Prefix, Proto, Suffix, ".hrl").
+erl_file(ProtoFile, GpbOpts) ->
+    ErlOutDir = get_erl_outdir(GpbOpts),
+    proto_filename_to_path(ErlOutDir, ProtoFile, ".erl", GpbOpts).
 
-proto_filename_to_relpath(Dir, Prefix, Proto, Suffix, NewExt) ->
-    BaseNoExt = filename:basename(Proto, ".proto"),
+hrl_file(ProtoFile, GpbOpts) ->
+    HrlOutDir = get_hrl_outdir(GpbOpts),
+    proto_filename_to_path(HrlOutDir, ProtoFile, ".hrl", GpbOpts).
+
+proto_filename_to_path(Dir, ProtoFile, NewExt, GpbOpts) ->
+    BaseNoExt = filename:basename(ProtoFile, ".proto"),
+    Prefix = proplists:get_value(module_name_prefix, GpbOpts, ""),
+    Suffix = proplists:get_value(module_name_suffix, GpbOpts, ""),
     filename:join([Dir, Prefix ++ BaseNoExt ++ Suffix ++ NewExt]).
 
+get_erl_outdir(Opts) ->
+    proplists:get_value(o_erl, Opts, get_outdir(Opts)).
+
+get_hrl_outdir(Opts) ->
+    proplists:get_value(o_hrl, Opts, get_outdir(Opts)).
+
+get_outdir(Opts) ->
+    proplists:get_value(o, Opts, ".").
