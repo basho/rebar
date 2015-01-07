@@ -1,0 +1,10 @@
+%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
+%% ex: ts=4 sw=4 et
+
+{application, protobuffs,
+ [{description,
+   "Simple mock of erlang_protobuffs, with enough to generate dummy files"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [kernel, stdlib]},
+  {env, []}]}.
