@@ -117,7 +117,7 @@ check_vsn() ->
             ?ABORT("Reltool support requires the reltool application "
                    "to be installed!", []);
         Path ->
-            ReltoolVsn = filename:basename(Path),
+            ReltoolVsn = reltool_vsn(Path),
             case ReltoolVsn < "reltool-0.5.2" of
                 true ->
                     ?ABORT("Reltool support requires at least reltool-0.5.2; "
@@ -126,6 +126,39 @@ check_vsn() ->
                     ok
             end
     end.
+
+reltool_vsn(ReltoolPath) ->
+    AppFile = filename:join([ReltoolPath, "ebin", "reltool.app"]),
+    case filelib:is_regular(AppFile) of
+        true ->
+            reltool_vsn_from_app();
+        false ->
+            reltool_vsn_from_path(ReltoolPath)
+    end.
+
+reltool_vsn_from_app() ->
+    ok = case application:load(reltool) of
+             ok ->
+                 ok;
+             {error, {already_loaded, reltool}} ->
+                 ok
+         end,
+    {ok, Vsn} = application:get_key(reltool, vsn),
+    "reltool-" ++ Vsn.
+
+%% NOTE: OTP releases prior to R14B did not install
+%% lib/reltool-x.y.z/ebin/reltool.app. Therefore, if we cannot find the app
+%% file, we have to resort to getting the version string from reltool's lib_dir
+%% path. This usually works, but as reported in
+%% https://github.com/rebar/rebar/issues/415 there can be installations without
+%% version strings in lib_dir paths. Given R13's age and that it's unusual to
+%% have vsn-less lib_dir paths, this shouldn't be a problem.
+%%
+%% TODO: Once we require at least R14B04 (didn't check for existence of
+%% ebin/reltool.app in R14 releases older than R14B04), simplify reltool_vsn/1
+%% to get the version string only from the app key.
+reltool_vsn_from_path(ReltoolPath) ->
+    filename:basename(ReltoolPath).
 
 process_overlay(Config, ReltoolConfig) ->
     TargetDir = rebar_rel_utils:get_target_dir(Config, ReltoolConfig),
@@ -166,7 +199,7 @@ overlay_vars(Config, Vars0, ReltoolConfig) ->
     BaseVars = load_vars_file([proplists:get_value(overlay_vars, ReltoolConfig)]),
     OverlayVars = rebar_config:get_global(Config, overlay_vars, []),
     OverrideVars = load_vars_file(string:tokens(OverlayVars, ",")),
-    M = fun merge_overlay_var/3, 
+    M = fun merge_overlay_var/3,
     dict:merge(M, dict:merge(M, Vars0, BaseVars), OverrideVars).
 
 merge_overlay_var(_Key, _Base, Override) -> Override.
