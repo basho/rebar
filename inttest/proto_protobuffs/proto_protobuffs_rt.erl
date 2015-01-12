@@ -48,11 +48,11 @@ files() ->
      {copy, "rebar.config", "rebar.config"},
      {copy, "include", "include"},
      {copy, "src", "src"},
+     {copy, "mock", "deps"},
      {create, "ebin/foo.app", app(foo, ?MODULES)}
     ].
 
 run(_Dir) ->
-    ?assertMatch({ok, _}, retest_sh:run("./rebar prepare-deps", [])),
     ?assertMatch({ok, _}, retest_sh:run("./rebar clean", [])),
     ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
     ok = check_beams_generated(),
