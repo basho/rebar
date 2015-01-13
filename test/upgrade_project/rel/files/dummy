@@ -245,6 +245,10 @@ case "$1" in
 
         shift
         $NODETOOL eval "$1"
+        ES_EVAL=$?
+        if [ "$ES_EVAL" -ne 0 ]; then
+            exit $ES_EVAL
+        fi
         ;;
 
     remote_console)
