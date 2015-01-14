@@ -39,7 +39,8 @@ files() ->
      {copy, "unconverted"}].
 
 run(_Dir) ->
-    {ok, _} = retest:sh("./rebar compile ct -v", [{env, [{"ERL_FLAGS", "-name ct_rt3"}]}]),
+    {ok, _} = retest:sh("./rebar compile ct -v",
+                        [{env, [{"ERL_FLAGS", "-name ct_rt3"}]}]),
     ok.
 
 %%
