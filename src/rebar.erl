@@ -488,7 +488,11 @@ option_spec_list() ->
      {keep_going, $k, "keep-going", undefined,
       "Keep running after a command fails"},
      {recursive, $r, "recursive", boolean,
-      "Apply commands to subdirs and dependencies"}
+      "Apply all commands recursively. Alternatively, you can selectively"
+      " configure what other commands in addition to the always-recursive"
+      " ones (compile, *-deps) should also be applied recursively."
+      " For example, to make 'eunit' recursive, add {recursive_cmds, [eunit]}"
+      " to rebar.config."}
     ].
 
 %%
