@@ -303,11 +303,11 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
     %% (rebar_config:get_local instead of rebar_config:get_list), consider
     %% logging a warning message for any file listed in erl_first_files which
     %% wasn't found via gather_src.
-    {ErlFirstFiles, RestErls} =
-        lists:partition(
-          fun(Source) ->
-                  lists:member(Source, ErlFirstFilesConf)
-          end, AllErlFiles),
+    RestErls = [File || File <- AllErlFiles,
+                        not lists:member(File, ErlFirstFilesConf)],
+    %% NOTE: order of files in ErlFirstFiles is important!
+    ErlFirstFiles = [File || File <- ErlFirstFilesConf,
+                             lists:member(File, AllErlFiles)],
     %% Make sure that ebin/ exists and is on the path
     ok = filelib:ensure_dir(filename:join("ebin", "dummy.beam")),
     CurrPath = code:get_path(),
