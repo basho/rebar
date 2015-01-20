@@ -109,9 +109,27 @@ main(Args) ->
                 {value, Value, _Bindings} ->
                     io:format("~p\n", [Value])
             end;
+        ["upgrade", ReleasePackage] ->
+            %% TODO: This script currently does NOT support slim releases.
+            %% Necessary steps to upgrade a slim release are as follows:
+            %% 1. unpack relup archive manually
+            %% 2. copy releases directory and necessary libraries
+            %% 3. using release_hander:set_unpacked/2 .
+            %% For more details, see https://github.com/rebar/rebar/pull/52
+            %% and https://github.com/rebar/rebar/issues/202
+            {ok, Vsn} = rpc:call(TargetNode, release_handler, unpack_release,
+                                 [ReleasePackage], 60000),
+            io:format("Unpacked Release ~p\n", [Vsn]),
+            {ok, OtherVsn, Desc} = rpc:call(TargetNode, release_handler,
+                                            check_install_release, [Vsn], 60000),
+            {ok, OtherVsn, Desc} = rpc:call(TargetNode, release_handler,
+                                            install_release, [Vsn], 60000),
+            io:format("Installed Release ~p\n", [Vsn]),
+            ok = rpc:call(TargetNode, release_handler, make_permanent, [Vsn], 60000),
+            io:format("Made Release ~p Permanent\n", [Vsn]);
         Other ->
             io:format("Other: ~p\n", [Other]),
-            io:format("Usage: nodetool {chkconfig|getpid|ping|stop|restart|reboot|rpc|rpc_infinity|rpcterms|eval}\n")
+            io:format("Usage: nodetool {chkconfig|getpid|ping|stop|restart|reboot|rpc|rpc_infinity|rpcterms|eval|upgrade}\n")
     end,
     net_kernel:stop().
 

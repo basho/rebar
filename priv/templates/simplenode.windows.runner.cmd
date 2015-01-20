@@ -95,7 +95,7 @@ start "%node_name% attach" %werl% -boot "%clean_boot_script%" -remsh %node_name%
     @echo NOTE {package base name} MUST NOT include the .tar.gz suffix
     @goto :EOF
 )
-@%escript% %node_root%\bin\install_upgrade.escript %node_name% %erlang_cookie% %2
+@%escript% %nodetool% -sname "%node_name%" -setcookie "%erlang_cookie%" upgrade %2
 @goto :EOF
 
 :set_trim
