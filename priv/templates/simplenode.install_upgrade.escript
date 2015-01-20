@@ -2,51 +2,54 @@
 %%! -noshell -noinput
 %% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %% ex: ft=erlang ts=4 sw=4 et
+%% This file is left for backward-compatibility.
+%% You, probably, shouldn't include it to new projects.
 
--define(TIMEOUT, 60000).
--define(INFO(Fmt,Args), io:format(Fmt,Args)).
-
-%% TODO: This script currently does NOT support slim releases.
-%% Necessary steps to upgrade a slim release are as follows:
-%% 1. unpack relup archive manually
-%% 2. copy releases directory and necessary libraries
-%% 3. using release_hander:set_unpacked/2 .
-%% For more details, see https://github.com/rebar/rebar/pull/52
-%% and https://github.com/rebar/rebar/issues/202
 
 main([NodeName, Cookie, ReleasePackage]) ->
-    TargetNode = start_distribution(NodeName, Cookie),
-    {ok, Vsn} = rpc:call(TargetNode, release_handler, unpack_release,
-                         [ReleasePackage], ?TIMEOUT),
-    ?INFO("Unpacked Release ~p~n", [Vsn]),
-    {ok, OtherVsn, Desc} = rpc:call(TargetNode, release_handler,
-                                    check_install_release, [Vsn], ?TIMEOUT),
-    {ok, OtherVsn, Desc} = rpc:call(TargetNode, release_handler,
-                                    install_release, [Vsn], ?TIMEOUT),
-    ?INFO("Installed Release ~p~n", [Vsn]),
-    ok = rpc:call(TargetNode, release_handler, make_permanent, [Vsn], ?TIMEOUT),
-    ?INFO("Made Release ~p Permanent~n", [Vsn]);
+    io:format("WARNING: 'install_upgrade.escript' is deprecated! "
+              "Use 'nodetool upgrade' instead.~n"),
+    NodeRoot = filename:dirname(filename:dirname(escript:script_name())),
+    NodeTool = which_nodetool(NodeRoot),
+    process_flag(trap_exit, true),
+    Port = erlang:open_port(
+             {spawn_executable, NodeTool},
+             [{args, ["-sname", NodeName,
+                      "-setcookie", Cookie,
+                      "upgrade", ReleasePackage]},
+              binary, exit_status, use_stdio, stderr_to_stdout, hide]),
+    port_loop(Port);
 main(_) ->
-    init:stop(1).
+    halt(1).
 
-start_distribution(NodeName, Cookie) ->
-    MyNode = make_script_node(NodeName),
-    {ok, _Pid} = net_kernel:start([MyNode, shortnames]),
-    erlang:set_cookie(node(), list_to_atom(Cookie)),
-    TargetNode = make_target_node(NodeName),
-    case {net_kernel:hidden_connect_node(TargetNode),
-          net_adm:ping(TargetNode)} of
-        {true, pong} ->
-            ok;
-        {_, pang} ->
-            io:format("Node ~p not responding to pings.\n", [TargetNode]),
-            init:stop(1)
-    end,
-    TargetNode.
 
-make_target_node(Node) ->
-    [_, Host] = string:tokens(atom_to_list(node()), "@"),
-    list_to_atom(lists:concat([Node, "@", Host])).
+which_nodetool(NodeRoot) ->
+    %% ${RELEASE_ROOT}/
+    %%   bin/install_upgrade.escript
+    %%   bin/nodetool ?
+    %%   erts-<erts_ver>/bin/nodetool ?
+    %%   releases/<app_ver>/nodetool ?
+    %%   releases/start_erl.data
+    {ok, Content} = file:read_file(filename:join([NodeRoot, "releases", "start_erl.data"])),
+    [ErtsVsn, AppVsn] = binary:split(Content, <<" ">>),
+    Probes = [
+              filename:join([NodeRoot, "bin", "nodetool"]),
+              filename:join([NodeRoot, <<"erts-", ErtsVsn/binary>>, "bin", "nodetool"]),
+              filename:join([NodeRoot, "releases", AppVsn, "bin", "nodetool"])
+             ],
+    case lists:dropwhile(fun(Path) -> not filelib:is_regular(Path) end, Probes) of
+        [] ->
+            io:format("ERROR: can't find 'nodetool' in ~p.~n", [Probes]),
+            halt(2);
+        [Path | _] ->
+            Path
+    end.
 
-make_script_node(Node) ->
-    list_to_atom(lists:concat([Node, "_upgrader_", os:getpid()])).
+port_loop(Port) ->
+    receive
+        {Port, {data, Data}} ->
+            io:put_chars(Data),
+            port_loop(Port);
+        {Port, {exit_status, Status}} ->
+            halt(Status)
+    end.

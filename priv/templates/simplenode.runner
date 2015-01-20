@@ -335,10 +335,7 @@ case "$1" in
             exit $ES
         fi
 
-        node_name=`echo $NAME_ARG | awk '{print $2}'`
-        erlang_cookie=`echo $COOKIE_ARG | awk '{print $2}'`
-
-        $ERTS_PATH/escript $RUNNER_BASE_DIR/bin/install_upgrade.escript $node_name $erlang_cookie $2
+        $NODETOOL upgrade $2
         ;;
 
     console|console_clean|console_boot)
