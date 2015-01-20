@@ -568,9 +568,21 @@ erl_interface_dir(Subdir) ->
     end.
 
 default_env() ->
+    Arch = os:getenv("REBAR_ARCH_TARGET"),
+    Vsn = os:getenv("REBAR_ARCH_TARGET_VSN"),
     [
-     {"CC" , "cc"},
-     {"CXX", "c++"},
+     {"CC" , get_tool(Arch,Vsn,"gcc","cc")},
+     {"CXX", get_tool(Arch,Vsn,"g++","c++")},
+     {"AR" , get_tool(Arch,"ar","ar")},
+     {"AS" , get_tool(Arch,"as","as")},
+     {"CPP" , get_tool(Arch,Vsn,"cpp","cpp")},
+     {"LD" , get_tool(Arch,"ld","ld")},
+     {"RANLIB" , get_tool(Arch,Vsn,"ranlib","ranlib")},
+     {"STRIP" , get_tool(Arch,"strip","strip")},
+     {"NM" , get_tool(Arch,"nm","nm")},
+     {"OBJCOPY" , get_tool(Arch,"objcopy","objcopy")},
+     {"OBJDUMP" , get_tool(Arch,"objdump","objdump")},
+
      {"DRV_CXX_TEMPLATE",
       "$CXX -c $CXXFLAGS $DRV_CFLAGS $PORT_IN_FILES -o $PORT_OUT_FILE"},
      {"DRV_CC_TEMPLATE",
@@ -643,3 +655,16 @@ default_env() ->
      {"win32", "DRV_CFLAGS", "/Zi /Wall $ERL_CFLAGS"},
      {"win32", "DRV_LDFLAGS", "/DLL $ERL_LDFLAGS"}
     ].
+
+get_tool(Arch,Tool,Default) ->
+    get_tool(Arch,false,Tool,Default).
+
+get_tool(false, _, _, Default) -> Default;
+get_tool("",_,_, Default) -> Default;
+get_tool(Arch, false, Tool, _Default) -> Arch++"-"++Tool;
+get_tool(Arch, "", Tool, _Default) -> Arch++"-"++Tool;
+get_tool(Arch, Vsn, Tool, _Default) -> Arch++"-"++Tool++"-"++Vsn.
+
+
+
+    
