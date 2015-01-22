@@ -9,4 +9,8 @@ otp_release:
   - R14B04
   - R14B03
   - 17.0
+before_script:
+  - hostname -f
+  - cc -v
+  - ld -v
 script: "make travis"
