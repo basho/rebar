@@ -457,8 +457,19 @@ is_app_available(Config, App, VsnRegex, Path, _IsRaw = false) ->
                               {AppFile, {expected, App}, {has, OtherApp}}}}}
             end;
         false ->
-            ?WARN("Expected ~s to be an app dir (containing ebin/*.app), "
-                  "but no .app found.\n", [Path]),
+            case filelib:is_dir(Path) of
+                true ->
+                    %% Path is a directory, but it's not an app dir.
+                    ?WARN("Directory expected to be an app dir, but no "
+                          "app file found ~n"
+                          "in ebin/ or src/:~n~s~n",
+                          [Path]);
+                false ->
+                    %% Path is not a directory, so it cannot be an app dir.
+                    %% TODO: maybe we can avoid checking non-existing dirs
+                    ?DEBUG("Directory expected to be an app dir, "
+                           "but it doesn't exist (yet?):~n~s~n", [Path])
+            end,
             {Config, {false, {missing_app_file, Path}}}
     end;
 is_app_available(Config, App, _VsnRegex, Path, _IsRaw = true) ->
