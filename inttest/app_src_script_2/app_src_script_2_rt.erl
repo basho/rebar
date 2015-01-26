@@ -24,7 +24,7 @@
 %% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %% THE SOFTWARE.
 %% -------------------------------------------------------------------
--module(app_src_script_rt).
+-module(app_src_script_2_rt).
 
 -compile(export_all).
 
@@ -32,30 +32,32 @@
 
 files() ->
     [{copy, "../../rebar", "rebar"},
-     {create, "src/app_src_script.app.src.script", app_script(app_src_script)}].
+     {create, "src/app_src_script_2.app.src.script", app_script(app_src_script_2)},
+     {create, "src/app_src_script_2.app.src", app(app_src_script_2)}].
 
 run(Dir) ->
     retest_log:log(debug, "Running in Dir: ~s~n", [Dir]),
     {ok, [_Pid|Output]} = retest:sh("./rebar compile -vv",
                                     [{async, false}]),
 
-    Regexp = "DEBUG: Evaluating config script .*/app_src_script\.app\.src\.script.*",
+    Regexp = "DEBUG: Evaluating config script .*/app_src_script_2\.app\.src\.script.*",
     ?assertEqual(true, has_line(Output, Regexp)),
     retest_log:log(debug, "Evaluated .app.src.script~n", []),
 
     %% check that ebin/app_src.app exists
-    ?assertMatch(true, filelib:is_regular("ebin/app_src_script.app")),
+    ?assertMatch(true, filelib:is_regular("ebin/app_src_script_2.app")),
     retest_log:log(debug, "Generated ebin/.app~n", []),
 
-    %% check that ebin/.app has vsn="2"
-    {ok, Bin} = file:read_file("ebin/app_src_script.app"),
+    %% check that ebin/.app has vsn="2" (as in .script)
+    {ok, Bin} = file:read_file("ebin/app_src_script_2.app"),
     Str = binary_to_list(Bin),
+    retest_log:log(debug, "app=~p~n", [Str]),
     ?assertMatch({match, _}, re:run(Str, "{vsn, *\"2\"}")),
-    retest_log:log(debug, "Variable replacement in .app is ok.~n", []),
+    retest_log:log(debug, "app.src has version from script.~n", []),
 
-    %% check that ebin/.app doesn't have foo=ok
-    ?assertMatch(nomatch, re:run(Str, "{foo, *ok}")),
-    retest_log:log(debug, "app.src hasn't 'foo' config.~n", []),
+    %% check that ebin/.app has foo=ok (from .src)
+    ?assertMatch({match, _}, re:run(Str, "{foo, *ok}")),
+    retest_log:log(debug, "app.src has 'foo' config from .src.~n", []),
 
     ok.
 
@@ -75,9 +77,17 @@ has_line([L|T], RE) ->
 %% Generate the contents of a simple .app.src.script file
 %%
 app_script(Name) ->
-    "Vsn=\"2\".\n" ++
-        "{application, " ++ atom_to_list(Name) ++ ",
-           [{vsn, Vsn},
+	"[{application," ++ atom_to_list(Name) ++ ",Cfg}] = CONFIG,
+     [{application," ++ atom_to_list(Name) ++ ",lists:keyreplace(vsn, 1, Cfg,
+                                    {vsn, \"2\"})}].".
+
+%%
+%% Generate the contents of a simple .app.src file
+%%
+app(Name) ->
+    "{application, " ++ atom_to_list(Name) ++ ",
+           [{vsn, \"3\"},
+            {foo, ok},
             {modules, []},
-            {registered, []},
-            {applications, [kernel, stdlib]}]}.\n".
+             {registered, []},
+             {applications, [kernel, stdlib]}]}.\n".

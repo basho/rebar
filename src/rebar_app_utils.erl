@@ -47,27 +47,30 @@ is_app_dir() ->
     is_app_dir(rebar_utils:get_cwd()).
 
 is_app_dir(Dir) ->
-    SrcDir = filename:join([Dir, "src"]),
-    AppSrc = filename:join([SrcDir, "*.app.{src,src.script}"]),
-    case filelib:wildcard(AppSrc) of
-        [AppSrcFile] ->
-            {true, AppSrcFile};
-        [] ->
-            EbinDir = filename:join([Dir, "ebin"]),
-            App = filename:join([EbinDir, "*.app"]),
-            case filelib:wildcard(App) of
-                [AppFile] ->
-                    {true, AppFile};
-                [] ->
-                    false;
-                _ ->
-                    ?ERROR("More than one .app file in ~s~n", [EbinDir]),
-                    false
-            end;
-        _ ->
-            ?ERROR("More than one .app.src file in ~s~n", [SrcDir]),
-            false
-    end.
+	SrcDir = filename:join([Dir, "src"]),
+	AppSrcScript = filename:join([SrcDir, "*.app.src.script"]),
+	AppSrc = filename:join([SrcDir, "*.app.src"]),
+	case {filelib:wildcard(AppSrcScript), filelib:wildcard(AppSrc)} of
+		{[AppSrcScriptFile], _} ->
+			{true, AppSrcScriptFile};
+		{[], [AppSrcFile]} ->
+			{true, AppSrcFile};
+		{[],[]} ->
+			EbinDir = filename:join([Dir, "ebin"]),
+			App = filename:join([EbinDir, "*.app"]),
+			case filelib:wildcard(App) of
+				[AppFile] ->
+					{true, AppFile};
+				[] ->
+					false;
+				_ ->
+					?ERROR("More than one .app file in ~s~n", [EbinDir]),
+					false
+			end;
+		{_, _} ->
+			?ERROR("More than one .app.src file in ~s~n", [SrcDir]),
+			false
+	end.
 
 
 is_app_src(Filename) ->
