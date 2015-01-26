@@ -67,7 +67,13 @@
          processing_base_dir/1,
          processing_base_dir/2,
          patch_env/2,
-         cleanup_code_path/1]).
+         cleanup_code_path/1,
+         cross_wordsize/1,
+         native_wordsize/0,
+         wordsize/1,
+         cross_sizeof/2,
+         env_wordsize/1
+        ]).
 
 %% for internal use only
 -export([otp_release/0]).
@@ -113,11 +119,14 @@ wordsize() ->
 wordsize(Arch) when Arch =:= false; Arch =:= "" ->
     native_wordsize();
 wordsize(Arch) ->
-    %% add a simple call to gcc to find out?
     case match_wordsize(Arch, [{"i686","32"}, {"i386","32"},
                                {"arm","32"}, {"x86_64","64"}]) of
         false ->
-            env_wordsize(os:getenv("REBAR_ARCH_WORDSIZE"));
+            case cross_wordsize(Arch) of
+                "" ->
+                    env_wordsize(os:getenv("REBAR_ARCH_WORDSIZE"));
+                WordSize -> WordSize
+            end;
         {_, Wordsize} ->
             Wordsize
     end.
@@ -146,6 +155,67 @@ env_wordsize(Wordsize) ->
             io:format("REBAR_ARCH_WORDSIZE bad value: ~p\n", [Wordsize]),
             "32"
     end.
+
+%%
+%% Findout the word size of the target by using Arch-gcc
+%%
+
+cross_wordsize(Arch) ->
+    cross_sizeof(Arch, "void*").
+
+%%
+%% Find the size of target Type using a specially crafted C file 
+%% that will report an error on the line of the byte size of the type.
+%% 
+                       
+cross_sizeof(Arch, Type) ->
+    Compiler = if  Arch =:= "" -> "cc";
+                   true -> Arch ++ "-gcc"
+               end,
+    TempFile = mktemp(".c"),
+    file:write_file(TempFile,
+                    <<"int t01 [1 - 2*(((long) (sizeof (TYPE))) == 1)];\n"
+                      "int t02 [1 - 2*(((long) (sizeof (TYPE))) == 2)];\n"
+                      "int t03 [1 - 2*(((long) (sizeof (TYPE))) == 3)];\n"
+                      "int t04 [1 - 2*(((long) (sizeof (TYPE))) == 4)];\n"
+                      "int t05 [1 - 2*(((long) (sizeof (TYPE))) == 5)];\n"
+                      "int t06 [1 - 2*(((long) (sizeof (TYPE))) == 6)];\n"
+                      "int t07 [1 - 2*(((long) (sizeof (TYPE))) == 7)];\n"
+                      "int t08 [1 - 2*(((long) (sizeof (TYPE))) == 8)];\n"
+                      "int t09 [1 - 2*(((long) (sizeof (TYPE))) == 9)];\n"
+                      "int t10 [1 - 2*(((long) (sizeof (TYPE))) == 10)];\n"
+                      "int t11 [1 - 2*(((long) (sizeof (TYPE))) == 11)];\n"
+                      "int t12 [1 - 2*(((long) (sizeof (TYPE))) == 12)];\n"
+                      "int t13 [1 - 2*(((long) (sizeof (TYPE))) == 13)];\n"
+                      "int t14 [1 - 2*(((long) (sizeof (TYPE))) == 14)];\n"
+                      "int t15 [1 - 2*(((long) (sizeof (TYPE))) == 15)];\n"
+                      "int t16 [1 - 2*(((long) (sizeof (TYPE))) == 16)];\n"
+                    >>),
+    Res = os:cmd(Compiler ++ " -DTYPE=\""++Type++"\" " ++ TempFile),
+    file:delete(TempFile),
+    case string:tokens(Res, ":") of
+        [_,Ln | _] ->
+            try list_to_integer(Ln) of
+                NumBytes -> integer_to_list(NumBytes*8)
+            catch
+                error:_ ->
+                    ""
+            end;
+        _ ->
+            ""
+    end.
+
+mktemp(Suffix) ->
+    {A,B,C} = erlang:now(),
+    Dir = case os:type() of
+              {windows,_} -> "C:/WINDOWS/TEMP";
+              _ -> "/tmp"
+          end,
+    File = "rebar_"++os:getpid()++
+        integer_to_list(A)++"_"++
+        integer_to_list(B)++"_"++
+        integer_to_list(C)++Suffix,
+    filename:join(Dir,File).
 
 native_wordsize() ->
     try erlang:system_info({wordsize, external}) of
