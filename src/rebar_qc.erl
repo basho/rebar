@@ -211,7 +211,7 @@ qc_module(QC=eqc, [], M) -> QC:module(M);
 qc_module(QC=eqc, QCOpts, M) -> QC:module(QCOpts, M).
 
 find_prop_mods() ->
-    Beams = rebar_utils:find_files(?QC_DIR, "^[^._].*\\.beam\$"),
+    Beams = rebar_utils:find_files_by_ext(?QC_DIR, ".beam"),
     [M || M <- [rebar_utils:erl_to_mod(Beam) || Beam <- Beams], has_prop(M)].
 
 has_prop(Mod) ->
