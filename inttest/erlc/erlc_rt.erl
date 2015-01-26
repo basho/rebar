@@ -31,7 +31,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(MODULES,
-        [first_xrl,
+        [after_first_erl,
+         first_xrl,
          first_yrl,
          first_erl,
          foo,
@@ -42,7 +43,8 @@
          'SIMPLE-ASN']).
 
 -define(BEAM_FILES,
-        ["first_xrl.beam",
+        ["after_first_erl.beam",
+         "first_xrl.beam",
          "first_yrl.beam",
          "first_erl.beam",
          "foo.beam",
