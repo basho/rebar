@@ -604,6 +604,11 @@ default_env() ->
      {"solaris.*-64$", "CXXFLAGS", "-D_REENTRANT -m64 $CXXFLAGS"},
      {"solaris.*-64$", "LDFLAGS", "-m64 $LDFLAGS"},
 
+     %% Linux specific flags for multiarch
+     {"linux.*-64$", "CFLAGS", "-m64 $CFLAGS"},
+     {"linux.*-64$", "CXXFLAGS", "-m64 $CXXFLAGS"},
+     {"linux.*-64$", "LDFLAGS", "-m64 $LDFLAGS"},
+
      %% OS X Leopard flags for 64-bit
      {"darwin9.*-64$", "CFLAGS", "-m64 $CFLAGS"},
      {"darwin9.*-64$", "CXXFLAGS", "-m64 $CXXFLAGS"},
