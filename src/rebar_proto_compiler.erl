@@ -43,26 +43,34 @@
 %% Public API
 %% ===================================================================
 
+find_proto_files(ProtoDirs) ->
+    lists:foldl(fun(ProtoDir, Acc) ->
+                  rebar_utils:find_files_by_ext(ProtoDir, ".proto") ++ Acc
+                end,
+                [], ProtoDirs).
+
 compile(Config, AppFile) ->
-    case rebar_utils:find_files_by_ext("src", ".proto") of
+    %% Find a compiler for protocol buffers,
+    %% use that for compiling protocol buffers
+    {CompilerModule, ProtoDirs} = select_proto_compiler_and_dir(Config),
+    case find_proto_files(ProtoDirs) of
         [] ->
             ok;
         Protos ->
-            %% Find a compiler for protocol buffers,
-            %% use that for compiling protocol buffers
-            CompilerModule = select_proto_compiler(Config),
+            %% Ask the proto compiler to compile the .proto files.
             CompilerModule:proto_compile(Config, AppFile, Protos)
     end.
 
 clean(Config, AppFile) ->
+    %% Find a compiler for protocol buffers,
+    %% use that for clean protocol buffers
+    {CompilerModule, ProtoDirs} = select_proto_compiler_and_dir(Config),
     %% Get a list of generated .beam and .hrl files and then delete them
-    Protos = rebar_utils:find_files_by_ext("src", ".proto"),
-    case Protos of
+    case find_proto_files(ProtoDirs) of
         [] ->
             ok;
-        _ ->
-            %% Ask the proto compiler to compile the .proto files.
-            CompilerModule = select_proto_compiler(Config),
+        Protos ->
+            %% Ask the proto compiler to clean the .proto files.
             CompilerModule:proto_clean(Config, AppFile, Protos)
     end.
 
@@ -80,7 +88,10 @@ info_help(GeneralDescr, Cmd) ->
        "~s.~n"
        ++ "~n"
        ++ "Valid rebar.config options:~n"
-       ++ "  {proto_compiler, Compiler}~n"
+       ++ " {proto_opts, [~n"
+       ++ "   {compiler, Compiler},~n"
+       ++ "   {src_dirs, [Dir]}~n"
+       ++ " ]}~n"
        ++ "The following protocol buffer compilers are available:~n"
        ++ "~s~n",
        [GeneralDescr, format_proto_compiler_list()]),
@@ -118,19 +129,22 @@ is_proto_compiler_module(Module) ->
             false
     end.
 
-select_proto_compiler(Config) ->
+select_proto_compiler_and_dir(Config) ->
     Default = get_default_compiler(),
-    Key = rebar_config:get_local(Config, proto_compiler, Default),
+    ProtoOpts = rebar_config:get_local(Config, proto_opts, []),
+    Key = proplists:get_value(compiler, ProtoOpts, Default),
+    ProtoDirs = proplists:get_value(src_dirs, ProtoOpts, ["src"]),
     AvailCompilers = find_proto_compilers(),
-    case lists:keyfind(Key, #proto_compiler.key, AvailCompilers) of
-        #proto_compiler{module=CompilerModule} ->
-            CompilerModule;
-        false ->
-            ?ABORT("No such protocol buffer compiler known, '~s'~n"
-                   ++ "The following are known:~n"
-                   ++ "~s~n",
-                   [Key, format_proto_compiler_list()])
-    end.
+    CompilerModule = case lists:keyfind(Key, #proto_compiler.key, AvailCompilers) of
+                      #proto_compiler{module=Module} ->
+                          Module;
+                      false ->
+                          ?ABORT("No such protocol buffer compiler known, '~s'~n"
+                                 ++ "The following are known:~n"
+                                 ++ "~s~n",
+                                 [Key, format_proto_compiler_list()])
+                     end,
+    {CompilerModule, ProtoDirs}.
 
 format_proto_compiler_list() ->
     Default = get_default_compiler(),
