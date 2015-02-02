@@ -90,10 +90,15 @@
 {erlydtl_opts, []}.
 
 %% == Proto compiler ==
-{proto_compiler, protobuffs}.
+{proto_opts, [
+    {compiler, protobuffs},
+    {src_dirs, ["src"]}
+]}.
 %% Available compilers for protocol buffer files (*.proto):
 %%   protobuffs  (default)
 %%   gpb
+%% Optional src_dirs which is a list of directories where
+%% to look for .proto files, default is src
 
 %% Options for the gpb protocol buffer compiler,
 %% if selected by the proto_compiler option

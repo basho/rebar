@@ -1,0 +1,19 @@
+// -*- c-basic-offset: 4; indent-tabs-mode: nil -*-
+// ex: ts=4 sw=4 et
+
+package test4;
+
+service test4
+{
+    rpc testRpc4(RPC_INPUT4) returns (RPC_OUTPUT4);
+}
+
+message RPC_INPUT4
+{
+    optional string str = 1;
+}
+
+message RPC_OUTPUT4
+{
+    optional string str = 1;
+}

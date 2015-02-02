@@ -42,13 +42,12 @@
 key() ->
     gpb.
 
-proto_compile(Config, _AppFile, _ProtoFiles) ->
+proto_compile(Config, _AppFile, Files) ->
     %% Check for gpb library -- if it's not present, fail
     %% since we have.proto files that need building
     case gpb_is_present() of
         true ->
             GpbOpts = user_gpb_opts(Config),
-            Files = rebar_utils:find_files_by_ext("src", ".proto"),
             Targets = [filename:join("src", target_filename(F, GpbOpts))
                        || F <- Files],
             rebar_base_compiler:run(Config, [],
