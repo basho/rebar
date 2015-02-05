@@ -1,0 +1,9 @@
+%% decompose the appup
+[{AppVersion,
+	[{UpgradeFrom, UpgradeInstructions}],
+	[{DowngradeTo, DowngradeInstructions}]}] = CONFIG,
+
+%% and replace the version strings
+[{"2.1.2",
+	[{"2.1.1", UpgradeInstructions}],
+	[{"2.1.1", DowngradeInstructions}]}].
