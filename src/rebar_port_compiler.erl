@@ -568,8 +568,8 @@ erl_interface_dir(Subdir) ->
     end.
 
 default_env() ->
-    Arch = os:getenv("REBAR_ARCH_TARGET"),
-    Vsn = os:getenv("REBAR_ARCH_TARGET_VSN"),
+    Arch = os:getenv("REBAR_TARGET_ARCH"),
+    Vsn = os:getenv("REBAR_TARGET_ARCH_VSN"),
     [
      {"CC" , get_tool(Arch,Vsn,"gcc","cc")},
      {"CXX", get_tool(Arch,Vsn,"g++","c++")},

@@ -98,13 +98,13 @@ is_arch(ArchRegex) ->
             false
     end.
 %%
-%% REBAR_ARCH_TARGET, if used, should be set to the "standard" 
+%% REBAR_TARGET_ARCH, if used, should be set to the "standard" 
 %% target string. That is a prefix for binutils tools.
 %% "x86_64-linux-gnu" or "arm-linux-gnueabi" are good candiates
-%% ${REBAR_ARCH_TARGET}-gcc, ${REBAR_ARCH_TARGET}-ld ...
+%% ${REBAR_TARGET_ARCH}-gcc, ${REBAR_TARGET_ARCH}-ld ...
 %%
 get_arch() ->
-    Arch = os:getenv("REBAR_ARCH_TARGET"),
+    Arch = os:getenv("REBAR_TARGET_ARCH"),
     Words = wordsize(Arch),
     otp_release() ++ "-" ++ get_system_arch(Arch) ++ "-" ++ Words.
 
@@ -114,17 +114,18 @@ get_system_arch(Arch) ->
     Arch.
 
 wordsize() ->
-    wordsize(os:getenv("REBAR_ARCH_TARGET")).
+    wordsize(os:getenv("REBAR_TARGET_ARCH")).
 
 wordsize(Arch) when Arch =:= false; Arch =:= "" ->
     native_wordsize();
 wordsize(Arch) ->
     case match_wordsize(Arch, [{"i686","32"}, {"i386","32"},
-                               {"arm","32"}, {"x86_64","64"}]) of
+                               {"arm","32"}, {"aarch64", "64"},
+                               {"x86_64","64"}]) of
         false ->
             case cross_wordsize(Arch) of
                 "" ->
-                    env_wordsize(os:getenv("REBAR_ARCH_WORDSIZE"));
+                    env_wordsize(os:getenv("REBAR_TARGET_ARCH_WORDSIZE"));
                 WordSize -> WordSize
             end;
         {_, Wordsize} ->
@@ -140,7 +141,7 @@ match_wordsize(Arch, [V={Match,_Bits}|Vs]) ->
 
 env_wordsize(Wordsize) when Wordsize =:= false;
                             Wordsize =:= "" ->
-    io:format("REBAR_ARCH_WORDSIZE not set, assuming 32\n"),
+    io:format("REBAR_TARGET_ARCH_WORDSIZE not set, assuming 32\n"),
     "32";
 env_wordsize(Wordsize) ->
     try list_to_integer(Wordsize) of
@@ -148,11 +149,11 @@ env_wordsize(Wordsize) ->
         32 -> "32";
         64 -> "64";
         _ ->
-            io:format("REBAR_ARCH_WORDSIZE bad value: ~p\n", [Wordsize]),
+            io:format("REBAR_TARGET_ARCH_WORDSIZE bad value: ~p\n", [Wordsize]),
             "32"
     catch
         error:_ ->
-            io:format("REBAR_ARCH_WORDSIZE bad value: ~p\n", [Wordsize]),
+            io:format("REBAR_TARGET_ARCH_WORDSIZE bad value: ~p\n", [Wordsize]),
             "32"
     end.
 
