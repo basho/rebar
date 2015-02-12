@@ -66,6 +66,7 @@ _rebar () {
         'profiler[Select profiler]::flag:(fprof eflame)' \
         'nodeid[Node id]:' \
         'root_dir[Reltool config root directory]::directory:_files -/' \
+        'shell[Start a shell similar to erl -pa ebin -pa deps/*/ebin]' \
         'skip_deps[Skip deps]::flag:(true false)' \
         'skip_apps[Application names to not process]::flag:(true false)' \
         'target_dir[Target directory]:' \
