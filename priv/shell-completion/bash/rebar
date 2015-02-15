@@ -39,6 +39,7 @@ _rebar()
         prepare-deps \
         qc \
         refresh-deps \
+        shell \
         update-deps \
         version \
         xref \
