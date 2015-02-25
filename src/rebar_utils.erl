@@ -254,8 +254,8 @@ expand_env_variable(InStr, VarName, RawVarValue) ->
             ReOpts = [global, unicode, {return, list}],
             VarValue = re:replace(RawVarValue, "\\\\", "\\\\\\\\", ReOpts),
             %% Use a regex to match/replace:
-            %% Given variable "FOO": match $FOO\s | $FOOeol | ${FOO}
-            RegEx = io_lib:format("\\\$(~s(\\s|$)|{~s})", [VarName, VarName]),
+            %% Given variable "FOO", match $FOO\W | $FOOeol | ${FOO}.
+            RegEx = io_lib:format("\\\$(~s(\\W|$)|{~s})", [VarName, VarName]),
             re:replace(InStr, RegEx, [VarValue, "\\2"], ReOpts)
     end.
 
