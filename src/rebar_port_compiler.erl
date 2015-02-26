@@ -607,7 +607,7 @@ default_env() ->
      %% Linux specific flags for multiarch
      {"linux.*-64$", "CFLAGS", "-m64 $CFLAGS"},
      {"linux.*-64$", "CXXFLAGS", "-m64 $CXXFLAGS"},
-     {"linux.*-64$", "LDFLAGS", "-m64 $LDFLAGS"},
+     {"linux.*-64$", "LDFLAGS", "$LDFLAGS"},
 
      %% OS X Leopard flags for 64-bit
      {"darwin9.*-64$", "CFLAGS", "-m64 $CFLAGS"},
