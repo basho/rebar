@@ -456,6 +456,12 @@ qc                                       Test QuickCheck properties
 
 xref                                     Run cross reference analysis
 
+dialyze                                  Analyze the code for discrepancies
+build-plt                                Build project-specific PLT
+check-plt                                Check the PLT for consistency and
+                                         rebuild it if it is not up-to-date
+delete-plt                               Delete project-specific PLT
+
 shell                                    Start a shell similar to
                                          'erl -pa ebin -pa deps/*/ebin'
 
@@ -527,7 +533,9 @@ filter_flags(Config, [Item | Rest], Commands) ->
 
 command_names() ->
     [
+     "build-plt",
      "check-deps",
+     "check-plt",
      "clean",
      "compile",
      "create",
@@ -535,7 +543,9 @@ command_names() ->
      "create-lib",
      "create-node",
      "ct",
+     "delete-plt",
      "delete-deps",
+     "dialyze",
      "doc",
      "eunit",
      "escriptize",

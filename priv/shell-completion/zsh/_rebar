@@ -28,13 +28,16 @@ _rebar () {
   case $state in
     cmd_and_var)
       _values -S = 'variables' \
+        'dialyze[Analyze the code for discrepancies]' \
+        'build-plt[Build project-specific PLT]' \
+        'check-plt[Check the plt for consistency and rebuild it if it is not up-to-date]' \
         'clean[Clean]' \
         'compile[Compile sources]' \
         'create[Create skel based on template and vars]' \
         'create-app[Create simple app skel]' \
         'create-lib[Create simple lib skel]' \
         'create-node[Create simple node skel]' \
-        'list-template[List avaiavle templates]' \
+        'list-template[List available templates]' \
         'doc[Generate Erlang program documentation]' \
         'check-deps[Display to be fetched dependencies]' \
         'prepare-deps[Fetch and build dependencies]' \
