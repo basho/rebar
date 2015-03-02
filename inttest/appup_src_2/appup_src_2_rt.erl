@@ -24,7 +24,7 @@
 %% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %% THE SOFTWARE.
 %% -------------------------------------------------------------------
--module(appup_src_rt).
+-module(appup_src_2_rt).
 
 -compile(export_all).
 
@@ -47,11 +47,9 @@ run(Dir) ->
     retest_log:log(debug, "Generated ebin/app.appup~n", []),
 
     %% check that ebin/app.appup has expected version
-    {ok, [{AppVersion, [{UpgradeFrom, _} |  _UpgradeFromRest], [{DowngradeTo, _} | _DowngradeToRest]}]} =
+    {ok, [{AppVersion, [], []}]} =
         file:consult("ebin/app.appup"),
-    ?assertEqual(AppVersion, "%VSN%"),
-    ?assertEqual(UpgradeFrom, "1.3"),
-    ?assertEqual(DowngradeTo, "1.3"),
+    ?assertEqual(AppVersion, "1.24"),
     ok.
 
 has_line([], _RE) ->
