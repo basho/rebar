@@ -73,7 +73,8 @@ preprocess(SourceFile, TargetFile, _Config) ->
     case rebar_config:consult_file(SourceFile) of
         %% The .appup syntax is described in
         %% http://erlang.org/doc/man/appup.html.
-        {ok, [{_Vsn, [_UpFromVsn], [_DownToVsn]} = AppUp]} ->
+        {ok, [{_Vsn, UpFromVsn, DownToVsn} = AppUp]}
+          when is_list(UpFromVsn), is_list(DownToVsn) ->
             case file:write_file(TargetFile,
                                  lists:flatten(io_lib:format("~p.", [AppUp]))) of
                 {error, Reason} ->
