@@ -156,6 +156,9 @@ init_config1(BaseConfig) ->
     rebar_config:set_xconf(BaseConfig1, base_dir, AbsCwd).
 
 profile(BaseConfig1, Commands) ->
+    ?CONSOLE("Please take note that profiler=[fprof|eflame] is preliminary"
+             " and will be~nreplaced with a different command line flag"
+             " in the next release.~n", []),
     Profiler = rebar_config:get_global(BaseConfig1, profiler, "fprof"),
     profile(BaseConfig1, Commands, list_to_atom(Profiler)).
 
@@ -200,7 +203,9 @@ profile(Config, Commands, eflame) ->
                 ?CONSOLE("See eflame.svg (generated from eflame.trace)~n", []),
                 ok
             end
-    end.
+    end;
+profile(_Config, _Commands, Profiler) ->
+    ?ABORT("Unsupported profiler: ~s~n", [Profiler]).
 
 run_aux(BaseConfig, Commands) ->
     %% Make sure crypto is running
