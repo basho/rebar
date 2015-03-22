@@ -678,9 +678,9 @@ process_attr(Form, Includes) ->
 process_attr(import, Form, Includes) ->
     case erl_syntax_lib:analyze_import_attribute(Form) of
         {Mod, _Funs} ->
-            [atom_to_list(Mod) ++ ".erl"|Includes];
+            [module_to_erl(Mod)|Includes];
         Mod ->
-            [atom_to_list(Mod) ++ ".erl"|Includes]
+            [module_to_erl(Mod)|Includes]
     end;
 process_attr(file, Form, Includes) ->
     {File, _} = erl_syntax_lib:analyze_file_attribute(Form),
@@ -696,21 +696,21 @@ process_attr(include_lib, Form, Includes) ->
     [File|Includes];
 process_attr(behaviour, Form, Includes) ->
     [FileNode] = erl_syntax:attribute_arguments(Form),
-    File = erl_syntax:atom_name(FileNode) ++ ".erl",
+    File = module_to_erl(erl_syntax:atom_value(FileNode)),
     [File|Includes];
 process_attr(compile, Form, Includes) ->
     [Arg] = erl_syntax:attribute_arguments(Form),
     case erl_syntax:concrete(Arg) of
         {parse_transform, Mod} ->
-            [atom_to_list(Mod) ++ ".erl"|Includes];
+            [module_to_erl(Mod)|Includes];
         {core_transform, Mod} ->
-            [atom_to_list(Mod) ++ ".erl"|Includes];
+            [module_to_erl(Mod)|Includes];
         L when is_list(L) ->
             lists:foldl(
-              fun({parse_transform, M}, Acc) ->
-                      [atom_to_list(M) ++ ".erl"|Acc];
-                 ({core_transform, M}, Acc) ->
-                      [atom_to_list(M) ++ ".erl"|Acc];
+              fun({parse_transform, Mod}, Acc) ->
+                      [module_to_erl(Mod)|Acc];
+                 ({core_transform, Mod}, Acc) ->
+                      [module_to_erl(Mod)|Acc];
                  (_, Acc) ->
                       Acc
               end, Includes, L);
@@ -719,6 +719,9 @@ process_attr(compile, Form, Includes) ->
     end;
 process_attr(_, _Form, Includes) ->
     Includes.
+
+module_to_erl(Mod) ->
+    atom_to_list(Mod) ++ ".erl".
 
 %% Given the filename from an include_lib attribute, if the path
 %% exists, return unmodified, or else get the absolute ERL_LIBS
