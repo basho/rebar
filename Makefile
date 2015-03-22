@@ -1,10 +1,11 @@
-.PHONY: clean dialyzer_warnings xref_warnings deps test
+.PHONY: clean dialyzer_warnings xref_warnings deps test test_eunit test_inttest
 
 REBAR=$(PWD)/rebar
 RETEST=$(PWD)/deps/retest/retest
 OTPVSNCMD='io:fwrite("~s",[rebar_utils:otp_release()]), halt().'
 OTPVSN=$(shell erl -pa ebin/ -noshell -eval $(OTPVSNCMD))
 PLT_FILENAME=~/.dialyzer_rebar_$(OTPVSN)_plt
+LOG_LEVEL?=debug
 
 all:
 	./bootstrap
@@ -64,10 +65,14 @@ binary: clean all
 
 deps:
 	@REBAR_EXTRA_DEPS=1 ./rebar get-deps
-	@(cd deps/retest && $(REBAR) compile escriptize)
+	$(MAKE) -C deps/retest
 
-test:
+test: test_eunit test_inttest
+
+test_eunit: all
 	@$(REBAR) eunit
-	@$(RETEST) -v inttest
+
+test_inttest: all deps
+	@$(RETEST) -l $(LOG_LEVEL) inttest
 
 travis: clean debug xref clean all deps test
