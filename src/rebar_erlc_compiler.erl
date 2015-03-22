@@ -109,7 +109,7 @@ compile(Config, _AppFile) ->
     doterl_compile(Config, "ebin").
 
 -spec clean(rebar_config:config(), file:filename()) -> 'ok'.
-clean(Config, _AppFile) ->
+clean(_Config, _AppFile) ->
     MibFiles = rebar_utils:find_files_by_ext("mibs", ".mib"),
     MIBs = [filename:rootname(filename:basename(MIB)) || MIB <- MibFiles],
     rebar_file_utils:delete_each(
@@ -123,7 +123,7 @@ clean(Config, _AppFile) ->
         || F <- YrlFiles ]),
 
     %% Delete the build graph, if any
-    rebar_file_utils:rm_rf(erlcinfo_file(Config)),
+    rebar_file_utils:rm_rf(erlcinfo_file()),
 
     %% Erlang compilation is recursive, so it's possible that we have a nested
     %% directory structure in ebin with .beam files within. As such, we want
@@ -313,7 +313,7 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
     CurrPath = code:get_path(),
     true = code:add_path(filename:absname("ebin")),
     OutDir1 = proplists:get_value(outdir, ErlOpts, OutDir),
-    G = init_erlcinfo(Config, AllErlFiles),
+    G = init_erlcinfo(proplists:get_all_values(i, ErlOpts), AllErlFiles),
     %% Split RestErls so that files which are depended on are treated
     %% like erl_first_files.
     {OtherFirstErls, OtherErls} =
@@ -387,12 +387,9 @@ u_add_element(Elem, [Elem|_]=Set) -> Set;
 u_add_element(Elem, [E1|Set])     -> [E1|u_add_element(Elem, Set)];
 u_add_element(Elem, [])           -> [Elem].
 
--spec include_path(file:filename(),
-                   rebar_config:config()) -> [file:filename(), ...].
-include_path(Source, Config) ->
-    ErlOpts = rebar_config:get(Config, erl_opts, []),
-    lists:usort(["include", filename:dirname(Source)]
-                ++ proplists:get_all_values(i, ErlOpts)).
+-spec include_path(file:filename(), list()) -> [file:filename(), ...].
+include_path(Source, InclDirs) ->
+    lists:usort(["include", filename:dirname(Source) |InclDirs]).
 
 -spec needs_compile(file:filename(), file:filename(),
                     [string()]) -> boolean().
@@ -401,20 +398,20 @@ needs_compile(Source, Target, Parents) ->
     lists:any(fun(I) -> TargetLastMod < filelib:last_modified(I) end,
               [Source] ++ Parents).
 
-check_erlcinfo(_Config, #erlcinfo{vsn=?ERLCINFO_VSN}) ->
+check_erlcinfo(#erlcinfo{vsn=?ERLCINFO_VSN}) ->
     ok;
-check_erlcinfo(Config, #erlcinfo{vsn=Vsn}) ->
+check_erlcinfo(#erlcinfo{vsn=Vsn}) ->
     ?ABORT("~s file version is incompatible. expected: ~b got: ~b~n",
-           [erlcinfo_file(Config), ?ERLCINFO_VSN, Vsn]);
-check_erlcinfo(Config, _) ->
+           [erlcinfo_file(), ?ERLCINFO_VSN, Vsn]);
+check_erlcinfo(_) ->
     ?ABORT("~s file is invalid. Please delete before next run.~n",
-           [erlcinfo_file(Config)]).
+           [erlcinfo_file()]).
 
-erlcinfo_file(_Config) ->
+erlcinfo_file() ->
     filename:join([rebar_utils:get_cwd(), ".rebar", ?ERLCINFO_FILE]).
 
-init_erlcinfo(Config, Erls) ->
-    G = restore_erlcinfo(Config),
+init_erlcinfo(InclDirs, Erls) ->
+    G = restore_erlcinfo(),
     %% Get a unique list of dirs based on the source files' locations.
     %% This is used for finding files in sub dirs of the configured
     %% src_dirs. For example, src/sub_dir/foo.erl.
@@ -423,10 +420,10 @@ init_erlcinfo(Config, Erls) ->
                                   Dir = filename:dirname(Erl),
                                   sets:add_element(Dir, Acc)
                           end, sets:new(), Erls)),
-    Updates = [update_erlcinfo(G, Erl, include_path(Erl, Config) ++ Dirs)
+    Updates = [update_erlcinfo(G, Erl, include_path(Erl, InclDirs) ++ Dirs)
                || Erl <- Erls],
     Modified = lists:member(modified, Updates),
-    ok = store_erlcinfo(G, Config, Modified),
+    ok = store_erlcinfo(G, Modified),
     G.
 
 update_erlcinfo(G, Source, Dirs) ->
@@ -463,14 +460,13 @@ modify_erlcinfo(G, Source, Dirs) ->
               digraph:add_edge(G, Source, Incl)
       end, AbsIncls).
 
-restore_erlcinfo(Config) ->
-    File = erlcinfo_file(Config),
+restore_erlcinfo() ->
     G = digraph:new(),
-    case file:read_file(File) of
+    case file:read_file(erlcinfo_file()) of
         {ok, Data} ->
             try binary_to_term(Data) of
                 Erlcinfo ->
-                    ok = check_erlcinfo(Config, Erlcinfo),
+                    ok = check_erlcinfo(Erlcinfo),
                     #erlcinfo{info=ErlcInfo} = Erlcinfo,
                     {Vs, Es} = ErlcInfo,
                     lists:foreach(
@@ -493,9 +489,9 @@ restore_erlcinfo(Config) ->
     end,
     G.
 
-store_erlcinfo(_G, _Config, _Modified = false) ->
+store_erlcinfo(_G, _Modified = false) ->
     ok;
-store_erlcinfo(G, Config, _Modified) ->
+store_erlcinfo(G, _Modified) ->
     Vs = lists:map(
            fun(V) ->
                    digraph:vertex(G, V)
@@ -508,7 +504,7 @@ store_erlcinfo(G, Config, _Modified) ->
                              {V1, V2}
                      end, digraph:out_edges(G, V))
            end, Vs),
-    File = erlcinfo_file(Config),
+    File = erlcinfo_file(),
     ok = filelib:ensure_dir(File),
     Data = term_to_binary(#erlcinfo{info={Vs, Es}}, [{compressed, 9}]),
     file:write_file(File, Data).
