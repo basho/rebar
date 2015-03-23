@@ -398,20 +398,17 @@ needs_compile(Source, Target, Parents) ->
     lists:any(fun(I) -> TargetLastMod < filelib:last_modified(I) end,
               [Source] ++ Parents).
 
-check_erlcinfo(#erlcinfo{vsn=?ERLCINFO_VSN}) ->
-    ok;
-check_erlcinfo(#erlcinfo{vsn=Vsn}) ->
-    ?ABORT("~s file version is incompatible. expected: ~b got: ~b~n",
-           [erlcinfo_file(), ?ERLCINFO_VSN, Vsn]);
-check_erlcinfo(_) ->
-    ?ABORT("~s file is invalid. Please delete before next run.~n",
-           [erlcinfo_file()]).
-
 erlcinfo_file() ->
     filename:join([rebar_utils:get_cwd(), ".rebar", ?ERLCINFO_FILE]).
 
 init_erlcinfo(InclDirs, Erls) ->
-    G = restore_erlcinfo(),
+    G = digraph:new(),
+    try restore_erlcinfo(G)
+    catch
+        _ ->
+            ?WARN("Failed to restore ~s file. Discarding it.~n", [erlcinfo_file()]),
+            ok = file:delete(erlcinfo_file())
+    end,
     %% Get a unique list of dirs based on the source files' locations.
     %% This is used for finding files in sub dirs of the configured
     %% src_dirs. For example, src/sub_dir/foo.erl.
@@ -460,34 +457,21 @@ modify_erlcinfo(G, Source, Dirs) ->
               digraph:add_edge(G, Source, Incl)
       end, AbsIncls).
 
-restore_erlcinfo() ->
-    G = digraph:new(),
+restore_erlcinfo(G) ->
     case file:read_file(erlcinfo_file()) of
         {ok, Data} ->
-            try binary_to_term(Data) of
-                Erlcinfo ->
-                    ok = check_erlcinfo(Erlcinfo),
-                    #erlcinfo{info=ErlcInfo} = Erlcinfo,
-                    {Vs, Es} = ErlcInfo,
-                    lists:foreach(
-                      fun({V, LastUpdated}) ->
-                              digraph:add_vertex(G, V, LastUpdated)
-                      end, Vs),
-                    lists:foreach(
-                      fun({V1, V2}) ->
-                              digraph:add_edge(G, V1, V2)
-                      end, Es)
-            catch
-                error:badarg ->
-                    ?ERROR(
-                       "Failed (binary_to_term) to restore rebar info file."
-                       " Discard file.~n", []),
-                    ok
-            end;
-        _Err ->
+            #erlcinfo{vsn=?ERLCINFO_VSN, info={Vs, Es}} = binary_to_term(Data),
+            lists:foreach(
+              fun({V, LastUpdated}) ->
+                      digraph:add_vertex(G, V, LastUpdated)
+              end, Vs),
+            lists:foreach(
+              fun({V1, V2}) ->
+                      digraph:add_edge(G, V1, V2)
+              end, Es);
+        {error, _} ->
             ok
-    end,
-    G.
+    end.
 
 store_erlcinfo(_G, _Modified = false) ->
     ok;
