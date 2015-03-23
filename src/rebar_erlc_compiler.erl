@@ -406,16 +406,23 @@ init_erlcinfo(InclDirs, Erls) ->
             ok = file:delete(erlcinfo_file())
     end,
     Dirs = source_and_include_dirs(InclDirs, Erls),
-    Updates = [update_erlcinfo(G, Erl, Dirs) || Erl <- Erls],
-    Modified = lists:member(modified, Updates),
-    ok = store_erlcinfo(G, Modified, InclDirs),
+    Modified = lists:foldl(update_erlcinfo_fun(G, Dirs), false, Erls),
+    if Modified -> store_erlcinfo(G, InclDirs); not Modified -> ok end,
     G.
 
 source_and_include_dirs(InclDirs, Erls) ->
     SourceDirs = lists:map(fun filename:dirname/1, Erls),
     lists:usort(["include" | InclDirs ++ SourceDirs]).
 
-update_erlcinfo(G, Source, Dirs) ->
+update_erlcinfo_fun(G, Dirs) ->
+    fun(Erl, Modified) ->
+        case update_erlcinfo(G, Dirs, Erl) of
+            modified -> true;
+            unmodified -> Modified
+        end
+    end.
+
+update_erlcinfo(G, Dirs, Source) ->
     case digraph:vertex(G, Source) of
         {_, LastUpdated} ->
             case filelib:last_modified(Source) of
@@ -426,14 +433,12 @@ update_erlcinfo(G, Source, Dirs) ->
                     digraph:del_vertex(G, Source),
                     modified;
                 LastModified when LastUpdated < LastModified ->
-                    modify_erlcinfo(G, Source, Dirs),
-                    modified;
+                    modify_erlcinfo(G, Source, Dirs);
                 _ ->
                     unmodified
             end;
         false ->
-            modify_erlcinfo(G, Source, Dirs),
-            modified
+            modify_erlcinfo(G, Source, Dirs)
     end.
 
 modify_erlcinfo(G, Source, Dirs) ->
@@ -445,9 +450,10 @@ modify_erlcinfo(G, Source, Dirs) ->
     digraph:add_vertex(G, Source, LastUpdated),
     lists:foreach(
       fun(Incl) ->
-              update_erlcinfo(G, Incl, Dirs),
+              update_erlcinfo(G, Dirs, Incl),
               digraph:add_edge(G, Source, Incl)
-      end, AbsIncls).
+      end, AbsIncls),
+    modified.
 
 restore_erlcinfo(G, InclDirs) ->
     case file:read_file(erlcinfo_file()) of
@@ -468,9 +474,7 @@ restore_erlcinfo(G, InclDirs) ->
             ok
     end.
 
-store_erlcinfo(_G, _Modified = false, _InclDirs) ->
-    ok;
-store_erlcinfo(G, _Modified, InclDirs) ->
+store_erlcinfo(G, InclDirs) ->
     Vs = lists:map(
            fun(V) ->
                    digraph:vertex(G, V)
@@ -486,7 +490,7 @@ store_erlcinfo(G, _Modified, InclDirs) ->
     File = erlcinfo_file(),
     ok = filelib:ensure_dir(File),
     Data = term_to_binary(#erlcinfo{info={Vs, Es, InclDirs}}, [{compressed, 9}]),
-    file:write_file(File, Data).
+    ok = file:write_file(File, Data).
 
 %% NOTE: If, for example, one of the entries in Files refers to
 %% gen_server.erl, that entry will be dropped. It is dropped because
