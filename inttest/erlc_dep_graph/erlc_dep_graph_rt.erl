@@ -32,13 +32,22 @@
 
 files() ->
     [{copy, "../../rebar", "rebar"},
-     {copy, "src", "src"}].
+     {copy, "rebar.config", "rebar.config"},
+     {copy, "src", "src"},
+     {copy, "include", "include"},
+     {copy, "extra_include", "extra_include"}].
 
 run(_Dir) ->
     compile_all(ok, ""),
     check_beams_ok(),
     check_beams_untouched(),
-    modify_and_recompile_ok(),
+    modify_and_recompile_ok("src/lisp.erl", "ebin/lisp.beam"),
+
+    clean_all_ok(),
+    compile_all(error, "-C rebar.config.non-existing"),
+    compile_all(ok, ""),
+    modify_and_recompile_ok("extra_include/extra.hrl", "ebin/java.beam"),
+
     ok.
 
 check_beams_ok() ->
@@ -49,9 +58,9 @@ check_beams_untouched() ->
     Beams = filelib:wildcard("ebin/*.beam"),
     compile_all_and_assert_mtimes(Beams, fun erlang:'=:='/2).
 
-modify_and_recompile_ok() ->
-    touch(["src/lisp.erl"]),
-    compile_all_and_assert_mtimes(["ebin/lisp.beam"], fun erlang:'<'/2).
+modify_and_recompile_ok(TouchFile, CheckFile) ->
+    touch([TouchFile]),
+    compile_all_and_assert_mtimes([CheckFile], fun erlang:'<'/2).
 
 compile_all_and_assert_mtimes(Beams, Cmp) ->
     BeamsModifiedBefore = mtime_ns(Beams),

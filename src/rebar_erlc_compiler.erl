@@ -40,11 +40,11 @@
 -define(ERLCINFO_FILE, "erlcinfo").
 -type erlc_info_v() :: {digraph:vertex(), term()} | 'false'.
 -type erlc_info_e() :: {digraph:vertex(), digraph:vertex()}.
--type erlc_info() :: {list(erlc_info_v()), list(erlc_info_e())}.
+-type erlc_info() :: {list(erlc_info_v()), list(erlc_info_e()), list(string())}.
 -record(erlcinfo,
         {
           vsn = ?ERLCINFO_VSN :: pos_integer(),
-          info = {[], []} :: erlc_info()
+          info = {[], [], []} :: erlc_info()
         }).
 
 -ifdef(namespaced_types).
@@ -387,10 +387,6 @@ u_add_element(Elem, [Elem|_]=Set) -> Set;
 u_add_element(Elem, [E1|Set])     -> [E1|u_add_element(Elem, Set)];
 u_add_element(Elem, [])           -> [Elem].
 
--spec include_path(file:filename(), list()) -> [file:filename(), ...].
-include_path(Source, InclDirs) ->
-    lists:usort(["include", filename:dirname(Source) |InclDirs]).
-
 -spec needs_compile(file:filename(), file:filename(),
                     [string()]) -> boolean().
 needs_compile(Source, Target, Parents) ->
@@ -403,25 +399,21 @@ erlcinfo_file() ->
 
 init_erlcinfo(InclDirs, Erls) ->
     G = digraph:new(),
-    try restore_erlcinfo(G)
+    try restore_erlcinfo(G, InclDirs)
     catch
-        _ ->
+        _:_ ->
             ?WARN("Failed to restore ~s file. Discarding it.~n", [erlcinfo_file()]),
             ok = file:delete(erlcinfo_file())
     end,
-    %% Get a unique list of dirs based on the source files' locations.
-    %% This is used for finding files in sub dirs of the configured
-    %% src_dirs. For example, src/sub_dir/foo.erl.
-    Dirs = sets:to_list(lists:foldl(
-                          fun(Erl, Acc) ->
-                                  Dir = filename:dirname(Erl),
-                                  sets:add_element(Dir, Acc)
-                          end, sets:new(), Erls)),
-    Updates = [update_erlcinfo(G, Erl, include_path(Erl, InclDirs) ++ Dirs)
-               || Erl <- Erls],
+    Dirs = source_and_include_dirs(InclDirs, Erls),
+    Updates = [update_erlcinfo(G, Erl, Dirs) || Erl <- Erls],
     Modified = lists:member(modified, Updates),
-    ok = store_erlcinfo(G, Modified),
+    ok = store_erlcinfo(G, Modified, InclDirs),
     G.
+
+source_and_include_dirs(InclDirs, Erls) ->
+    SourceDirs = lists:map(fun filename:dirname/1, Erls),
+    lists:usort(["include" | InclDirs ++ SourceDirs]).
 
 update_erlcinfo(G, Source, Dirs) ->
     case digraph:vertex(G, Source) of
@@ -457,10 +449,13 @@ modify_erlcinfo(G, Source, Dirs) ->
               digraph:add_edge(G, Source, Incl)
       end, AbsIncls).
 
-restore_erlcinfo(G) ->
+restore_erlcinfo(G, InclDirs) ->
     case file:read_file(erlcinfo_file()) of
         {ok, Data} ->
-            #erlcinfo{vsn=?ERLCINFO_VSN, info={Vs, Es}} = binary_to_term(Data),
+            %% Since externally passed InclDirs can influence erlcinfo graph (see
+            %% modify_erlcinfo), we have to check here that they didn't change.
+            #erlcinfo{vsn=?ERLCINFO_VSN, info={Vs, Es, InclDirs}} =
+                binary_to_term(Data),
             lists:foreach(
               fun({V, LastUpdated}) ->
                       digraph:add_vertex(G, V, LastUpdated)
@@ -473,9 +468,9 @@ restore_erlcinfo(G) ->
             ok
     end.
 
-store_erlcinfo(_G, _Modified = false) ->
+store_erlcinfo(_G, _Modified = false, _InclDirs) ->
     ok;
-store_erlcinfo(G, _Modified) ->
+store_erlcinfo(G, _Modified, InclDirs) ->
     Vs = lists:map(
            fun(V) ->
                    digraph:vertex(G, V)
@@ -490,7 +485,7 @@ store_erlcinfo(G, _Modified) ->
            end, Vs),
     File = erlcinfo_file(),
     ok = filelib:ensure_dir(File),
-    Data = term_to_binary(#erlcinfo{info={Vs, Es}}, [{compressed, 9}]),
+    Data = term_to_binary(#erlcinfo{info={Vs, Es, InclDirs}}, [{compressed, 9}]),
     file:write_file(File, Data).
 
 %% NOTE: If, for example, one of the entries in Files refers to
