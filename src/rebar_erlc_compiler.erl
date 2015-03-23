@@ -292,61 +292,28 @@ doterl_compile(Config, OutDir) ->
     doterl_compile(Config, OutDir, [], ErlOpts).
 
 doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
-    ErlFirstFilesConf = rebar_config:get_list(Config, erl_first_files, []),
     ?DEBUG("erl_opts ~p~n", [ErlOpts]),
     %% Support the src_dirs option allowing multiple directories to
     %% contain erlang source. This might be used, for example, should
     %% eunit tests be separated from the core application source.
     SrcDirs = rebar_utils:src_dirs(proplists:append_values(src_dirs, ErlOpts)),
     AllErlFiles = gather_src(SrcDirs, []) ++ MoreSources,
-    %% NOTE: If and when erl_first_files is not inherited anymore
-    %% (rebar_config:get_local instead of rebar_config:get_list), consider
-    %% logging a warning message for any file listed in erl_first_files which
-    %% wasn't found via gather_src.
-    RestErls = [File || File <- AllErlFiles,
-                        not lists:member(File, ErlFirstFilesConf)],
-    %% NOTE: order of files in ErlFirstFiles is important!
-    ErlFirstFiles = [File || File <- ErlFirstFilesConf,
-                             lists:member(File, AllErlFiles)],
+
     %% Make sure that ebin/ exists and is on the path
     ok = filelib:ensure_dir(filename:join("ebin", "dummy.beam")),
     CurrPath = code:get_path(),
     true = code:add_path(filename:absname("ebin")),
     OutDir1 = proplists:get_value(outdir, ErlOpts, OutDir),
-    G = init_erlcinfo(proplists:get_all_values(i, ErlOpts), AllErlFiles),
-    %% Split RestErls so that files which are depended on are treated
-    %% like erl_first_files.
-    {OtherFirstErls, OtherErls} =
-        lists:partition(
-          fun(F) ->
-                  Children = get_children(G, F),
-                  log_files(?FMT("Files dependent on ~s", [F]), Children),
 
-                  case erls(Children) of
-                      [] ->
-                          %% There are no files dependent on this file.
-                          false;
-                      _ ->
-                          %% There are some files dependent on the file.
-                          %% Thus the file has higher priority
-                          %% and should be compiled in the first place.
-                          true
-                  end
-          end, RestErls),
-    %% Dependencies of OtherFirstErls that must be compiled first.
-    OtherFirstErlsDeps = lists:flatmap(
-                           fun(Erl) -> erls(get_parents(G, Erl)) end,
-                           OtherFirstErls),
-    %% NOTE: In case the way we retrieve OtherFirstErlsDeps or merge
-    %% it with OtherFirstErls does not result in the correct compile
-    %% priorities, or the method in use proves to be too slow for
-    %% certain projects, consider using a more elaborate method (maybe
-    %% digraph_utils) or alternatively getting and compiling the .erl
-    %% parents of an individual Source in internal_erl_compile. By not
-    %% handling this in internal_erl_compile, we also avoid extra
-    %% needs_compile/2 calls.
-    FirstErls = ErlFirstFiles ++ uo_merge(OtherFirstErlsDeps, OtherFirstErls),
+    G = init_erlcinfo(proplists:get_all_values(i, ErlOpts), AllErlFiles),
+    ErlFirstFiles = erl_first_files(Config, AllErlFiles),
+    {DepErls, OtherErls} = lists:partition(
+        fun(Source) -> digraph:in_degree(G, Source) > 0 end,
+        [File || File <- AllErlFiles, not lists:member(File, ErlFirstFiles)]),
+    DepErlsOrdered = digraph_utils:topsort(digraph_utils:subgraph(G, DepErls)),
+    FirstErls = ErlFirstFiles ++ lists:reverse(DepErlsOrdered),
     ?DEBUG("Files to compile first: ~p~n", [FirstErls]),
+
     rebar_base_compiler:run(
       Config, FirstErls, OtherErls,
       fun(S, C) ->
@@ -355,37 +322,14 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
     true = rebar_utils:cleanup_code_path(CurrPath),
     ok.
 
-%%
-%% Return all .erl files from a list of files
-%%
-erls(Files) ->
-    [Erl || Erl <- Files, filename:extension(Erl) =:= ".erl"].
-
-%%
-%% Return a list without duplicates while preserving order
-%%
-ulist(L) ->
-    ulist(L, []).
-
-ulist([H|T], Acc) ->
-    case lists:member(H, T) of
-        true ->
-            ulist(T, Acc);
-        false ->
-            ulist(T, [H|Acc])
-    end;
-ulist([], Acc) ->
-    lists:reverse(Acc).
-
-%%
-%% Merge two lists without duplicates while preserving order
-%%
-uo_merge(L1, L2) ->
-    lists:foldl(fun(E, Acc) -> u_add_element(E, Acc) end, ulist(L1), L2).
-
-u_add_element(Elem, [Elem|_]=Set) -> Set;
-u_add_element(Elem, [E1|Set])     -> [E1|u_add_element(Elem, Set)];
-u_add_element(Elem, [])           -> [Elem].
+erl_first_files(Config, AllErlFiles) ->
+    ErlFirstFilesConf = rebar_config:get_list(Config, erl_first_files, []),
+    %% NOTE: If and when erl_first_files is not inherited anymore
+    %% (rebar_config:get_local instead of rebar_config:get_list), consider
+    %% logging a warning message for any file listed in erl_first_files which
+    %% is not in AllErlFiles.
+    %% NOTE: order of files in ErlFirstFiles is important!
+    [File || File <- ErlFirstFilesConf, lists:member(File, AllErlFiles)].
 
 -spec needs_compile(file:filename(), file:filename(),
                     [string()]) -> boolean().
@@ -404,7 +348,7 @@ erlcinfo_file() ->
 %% recompile a file, since when the file itself doesn't change we don't check its
 %% dependencies which might change.
 init_erlcinfo(InclDirs, Erls) ->
-    G = digraph:new(),
+    G = digraph:new([acyclic]),
     try restore_erlcinfo(G, InclDirs)
     catch
         _:_ ->
@@ -524,11 +468,6 @@ expand_file_names(Files, Dirs) ->
 get_parents(G, Source) ->
     %% Return all files which the Source depends upon.
     digraph_utils:reachable_neighbours([Source], G).
-
--spec get_children(rebar_digraph(), file:filename()) -> [file:filename()].
-get_children(G, Source) ->
-    %% Return all files dependent on the Source.
-    digraph_utils:reaching_neighbours([Source], G).
 
 -spec internal_erl_compile(rebar_config:config(), file:filename(),
                            file:filename(), list(),
