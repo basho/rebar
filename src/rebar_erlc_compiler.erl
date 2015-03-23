@@ -485,7 +485,7 @@ store_erlcinfo(G, InclDirs) ->
     Es = lists:map(fun(E) -> digraph:edge(G, E) end, digraph:edges(G)),
     File = erlcinfo_file(),
     ok = filelib:ensure_dir(File),
-    Data = term_to_binary(#erlcinfo{info={Vs, Es, InclDirs}}, [{compressed, 9}]),
+    Data = term_to_binary(#erlcinfo{info={Vs, Es, InclDirs}}, [{compressed, 2}]),
     ok = file:write_file(File, Data).
 
 %% NOTE: If, for example, one of the entries in Files refers to
