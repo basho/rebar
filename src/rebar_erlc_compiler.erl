@@ -397,6 +397,12 @@ needs_compile(Source, Target, Parents) ->
 erlcinfo_file() ->
     filename:join([rebar_utils:get_cwd(), ".rebar", ?ERLCINFO_FILE]).
 
+%% Get dependency graph of given Erls files and their dependencies (header files,
+%% parse transforms, behaviours etc.) located in their directories or given
+%% InclDirs.  Note that last modification times stored in vertices are only for
+%% internal optimization and cannot be directly used for deciding whether to
+%% recompile a file, since when the file itself doesn't change we don't check its
+%% dependencies which might change.
 init_erlcinfo(InclDirs, Erls) ->
     G = digraph:new(),
     try restore_erlcinfo(G, InclDirs)
@@ -433,21 +439,20 @@ update_erlcinfo(G, Dirs, Source) ->
                     digraph:del_vertex(G, Source),
                     modified;
                 LastModified when LastUpdated < LastModified ->
-                    modify_erlcinfo(G, Source, Dirs);
+                    modify_erlcinfo(G, Source, LastModified, Dirs);
                 _ ->
                     unmodified
             end;
         false ->
-            modify_erlcinfo(G, Source, Dirs)
+            modify_erlcinfo(G, Source, filelib:last_modified(Source), Dirs)
     end.
 
-modify_erlcinfo(G, Source, Dirs) ->
+modify_erlcinfo(G, Source, LastModified, Dirs) ->
     {ok, Fd} = file:open(Source, [read]),
     Incls = parse_attrs(Fd, []),
     AbsIncls = expand_file_names(Incls, Dirs),
     ok = file:close(Fd),
-    LastUpdated = {date(), time()},
-    digraph:add_vertex(G, Source, LastUpdated),
+    digraph:add_vertex(G, Source, LastModified),
     digraph:del_edges(G, digraph:out_edges(G, Source)),
     lists:foreach(
       fun(Incl) ->
@@ -468,7 +473,7 @@ restore_erlcinfo(G, InclDirs) ->
                       digraph:add_vertex(G, V, LastUpdated)
               end, Vs),
             lists:foreach(
-              fun({V1, V2}) ->
+              fun({_, V1, V2, _}) ->
                       digraph:add_edge(G, V1, V2)
               end, Es);
         {error, _} ->
@@ -476,18 +481,8 @@ restore_erlcinfo(G, InclDirs) ->
     end.
 
 store_erlcinfo(G, InclDirs) ->
-    Vs = lists:map(
-           fun(V) ->
-                   digraph:vertex(G, V)
-           end, digraph:vertices(G)),
-    Es = lists:flatmap(
-           fun({V, _}) ->
-                   lists:map(
-                     fun(E) ->
-                             {_, V1, V2, _} = digraph:edge(G, E),
-                             {V1, V2}
-                     end, digraph:out_edges(G, V))
-           end, Vs),
+    Vs = lists:map(fun(V) -> digraph:vertex(G, V) end, digraph:vertices(G)),
+    Es = lists:map(fun(E) -> digraph:edge(G, E) end, digraph:edges(G)),
     File = erlcinfo_file(),
     ok = filelib:ensure_dir(File),
     Data = term_to_binary(#erlcinfo{info={Vs, Es, InclDirs}}, [{compressed, 9}]),
