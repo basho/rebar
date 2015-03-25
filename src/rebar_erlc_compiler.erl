@@ -448,6 +448,7 @@ modify_erlcinfo(G, Source, Dirs) ->
     ok = file:close(Fd),
     LastUpdated = {date(), time()},
     digraph:add_vertex(G, Source, LastUpdated),
+    digraph:del_edges(G, digraph:out_edges(G, Source)),
     lists:foreach(
       fun(Incl) ->
               update_erlcinfo(G, Dirs, Incl),

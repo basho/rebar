@@ -40,7 +40,7 @@ files() ->
 run(_Dir) ->
     compile_all(ok, ""),
     check_beams_ok(),
-    check_beams_untouched(),
+    check_beams_untouched(filelib:wildcard("ebin/*.beam")),
     modify_and_recompile_ok("src/lisp.erl", "ebin/lisp.beam"),
 
     clean_all_ok(),
@@ -48,14 +48,27 @@ run(_Dir) ->
     compile_all(ok, ""),
     modify_and_recompile_ok("extra_include/extra.hrl", "ebin/java.beam"),
 
+    Java = "src/java.erl",
+    {ok, OrigContent} = file:read_file(Java),
+    %% Remove header file inclusion
+    {ok, _} = file:copy("src/java.erl.no_extra", Java),
+    %% Ensure recompilation
+    touch([Java]),
+    compile_all(ok, ""),
+    %% Modify that header file
+    touch(["extra_include/extra.hrl"]),
+    %% Ensure we don't have to recompile anything
+    check_beams_untouched(["ebin/java.beam"]),
+    %% Clean up
+    ok = file:write_file(Java, OrigContent),
+
     ok.
 
 check_beams_ok() ->
     F = fun(BeamFile) -> ?assert(filelib:is_regular(BeamFile)) end,
     with_erl_beams(F).
 
-check_beams_untouched() ->
-    Beams = filelib:wildcard("ebin/*.beam"),
+check_beams_untouched(Beams) ->
     compile_all_and_assert_mtimes(Beams, fun erlang:'=:='/2).
 
 modify_and_recompile_ok(TouchFile, CheckFile) ->
