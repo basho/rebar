@@ -672,14 +672,8 @@ parse_attrs(Fd, Includes) ->
     end.
 
 process_attr(Form, Includes) ->
-    try
-        AttrName = erl_syntax:atom_value(erl_syntax:attribute_name(Form)),
-        process_attr(AttrName, Form, Includes)
-    catch _:_ ->
-            %% TODO: We should probably try to be more specific here
-            %% and not suppress all errors.
-            Includes
-    end.
+    AttrName = erl_syntax:atom_value(erl_syntax:attribute_name(Form)),
+    process_attr(AttrName, Form, Includes).
 
 process_attr(import, Form, Includes) ->
     case erl_syntax_lib:analyze_import_attribute(Form) of
@@ -719,8 +713,12 @@ process_attr(compile, Form, Includes) ->
                       [atom_to_list(M) ++ ".erl"|Acc];
                  (_, Acc) ->
                       Acc
-              end, Includes, L)
-    end.
+              end, Includes, L);
+        _ ->
+            Includes
+    end;
+process_attr(_, _Form, Includes) ->
+    Includes.
 
 %% Given the filename from an include_lib attribute, if the path
 %% exists, return unmodified, or else get the absolute ERL_LIBS
