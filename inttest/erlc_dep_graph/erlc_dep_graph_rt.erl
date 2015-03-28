@@ -62,6 +62,9 @@ run(_Dir) ->
     %% Clean up
     ok = file:write_file(Java, OrigContent),
 
+    %% Check that changes propagate deeply through the dependency tree
+    modify_and_recompile_ok("include/lambda.hrl", "ebin/perl.beam"),
+
     ok.
 
 check_beams_ok() ->

@@ -47,14 +47,6 @@
           info = {[], [], []} :: erlc_info()
         }).
 
--ifdef(namespaced_types).
-%% digraph:graph() exists starting from Erlang 17.
--type rebar_digraph() :: digraph:graph().
--else.
-%% digraph() has been obsoleted in Erlang 17 and deprecated in 18.
--type rebar_digraph() :: digraph().
--endif.
-
 %% ===================================================================
 %% Public API
 %% ===================================================================
@@ -306,47 +298,42 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
     OutDir1 = proplists:get_value(outdir, ErlOpts, OutDir),
 
     G = init_erlcinfo(proplists:get_all_values(i, ErlOpts), AllErlFiles),
-    ErlFirstFiles = erl_first_files(Config, AllErlFiles),
+    NeededErlFiles = needed_files(G, OutDir1, AllErlFiles),
+    ErlFirstFiles = erl_first_files(Config, NeededErlFiles),
     {DepErls, OtherErls} = lists:partition(
         fun(Source) -> digraph:in_degree(G, Source) > 0 end,
-        [File || File <- AllErlFiles, not lists:member(File, ErlFirstFiles)]),
+        [File || File <- NeededErlFiles, not lists:member(File, ErlFirstFiles)]),
     DepErlsOrdered = digraph_utils:topsort(digraph_utils:subgraph(G, DepErls)),
     FirstErls = ErlFirstFiles ++ lists:reverse(DepErlsOrdered),
     ?DEBUG("Files to compile first: ~p~n", [FirstErls]),
 
     rebar_base_compiler:run(
       Config, FirstErls, OtherErls,
-      fun(S, C) ->
-              internal_erl_compile(C, S, OutDir1, ErlOpts, G)
-      end),
+      fun(S, C) -> internal_erl_compile(C, S, OutDir1, ErlOpts) end),
     true = rebar_utils:cleanup_code_path(CurrPath),
     ok.
 
-erl_first_files(Config, AllErlFiles) ->
+erl_first_files(Config, NeededErlFiles) ->
+    %% NOTE: rebar_config:get_local perhaps?
     ErlFirstFilesConf = rebar_config:get_list(Config, erl_first_files, []),
-    %% NOTE: If and when erl_first_files is not inherited anymore
-    %% (rebar_config:get_local instead of rebar_config:get_list), consider
-    %% logging a warning message for any file listed in erl_first_files which
-    %% is not in AllErlFiles.
     %% NOTE: order of files in ErlFirstFiles is important!
-    [File || File <- ErlFirstFilesConf, lists:member(File, AllErlFiles)].
+    [File || File <- ErlFirstFilesConf, lists:member(File, NeededErlFiles)].
 
--spec needs_compile(file:filename(), file:filename(),
-                    [string()]) -> boolean().
-needs_compile(Source, Target, Parents) ->
-    TargetLastMod = filelib:last_modified(Target),
-    lists:any(fun(I) -> TargetLastMod < filelib:last_modified(I) end,
-              [Source] ++ Parents).
+%% Get subset of SourceFiles which need to be recompiled, respecting
+%% dependencies induced by given graph G.
+needed_files(G, OutDir, SourceFiles) ->
+    lists:filter(fun(Source) ->
+        Target = target_base(OutDir, Source) ++ ".beam",
+        digraph:vertex(G, Source) > {Source, filelib:last_modified(Target)}
+    end, SourceFiles).
 
 erlcinfo_file() ->
     filename:join([rebar_utils:get_cwd(), ".rebar", ?ERLCINFO_FILE]).
 
 %% Get dependency graph of given Erls files and their dependencies (header files,
 %% parse transforms, behaviours etc.) located in their directories or given
-%% InclDirs.  Note that last modification times stored in vertices are only for
-%% internal optimization and cannot be directly used for deciding whether to
-%% recompile a file, since when the file itself doesn't change we don't check its
-%% dependencies which might change.
+%% InclDirs.  Note that last modification times stored in vertices already respect
+%% dependencies induced by given graph G.
 init_erlcinfo(InclDirs, Erls) ->
     G = digraph:new([acyclic]),
     try restore_erlcinfo(G, InclDirs)
@@ -385,11 +372,25 @@ update_erlcinfo(G, Dirs, Source) ->
                 LastModified when LastUpdated < LastModified ->
                     modify_erlcinfo(G, Source, LastModified, Dirs);
                 _ ->
-                    unmodified
+                    Modified = lists:foldl(
+                        update_erlcinfo_fun(G, Dirs),
+                        false, digraph:out_neighbours(G, Source)),
+                    MaxModified = update_max_modified_deps(G, Source),
+                    case Modified orelse MaxModified > LastUpdated of
+                        true -> modified;
+                        false -> unmodified
+                    end
             end;
         false ->
             modify_erlcinfo(G, Source, filelib:last_modified(Source), Dirs)
     end.
+
+update_max_modified_deps(G, Source) ->
+    MaxModified = lists:max(lists:map(
+        fun(File) -> {_, MaxModified} = digraph:vertex(G, File), MaxModified end,
+        [Source|digraph:out_neighbours(G, Source)])),
+    digraph:add_vertex(G, Source, MaxModified),
+    MaxModified.
 
 modify_erlcinfo(G, Source, LastModified, Dirs) ->
     {ok, Fd} = file:open(Source, [read]),
@@ -464,42 +465,24 @@ expand_file_names(Files, Dirs) ->
               end
       end, Files).
 
--spec get_parents(rebar_digraph(), file:filename()) -> [file:filename()].
-get_parents(G, Source) ->
-    %% Return all files which the Source depends upon.
-    digraph_utils:reachable_neighbours([Source], G).
-
 -spec internal_erl_compile(rebar_config:config(), file:filename(),
-                           file:filename(), list(),
-                           rebar_digraph()) -> 'ok' | 'skipped'.
-internal_erl_compile(Config, Source, OutDir, ErlOpts, G) ->
-    %% Determine the target name and includes list by inspecting the source file
-    Module = filename:basename(Source, ".erl"),
-    Parents = get_parents(G, Source),
-    log_files(?FMT("Dependencies of ~s", [Source]), Parents),
-
-    %% Construct the target filename
-    Target = filename:join([OutDir | string:tokens(Module, ".")]) ++ ".beam",
-    ok = filelib:ensure_dir(Target),
-
-    %% If the file needs compilation, based on last mod date of includes or
-    %% the target
-    case needs_compile(Source, Target, Parents) of
-        true ->
-            Opts = [{outdir, filename:dirname(Target)}] ++
-                ErlOpts ++ [{i, "include"}, return],
-            case compile:file(Source, Opts) of
-                {ok, _Mod} ->
-                    ok;
-                {ok, _Mod, Ws} ->
-                    rebar_base_compiler:ok_tuple(Config, Source, Ws);
-                {error, Es, Ws} ->
-                    rebar_base_compiler:error_tuple(Config, Source,
-                                                    Es, Ws, Opts)
-            end;
-        false ->
-            skipped
+    file:filename(), list()) -> ok | {ok, any()} | {error, any(), any()}.
+internal_erl_compile(Config, Source, OutDir, ErlOpts) ->
+    TargetDir = filename:dirname(target_base(OutDir, Source)),
+    ok = filelib:ensure_dir(TargetDir),
+    Opts = [{outdir, TargetDir}] ++ ErlOpts ++ [{i, "include"}, return],
+    case compile:file(Source, Opts) of
+        {ok, _Mod} ->
+            ok;
+        {ok, _Mod, Ws} ->
+            rebar_base_compiler:ok_tuple(Config, Source, Ws);
+        {error, Es, Ws} ->
+            rebar_base_compiler:error_tuple(Config, Source, Es, Ws, Opts)
     end.
+
+target_base(OutDir, Source) ->
+    Module = filename:basename(Source, ".erl"),
+    filename:join([OutDir|string:tokens(Module, ".")]).
 
 -spec compile_mib(file:filename(), file:filename(),
                   rebar_config:config()) -> 'ok'.
@@ -541,7 +524,7 @@ compile_yrl(Source, Target, Config) ->
 -spec compile_xrl_yrl(rebar_config:config(), file:filename(),
                       file:filename(), list(), module()) -> 'ok'.
 compile_xrl_yrl(Config, Source, Target, Opts, Mod) ->
-    case needs_compile(Source, Target, []) of
+    case needs_compile(Source, Target) of
         true ->
             case Mod:file(Source, Opts ++ [{return, true}]) of
                 {ok, _} ->
@@ -555,6 +538,9 @@ compile_xrl_yrl(Config, Source, Target, Opts, Mod) ->
         false ->
             skipped
     end.
+
+needs_compile(Source, Target) ->
+    filelib:last_modified(Source) > filelib:last_modified(Target).
 
 gather_src([], Srcs) ->
     Srcs;
@@ -676,14 +662,4 @@ check_file(File) ->
     case filelib:is_regular(File) of
         false -> ?ABORT("File ~p is missing, aborting\n", [File]);
         true -> File
-    end.
-
-%% Print prefix followed by list of files. If the list is empty, print
-%% on the same line, otherwise use a separate line.
-log_files(Prefix, Files) ->
-    case Files of
-        [] ->
-            ?DEBUG("~s: ~p~n", [Prefix, Files]);
-        _ ->
-            ?DEBUG("~s:~n~p~n", [Prefix, Files])
     end.
