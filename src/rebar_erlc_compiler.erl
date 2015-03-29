@@ -299,7 +299,7 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
 
     G = init_erlcinfo(proplists:get_all_values(i, ErlOpts), AllErlFiles),
     NeededErlFiles = needed_files(G, OutDir1, AllErlFiles),
-    ErlFirstFiles = erl_first_files(Config, NeededErlFiles),
+    {ErlFirstFiles, ErlOptsFirst} = erl_first_files(Config, ErlOpts, NeededErlFiles),
     {DepErls, OtherErls} = lists:partition(
         fun(Source) -> digraph:in_degree(G, Source) > 0 end,
         [File || File <- NeededErlFiles, not lists:member(File, ErlFirstFiles)]),
@@ -309,15 +309,37 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
 
     rebar_base_compiler:run(
       Config, FirstErls, OtherErls,
-      fun(S, C) -> internal_erl_compile(C, S, OutDir1, ErlOpts) end),
+      fun(S, C) ->
+        ErlOpts1 = case lists:member(S, ErlFirstFiles) of
+            true -> ErlOptsFirst;
+            false -> ErlOpts
+        end,
+        internal_erl_compile(C, S, OutDir1, ErlOpts1)
+      end),
     true = rebar_utils:cleanup_code_path(CurrPath),
     ok.
 
-erl_first_files(Config, NeededErlFiles) ->
+%% Get files which need to be compiled first, i.e. those specified in erl_first_files
+%% and parse_transform options.  Also produce specific erl_opts for these first
+%% files, so that yet to be compiled parse transformations are excluded from it.
+erl_first_files(Config, ErlOpts, NeededErlFiles) ->
     %% NOTE: rebar_config:get_local perhaps?
     ErlFirstFilesConf = rebar_config:get_list(Config, erl_first_files, []),
-    %% NOTE: order of files in ErlFirstFiles is important!
-    [File || File <- ErlFirstFilesConf, lists:member(File, NeededErlFiles)].
+    NeededSrcDirs = lists:usort(lists:map(fun filename:dirname/1, NeededErlFiles)),
+    %% NOTE: order of files here is important!
+    ErlFirstFiles = lists:filter(
+        fun(File) -> lists:member(File, NeededErlFiles) end, ErlFirstFilesConf),
+    {ParseTransforms, ParseTransformsErls} = lists:unzip(lists:flatmap(
+        fun(PT) ->
+            PTerls = [filename:join(Dir, module_to_erl(PT)) || Dir <- NeededSrcDirs],
+            [{PT, PTerl} || PTerl <- PTerls, lists:member(PTerl, NeededErlFiles)]
+        end,
+        proplists:get_all_values(parse_transform, ErlOpts))),
+    ErlOptsFirst = lists:filter(fun
+        ({parse_transform, PT}) -> not lists:member(PT, ParseTransforms);
+        (_) -> true
+    end, ErlOpts),
+    {ErlFirstFiles ++ ParseTransformsErls, ErlOptsFirst}.
 
 %% Get subset of SourceFiles which need to be recompiled, respecting
 %% dependencies induced by given graph G.
