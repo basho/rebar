@@ -513,7 +513,7 @@ store_erlcinfo(G, Config, _Modified) ->
     Data = term_to_binary(#erlcinfo{info={Vs, Es}}, [{compressed, 9}]),
     file:write_file(File, Data).
 
-%% NOTE: If, for example, one of the entries in Files, refers to
+%% NOTE: If, for example, one of the entries in Files refers to
 %% gen_server.erl, that entry will be dropped. It is dropped because
 %% such an entry usually refers to the beam file, and we don't pass a
 %% list of OTP src dirs for finding gen_server.erl's full path. Also,
