@@ -36,7 +36,7 @@
 -include("rebar.hrl").
 -include_lib("stdlib/include/erl_compile.hrl").
 
--define(ERLCINFO_VSN, 1).
+-define(ERLCINFO_VSN, 2).
 -define(ERLCINFO_FILE, "erlcinfo").
 -type erlc_info_v() :: {digraph:vertex(), term()} | 'false'.
 -type erlc_info_e() :: {digraph:vertex(), digraph:vertex()}.
