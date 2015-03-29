@@ -63,7 +63,7 @@ dialyze(Config, AppFile) ->
         [] ->
             {ok, NewConfig};
         Ws ->
-            print_warnings(Ws),
+            print_warnings(Ws, fullpath),
             ?FAIL
     end.
 
@@ -83,7 +83,7 @@ dialyze(Config, AppFile) ->
             %% As plt_build may raise warnings but still successfully
             %% create the PLT, we cannot interpret this as failure,
             %% and therefore all we can do is report warnings.
-            print_warnings(Ws)
+            print_warnings(Ws, basename)
     end.
 
 'check-plt'(Config, AppFile) ->
@@ -104,7 +104,7 @@ dialyze(Config, AppFile) ->
         [] ->
             {ok, NewConfig};
         Ws ->
-            print_warnings(Ws),
+            print_warnings(Ws, basename),
             ?FAIL
     end.
 
@@ -195,15 +195,24 @@ run(Opts) ->
 warnings(Config) ->
     rebar_config:get_local(Config, dialyzer_warnings, []).
 
-print_warnings(Ws) ->
+print_warnings(Ws, Option) ->
     lists:foreach(
       fun(W) ->
-              ?CONSOLE("~s~n", [format_warning(W)])
+              ?CONSOLE("~s~n", [format_warning(W, Option)])
       end,
       Ws).
 
-format_warning(W) ->
-    dialyzer:format_warning(W, fullpath).
+format_warning(W, Option) ->
+    case dialyzer:format_warning(W, Option) of
+        ":0: " ++ Unknown ->
+            strip_newline(Unknown);
+        Warning ->
+            strip_newline(Warning)
+    end.
+
+%% Warning may or may not have trailing \n.
+strip_newline(Warning) ->
+    string:strip(Warning, right, $\n).
 
 app_dirs(Config, AppFile) ->
     {NewConfig, AppFileApps} = app_file_apps(Config, AppFile),
