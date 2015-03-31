@@ -60,6 +60,8 @@
 -type rebar_dict() :: dict().
 -endif.
 
+-type key() :: atom().
+
 -record(config, { dir :: file:filename(),
                   opts = [] :: list(),
                   globals = new_globals() :: rebar_dict(),
@@ -78,13 +80,16 @@
 %% Public API
 %% ===================================================================
 
+-spec base_config(config()) -> config().
 base_config(GlobalConfig) ->
     ConfName = rebar_config:get_global(GlobalConfig, config, ?DEFAULT_NAME),
     new(GlobalConfig, ConfName).
 
+-spec new() -> config().
 new() ->
     #config{dir = rebar_utils:get_cwd()}.
 
+-spec new(file:filename() | config()) -> config().
 new(ConfigFile) when is_list(ConfigFile) ->
     case consult_file(ConfigFile) of
         {ok, Opts} ->
@@ -98,22 +103,28 @@ new(_ParentConfig=#config{opts=Opts0, globals=Globals, skip_dirs=SkipDirs,
     new(#config{opts=Opts0, globals=Globals, skip_dirs=SkipDirs, xconf=Xconf},
         ?DEFAULT_NAME).
 
+-spec get(config(), key(), term()) -> term().
 get(Config, Key, Default) ->
     proplists:get_value(Key, Config#config.opts, Default).
 
+-spec get_list(config(), key(), term()) -> term().
 get_list(Config, Key, Default) ->
     get(Config, Key, Default).
 
+-spec get_local(config(), key(), term()) -> term().
 get_local(Config, Key, Default) ->
     proplists:get_value(Key, local_opts(Config#config.opts, []), Default).
 
+-spec get_all(config(), key()) -> list(term()).
 get_all(Config, Key) ->
     proplists:get_all_values(Key, Config#config.opts).
 
+-spec set(config(), key(), term()) -> config().
 set(Config, Key, Value) ->
     Opts = proplists:delete(Key, Config#config.opts),
     Config#config { opts = [{Key, Value} | Opts] }.
 
+-spec set_global(config(), key(), term()) -> config().
 set_global(Config, jobs=Key, Value) when is_list(Value) ->
     set_global(Config, Key, list_to_integer(Value));
 set_global(Config, jobs=Key, Value) when is_integer(Value) ->
@@ -123,6 +134,7 @@ set_global(Config, Key, Value) ->
     NewGlobals = dict:store(Key, Value, Config#config.globals),
     Config#config{globals = NewGlobals}.
 
+-spec get_global(config(), key(), term()) -> term().
 get_global(Config, Key, Default) ->
     case dict:find(Key, Config#config.globals) of
         error ->
@@ -131,9 +143,11 @@ get_global(Config, Key, Default) ->
             Value
     end.
 
+-spec is_recursive(config()) -> boolean().
 is_recursive(Config) ->
     get_xconf(Config, recursive, false).
 
+-spec consult_file(file:filename()) -> term().
 consult_file(File) ->
     case filename:extension(File) of
         ".script" ->
@@ -149,16 +163,20 @@ consult_file(File) ->
             end
     end.
 
+-spec save_env(config(), module(), nonempty_list()) -> config().
 save_env(Config, Mod, Env) ->
     NewEnvs = dict:store(Mod, Env, Config#config.envs),
     Config#config{envs = NewEnvs}.
 
+-spec get_env(config(), module()) -> term().
 get_env(Config, Mod) ->
     dict:fetch(Mod, Config#config.envs).
 
+-spec reset_envs(config()) -> config().
 reset_envs(Config) ->
     Config#config{envs = new_env()}.
 
+-spec set_skip_dir(config(), file:filename()) -> config().
 set_skip_dir(Config, Dir) ->
     OldSkipDirs = Config#config.skip_dirs,
     NewSkipDirs = case is_skip_dir(Config, Dir) of
@@ -170,20 +188,25 @@ set_skip_dir(Config, Dir) ->
                   end,
     Config#config{skip_dirs = NewSkipDirs}.
 
+-spec is_skip_dir(config(), file:filename()) -> boolean().
 is_skip_dir(Config, Dir) ->
     dict:is_key(Dir, Config#config.skip_dirs).
 
+-spec reset_skip_dirs(config()) -> config().
 reset_skip_dirs(Config) ->
     Config#config{skip_dirs = new_skip_dirs()}.
 
+-spec set_xconf(config(), term(), term()) -> config().
 set_xconf(Config, Key, Value) ->
     NewXconf = dict:store(Key, Value, Config#config.xconf),
     Config#config{xconf=NewXconf}.
 
+-spec get_xconf(config(), term()) -> term().
 get_xconf(Config, Key) ->
     {ok, Value} = dict:find(Key, Config#config.xconf),
     Value.
 
+-spec get_xconf(config(), term(), term()) -> term().
 get_xconf(Config, Key, Default) ->
     case dict:find(Key, Config#config.xconf) of
         error ->
@@ -192,11 +215,13 @@ get_xconf(Config, Key, Default) ->
             Value
     end.
 
+-spec erase_xconf(config(), term()) -> config().
 erase_xconf(Config, Key) ->
     NewXconf = dict:erase(Key, Config#config.xconf),
     Config#config{xconf = NewXconf}.
 
 %% TODO: reconsider after config inheritance removal/redesign
+-spec clean_config(config(), config()) -> config().
 clean_config(Old, New) ->
     New#config{opts=Old#config.opts}.
 
@@ -204,6 +229,7 @@ clean_config(Old, New) ->
 %% Internal functions
 %% ===================================================================
 
+-spec new(config(), file:filename()) -> config().
 new(ParentConfig, ConfName) ->
     %% Load terms from rebar.config, if it exists
     Dir = rebar_utils:get_cwd(),
@@ -228,15 +254,18 @@ new(ParentConfig, ConfName) ->
 
     ParentConfig#config{dir = Dir, opts = Opts}.
 
+-spec consult_and_eval(file:filename(), file:filename()) -> {ok, term()}.
 consult_and_eval(File, Script) ->
     ?DEBUG("Evaluating config script ~p~n", [Script]),
     ConfigData = try_consult(File),
     file:script(Script, bs([{'CONFIG', ConfigData}, {'SCRIPT', Script}])).
 
+-spec remove_script_ext(file:filename()) -> file:filename().
 remove_script_ext(F) ->
     "tpircs." ++ Rev = lists:reverse(F),
     lists:reverse(Rev).
 
+-spec try_consult(file:filename()) -> term().
 try_consult(File) ->
     case file:consult(File) of
         {ok, Terms} ->
@@ -248,11 +277,14 @@ try_consult(File) ->
             ?ABORT("Failed to read config file ~s: ~p~n", [File, Reason])
     end.
 
+-type bs_vars() :: [{term(), term()}].
+-spec bs(bs_vars()) -> bs_vars().
 bs(Vars) ->
     lists:foldl(fun({K,V}, Bs) ->
                         erl_eval:add_binding(K, V, Bs)
                 end, erl_eval:new_bindings(), Vars).
 
+-spec local_opts(list(), list()) -> list().
 local_opts([], Acc) ->
     lists:reverse(Acc);
 local_opts([local | _Rest], Acc) ->
@@ -260,10 +292,14 @@ local_opts([local | _Rest], Acc) ->
 local_opts([Item | Rest], Acc) ->
     local_opts(Rest, [Item | Acc]).
 
+-spec new_globals() -> rebar_dict().
 new_globals() -> dict:new().
 
+-spec new_env() -> rebar_dict().
 new_env() -> dict:new().
 
+-spec new_skip_dirs() -> rebar_dict().
 new_skip_dirs() -> dict:new().
 
+-spec new_xconf() -> rebar_dict().
 new_xconf() -> dict:new().
