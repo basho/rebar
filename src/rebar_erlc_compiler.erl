@@ -327,6 +327,9 @@ needed_files(G, OutDir, SourceFiles) ->
         digraph:vertex(G, Source) > {Source, filelib:last_modified(Target)}
     end, SourceFiles).
 
+target_base(OutDir, Source) ->
+    filename:join(OutDir, filename:basename(Source, ".erl")).
+
 erlcinfo_file() ->
     filename:join([rebar_utils:get_cwd(), ".rebar", ?ERLCINFO_FILE]).
 
@@ -468,9 +471,8 @@ expand_file_names(Files, Dirs) ->
 -spec internal_erl_compile(rebar_config:config(), file:filename(),
     file:filename(), list()) -> ok | {ok, any()} | {error, any(), any()}.
 internal_erl_compile(Config, Source, OutDir, ErlOpts) ->
-    TargetDir = filename:dirname(target_base(OutDir, Source)),
-    ok = filelib:ensure_dir(TargetDir),
-    Opts = [{outdir, TargetDir}] ++ ErlOpts ++ [{i, "include"}, return],
+    ok = filelib:ensure_dir(OutDir),
+    Opts = [{outdir, OutDir}] ++ ErlOpts ++ [{i, "include"}, return],
     case compile:file(Source, Opts) of
         {ok, _Mod} ->
             ok;
@@ -479,10 +481,6 @@ internal_erl_compile(Config, Source, OutDir, ErlOpts) ->
         {error, Es, Ws} ->
             rebar_base_compiler:error_tuple(Config, Source, Es, Ws, Opts)
     end.
-
-target_base(OutDir, Source) ->
-    Module = filename:basename(Source, ".erl"),
-    filename:join([OutDir|string:tokens(Module, ".")]).
 
 -spec compile_mib(file:filename(), file:filename(),
                   rebar_config:config()) -> 'ok'.
