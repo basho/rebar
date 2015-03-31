@@ -38,8 +38,7 @@
 %% Public API
 %% ===================================================================
 
--spec compile(rebar_config:config(), file:filename()) ->
-    {'ok', rebar_config:config()}.
+-spec compile(rebar_config:config(), file:filename()) -> 'ok'.
 compile(Config, _AppFile) ->
     %% If we get an *.appup.src file, it needs to be pre-processed and
     %% written out as a ebin/*.appup file.
