@@ -309,9 +309,11 @@ collect_glob(Config, Cwd, Glob) ->
                       %% There is a directory named "deps" in path
                       Acc;
                   false ->
-                      [F | Acc]           % No "deps" directory in path
+                      %% No "deps" directory in path
+                      [F | Acc]
               end
-      end, []).
+      end,
+      []).
 
 remove_common_prefix([H1|T1], [H1|T2]) ->
     remove_common_prefix(T1, T2);
