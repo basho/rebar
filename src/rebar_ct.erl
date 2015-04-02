@@ -295,18 +295,23 @@ collect_glob(Config, Cwd, Glob) ->
     {true, Deps} = rebar_deps:get_deps_dir(Config),
     DepsDir = filename:basename(Deps),
     CwdParts = filename:split(Cwd),
-    filelib:fold_files(Cwd, Glob, true, fun(F, Acc) ->
-        %% Ignore any specs under the deps/ directory. Do this pulling
-        %% the dirname off the F and then splitting it into a list.
-        Parts = filename:split(filename:dirname(F)),
-        Parts2 = remove_common_prefix(Parts, CwdParts),
-        case lists:member(DepsDir, Parts2) of
-            true ->
-                Acc;                % There is a directory named "deps" in path
-            false ->
-                [F | Acc]           % No "deps" directory in path
-        end
-    end, []).
+    filelib:fold_files(
+      Cwd,
+      Glob,
+      true,
+      fun(F, Acc) ->
+              %% Ignore any specs under the deps/ directory. Do this pulling
+              %% the dirname off the F and then splitting it into a list.
+              Parts = filename:split(filename:dirname(F)),
+              Parts2 = remove_common_prefix(Parts, CwdParts),
+              case lists:member(DepsDir, Parts2) of
+                  true ->
+                      %% There is a directory named "deps" in path
+                      Acc;
+                  false ->
+                      [F | Acc]           % No "deps" directory in path
+              end
+      end, []).
 
 remove_common_prefix([H1|T1], [H1|T2]) ->
     remove_common_prefix(T1, T2);
@@ -344,7 +349,7 @@ get_suites(Config, TestDir) ->
 get_suites(Config) ->
     case rebar_config:get_global(Config, suites, undefined) of
         undefined ->
-            rebar_config:get_global(Config, suite, undefined); 
+            rebar_config:get_global(Config, suite, undefined);
         Suites ->
             Suites
     end.

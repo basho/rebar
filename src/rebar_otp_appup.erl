@@ -74,11 +74,12 @@ preprocess(SourceFile, TargetFile, _Config) ->
         %% http://erlang.org/doc/man/appup.html.
         {ok, [{_Vsn, UpFromVsn, DownToVsn} = AppUp]}
           when is_list(UpFromVsn), is_list(DownToVsn) ->
-            case file:write_file(TargetFile,
-                                 lists:flatten(io_lib:format("~p.", [AppUp]))) of
+            case file:write_file(
+                   TargetFile,
+                   lists:flatten(io_lib:format("~p.", [AppUp]))) of
                 {error, Reason} ->
                     ?ABORT("Failed writing to target file ~s due to ~s",
-                        [TargetFile, Reason]);
+                           [TargetFile, Reason]);
                 ok -> ok
             end;
         {error, Reason} ->

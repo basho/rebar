@@ -196,7 +196,8 @@ process_overlay(Config, ReltoolConfig) ->
 %% providing an additional file on the command-line.
 %%
 overlay_vars(Config, Vars0, ReltoolConfig) ->
-    BaseVars = load_vars_file([proplists:get_value(overlay_vars, ReltoolConfig)]),
+    BaseVars = load_vars_file(
+                 [proplists:get_value(overlay_vars, ReltoolConfig)]),
     OverlayVars = rebar_config:get_global(Config, overlay_vars, []),
     OverrideVars = load_vars_file(string:tokens(OverlayVars, ",")),
     M = fun merge_overlay_var/3,
@@ -327,7 +328,8 @@ overlay_files(ReltoolConfig) ->
                    {overlay, Overlay} when is_list(Overlay) ->
                        Overlay;
                    false ->
-                       ?INFO("No {overlay, [...]} found in reltool.config.\n", []),
+                       ?INFO("No {overlay, [...]} found in reltool.config.\n",
+                             []),
                        [];
                    _ ->
                        ?ABORT("{overlay, [...]} entry in reltool.config "

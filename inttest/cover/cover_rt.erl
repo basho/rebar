@@ -47,25 +47,25 @@ ifdef_test() ->
     {ok, Output} = retest:sh("./rebar -v eunit"),
     io:format("output => ~p~n", [Output]),
     ?assert(check_output(Output, "foo")),
-    {ok,Listing} = file:list_dir(".eunit"),
+    {ok, Listing} = file:list_dir(".eunit"),
     ?assert(check_output(Listing, "foo.beam")),
     ?assertMatch({ok,_}, retest:sh("./rebar clean")).
 
 cover_export_json_test() ->
-    {ok,Output} =
-	retest:sh("./rebar -v -C rebar-cover_export_json.config eunit"),
+    {ok, Output} =
+        retest:sh("./rebar -v -C rebar-cover_export_json.config eunit"),
     ?assert(check_output(Output, "foo")),
     ?assertEqual(
        {ok, <<"{\"module\":\"foo\",\"covered\":2,\"not_covered\":1}">>},
        file:read_file(".eunit/foo.COVER.json")),
     ?assertMatch(
-       {ok,_},
+       {ok, _},
        retest:sh("./rebar -C rebar-cover_export_json.config clean")).
 
 check_output(Output,Target) ->
     lists:any(fun(Line) ->
-		      string:str(Line, Target) > 0
-	      end, Output).
+                      string:str(Line, Target) > 0
+              end, Output).
 app(Name) ->
     App = {application, Name,
            [{description, atom_to_list(Name)},
