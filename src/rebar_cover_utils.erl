@@ -54,7 +54,7 @@ close(F) ->
     ok = file:close(F).
 
 exit() ->
-   cover:stop().
+    cover:stop().
 
 init(false, _BeamFiles, _TargetDir) ->
     {ok, not_enabled};
@@ -139,7 +139,7 @@ analyze(Config, FilteredModules, SrcModules, TargetDir) ->
         false ->
             ok
     end,
-    
+
     %% Generate JSON Coverage Data, if configured
     case rebar_config:get(Config, cover_export_json, false) of
         true ->
@@ -260,12 +260,12 @@ export_json_coverage(TargetDir,Coverage) ->
                   end, Coverage).
 
 export_json_coverage_to_file(TargetDir, {Module, Covered, NotCovered}) ->
-    {ok,JsonFile} = file:open(json_file(TargetDir, Module), [write]),
+    {ok, JsonFile} = file:open(json_file(TargetDir, Module), [write]),
     io:format(JsonFile,
               "{\"module\":~p,\"covered\":~p,\"not_covered\":~p}",
               [atom_to_list(Module), Covered, NotCovered]),
     ok = file:close(JsonFile).
-    
+
 json_file(TargetDir, Module) ->
     filename:join([TargetDir, atom_to_list(Module) ++ ".COVER.json"]).
 
