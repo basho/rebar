@@ -5,6 +5,9 @@
 -export([parse_transform/2]).
 
 -include("lambda.hrl").
+-ifdef(NOT_DEFINED).
+-include_lib("include/non/existent.hrl").
+-endif.
 
 parse_transform(Forms, _Options) ->
     Forms.

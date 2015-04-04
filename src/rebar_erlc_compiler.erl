@@ -594,8 +594,7 @@ process_attr(include, Form, Includes) ->
 process_attr(include_lib, Form, Includes) ->
     [FileNode] = erl_syntax:attribute_arguments(Form),
     RawFile = erl_syntax:string_value(FileNode),
-    File = maybe_expand_include_lib_path(RawFile),
-    [File|Includes];
+    maybe_expand_include_lib_path(RawFile) ++ Includes;
 process_attr(behaviour, Form, Includes) ->
     [FileNode] = erl_syntax:attribute_arguments(Form),
     File = module_to_erl(erl_syntax:atom_value(FileNode)),
@@ -631,7 +630,7 @@ module_to_erl(Mod) ->
 maybe_expand_include_lib_path(File) ->
     case filelib:is_regular(File) of
         true ->
-            File;
+            [File];
         false ->
             expand_include_lib_path(File)
     end.
@@ -646,8 +645,10 @@ expand_include_lib_path(File) ->
     Split = filename:split(filename:dirname(File)),
     Lib = hd(Split),
     SubDir = filename:join(tl(Split)),
-    Dir = code:lib_dir(list_to_atom(Lib), list_to_atom(SubDir)),
-    filename:join(Dir, File1).
+    case code:lib_dir(list_to_atom(Lib), list_to_atom(SubDir)) of
+        {error, bad_name} -> [];
+        Dir -> [filename:join(Dir, File1)]
+    end.
 
 %%
 %% Ensure all files in a list are present and abort if one is missing
