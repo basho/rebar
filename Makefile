@@ -6,6 +6,7 @@ OTPVSNCMD='io:fwrite("~s",[rebar_utils:otp_release()]), halt().'
 OTPVSN=$(shell erl -pa ebin/ -noshell -eval $(OTPVSNCMD))
 PLT_FILENAME=~/.dialyzer_rebar_$(OTPVSN)_plt
 LOG_LEVEL?=debug
+RT_TARGETS?=inttest
 
 all:
 	./bootstrap
@@ -73,6 +74,6 @@ test_eunit: all
 	@$(REBAR) eunit
 
 test_inttest: all deps
-	@$(RETEST) -l $(LOG_LEVEL) inttest
+	@$(RETEST) -l $(LOG_LEVEL) $(RT_TARGETS)
 
 travis: clean debug xref clean all deps test
