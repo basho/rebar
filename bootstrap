@@ -121,9 +121,20 @@ rm(Path) ->
     ok.
 
 build_time() ->
-    {{Y, M, D}, {H, Min, S}} = calendar:now_to_universal_time(now()),
+    {{Y, M, D}, {H, Min, S}} = calendar:now_to_universal_time(rebar_now()),
     lists:flatten(io_lib:format("~4..0w~2..0w~2..0w_~2..0w~2..0w~2..0w",
                                 [Y, M, D, H, Min, S])).
+
+%% Even though we don't have -mode(compile), erl_lint:module/1 is run in
+%% escript, so we still have to silence the deprecation warning.
+-compile({nowarn_deprecated_function, [{erlang, now, 0}]}).
+rebar_now() ->
+    case erlang:function_exported(erlang, timestamp, 0) of
+        true ->
+            erlang:timestamp();
+        false ->
+            now()
+    end.
 
 vcs_info([]) ->
     "No VCS info available.";
