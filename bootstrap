@@ -131,7 +131,7 @@ rebar_now() ->
         false ->
             %% erlang:now/0 was deprecated in 18.0, and as the escript has to
             %% pass erl_lint:module/1 (even without -mode(compile)), we would
-            %% see a deprecation warning for erlang:now/1.  One solution is to
+            %% see a deprecation warning for erlang:now/0.  One solution is to
             %% use -compile({nowarn_deprecated_function, [{erlang, now, 0}]}),
             %% but that would raise a warning in versions older than 18.0.
             %% Calling erlang:now/0 via apply/3 avoids that.
