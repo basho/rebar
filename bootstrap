@@ -124,16 +124,18 @@ build_time() ->
     {{Y, M, D}, {H, Min, S}} = calendar:now_to_universal_time(rebar_now()),
     lists:flatten(io_lib:format("~4..0w~2..0w~2..0w_~2..0w~2..0w~2..0w",
                                 [Y, M, D, H, Min, S])).
-
-%% Even though we don't have -mode(compile), erl_lint:module/1 is run in
-%% escript, so we still have to silence the deprecation warning.
--compile({nowarn_deprecated_function, [{erlang, now, 0}]}).
 rebar_now() ->
     case erlang:function_exported(erlang, timestamp, 0) of
         true ->
             erlang:timestamp();
         false ->
-            now()
+            %% erlang:now/0 was deprecated in 18.0, and as the escript has to
+            %% pass erl_lint:module/1 (even without -mode(compile)), we would
+            %% see a deprecation warning for erlang:now/1.  One solution is to
+            %% use -compile({nowarn_deprecated_function, [{erlang, now, 0}]}),
+            %% but that would raise a warning in versions older than 18.0.
+            %% Calling erlang:now/0 via apply/3 avoids that.
+            apply(erlang, now, [])
     end.
 
 vcs_info([]) ->
