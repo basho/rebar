@@ -6,6 +6,9 @@
 @rem which is assumed to be the node root.
 @for /F "delims=" %%I in ("%~dp0..") do @set node_root=%%~fI
 
+@rem CWD to the node root directory
+@cd %node_root%
+
 @set releases_dir=%node_root%\releases
 
 @rem Parse ERTS version and release version from start_erl.data
