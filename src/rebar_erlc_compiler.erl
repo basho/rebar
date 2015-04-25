@@ -691,9 +691,13 @@ maybe_expand_include_lib_path(File) ->
 %% utilize more elaborate logic.
 expand_include_lib_path(File) ->
     File1 = filename:basename(File),
-    Split = filename:split(filename:dirname(File)),
-    Lib = hd(Split),
-    SubDir = filename:join(tl(Split)),
+    [Lib | Parts] = filename:split(filename:dirname(File)),
+    SubDir = case Parts of
+                 [] -> % prevent function clause error
+                     [];
+                 _ ->
+                     filename:join(Parts)
+             end,
     case code:lib_dir(list_to_atom(Lib), list_to_atom(SubDir)) of
         {error, bad_name} -> [];
         Dir -> [filename:join(Dir, File1)]
