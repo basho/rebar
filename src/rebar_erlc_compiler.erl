@@ -299,10 +299,15 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
 
     G = init_erlcinfo(proplists:get_all_values(i, ErlOpts), AllErlFiles),
     NeededErlFiles = needed_files(G, OutDir1, AllErlFiles),
-    {ErlFirstFiles, ErlOptsFirst} = erl_first_files(Config, ErlOpts, NeededErlFiles),
-    {DepErls, OtherErls} = lists:partition(
-        fun(Source) -> digraph:in_degree(G, Source) > 0 end,
-        [File || File <- NeededErlFiles, not lists:member(File, ErlFirstFiles)]),
+    {ErlFirstFiles, ErlOptsFirst} = erl_first_files(Config,
+                                                    ErlOpts,
+                                                    NeededErlFiles),
+    {DepErls, OtherErls} =
+        lists:partition(
+          fun(Source) ->
+                  digraph:in_degree(G, Source) > 0
+          end,
+          [F || F <- NeededErlFiles, not lists:member(F, ErlFirstFiles)]),
     DepErlsOrdered = digraph_utils:topsort(digraph_utils:subgraph(G, DepErls)),
     FirstErls = ErlFirstFiles ++ lists:reverse(DepErlsOrdered),
     ?DEBUG("Files to compile first: ~p~n", [FirstErls]),
@@ -310,44 +315,55 @@ doterl_compile(Config, OutDir, MoreSources, ErlOpts) ->
     rebar_base_compiler:run(
       Config, FirstErls, OtherErls,
       fun(S, C) ->
-        ErlOpts1 = case lists:member(S, ErlFirstFiles) of
-            true -> ErlOptsFirst;
-            false -> ErlOpts
-        end,
-        internal_erl_compile(C, S, OutDir1, ErlOpts1)
+              ErlOpts1 = case lists:member(S, ErlFirstFiles) of
+                             true -> ErlOptsFirst;
+                             false -> ErlOpts
+                         end,
+              internal_erl_compile(C, S, OutDir1, ErlOpts1)
       end),
     true = rebar_utils:cleanup_code_path(CurrPath),
     ok.
 
-%% Get files which need to be compiled first, i.e. those specified in erl_first_files
-%% and parse_transform options.  Also produce specific erl_opts for these first
-%% files, so that yet to be compiled parse transformations are excluded from it.
+%% Get files which need to be compiled first, i.e. those specified in
+%% erl_first_files and parse_transform options. Also produce specific
+%% erl_opts for these first files, so that yet to be compiled parse
+%% transformations are excluded from it.
 erl_first_files(Config, ErlOpts, NeededErlFiles) ->
     %% NOTE: rebar_config:get_local perhaps?
     ErlFirstFilesConf = rebar_config:get_list(Config, erl_first_files, []),
-    NeededSrcDirs = lists:usort(lists:map(fun filename:dirname/1, NeededErlFiles)),
+    NeededSrcDirs = lists:usort(
+                      lists:map(fun filename:dirname/1, NeededErlFiles)),
     %% NOTE: order of files here is important!
     ErlFirstFiles = lists:filter(
-        fun(File) -> lists:member(File, NeededErlFiles) end, ErlFirstFilesConf),
-    {ParseTransforms, ParseTransformsErls} = lists:unzip(lists:flatmap(
-        fun(PT) ->
-            PTerls = [filename:join(Dir, module_to_erl(PT)) || Dir <- NeededSrcDirs],
-            [{PT, PTerl} || PTerl <- PTerls, lists:member(PTerl, NeededErlFiles)]
-        end,
-        proplists:get_all_values(parse_transform, ErlOpts))),
-    ErlOptsFirst = lists:filter(fun
-        ({parse_transform, PT}) -> not lists:member(PT, ParseTransforms);
-        (_) -> true
-    end, ErlOpts),
+                      fun(File) -> lists:member(File, NeededErlFiles) end,
+                      ErlFirstFilesConf),
+    {ParseTransforms, ParseTransformsErls} =
+        lists:unzip(
+          lists:flatmap(
+            fun(PT) ->
+                    PTerls = [filename:join(Dir, module_to_erl(PT))
+                              || Dir <- NeededSrcDirs],
+                    [{PT, PTerl} || PTerl <- PTerls,
+                                    lists:member(PTerl, NeededErlFiles)]
+            end,
+            proplists:get_all_values(parse_transform, ErlOpts))),
+    ErlOptsFirst = lists:filter(
+                     fun ({parse_transform, PT}) ->
+                             not lists:member(PT, ParseTransforms);
+                         (_) -> true
+                     end,
+                     ErlOpts),
     {ErlFirstFiles ++ ParseTransformsErls, ErlOptsFirst}.
 
 %% Get subset of SourceFiles which need to be recompiled, respecting
 %% dependencies induced by given graph G.
 needed_files(G, OutDir, SourceFiles) ->
-    lists:filter(fun(Source) ->
-        Target = target_base(OutDir, Source) ++ ".beam",
-        digraph:vertex(G, Source) > {Source, filelib:last_modified(Target)}
-    end, SourceFiles).
+    lists:filter(
+      fun(Source) ->
+              Target = target_base(OutDir, Source) ++ ".beam",
+              digraph:vertex(G, Source) >
+                  {Source, filelib:last_modified(Target)}
+      end, SourceFiles).
 
 target_base(OutDir, Source) ->
     filename:join(OutDir, filename:basename(Source, ".erl")).
@@ -355,16 +371,18 @@ target_base(OutDir, Source) ->
 erlcinfo_file() ->
     filename:join([rebar_utils:get_cwd(), ".rebar", ?ERLCINFO_FILE]).
 
-%% Get dependency graph of given Erls files and their dependencies (header files,
-%% parse transforms, behaviours etc.) located in their directories or given
-%% InclDirs.  Note that last modification times stored in vertices already respect
+%% Get dependency graph of given Erls files and their dependencies
+%% (header files, parse transforms, behaviours etc.) located in their
+%% directories or given InclDirs. Note that last modification times
+%% stored in vertices already respect
 %% dependencies induced by given graph G.
 init_erlcinfo(InclDirs, Erls) ->
     G = digraph:new([acyclic]),
     try restore_erlcinfo(G, InclDirs)
     catch
         _:_ ->
-            ?WARN("Failed to restore ~s file. Discarding it.~n", [erlcinfo_file()]),
+            ?WARN("Failed to restore ~s file. Discarding it.~n",
+                  [erlcinfo_file()]),
             ok = file:delete(erlcinfo_file())
     end,
     Dirs = source_and_include_dirs(InclDirs, Erls),
@@ -378,10 +396,10 @@ source_and_include_dirs(InclDirs, Erls) ->
 
 update_erlcinfo_fun(G, Dirs) ->
     fun(Erl, Modified) ->
-        case update_erlcinfo(G, Dirs, Erl) of
-            modified -> true;
-            unmodified -> Modified
-        end
+            case update_erlcinfo(G, Dirs, Erl) of
+                modified -> true;
+                unmodified -> Modified
+            end
     end.
 
 update_erlcinfo(G, Dirs, Source) ->
@@ -398,8 +416,8 @@ update_erlcinfo(G, Dirs, Source) ->
                     modify_erlcinfo(G, Source, LastModified, Dirs);
                 _ ->
                     Modified = lists:foldl(
-                        update_erlcinfo_fun(G, Dirs),
-                        false, digraph:out_neighbours(G, Source)),
+                                 update_erlcinfo_fun(G, Dirs),
+                                 false, digraph:out_neighbours(G, Source)),
                     MaxModified = update_max_modified_deps(G, Source),
                     case Modified orelse MaxModified > LastUpdated of
                         true -> modified;
@@ -411,9 +429,13 @@ update_erlcinfo(G, Dirs, Source) ->
     end.
 
 update_max_modified_deps(G, Source) ->
-    MaxModified = lists:max(lists:map(
-        fun(File) -> {_, MaxModified} = digraph:vertex(G, File), MaxModified end,
-        [Source|digraph:out_neighbours(G, Source)])),
+    MaxModified = lists:max(
+                    lists:map(
+                      fun(File) ->
+                              {_, MaxModified} = digraph:vertex(G, File),
+                              MaxModified
+                      end,
+                      [Source|digraph:out_neighbours(G, Source)])),
     digraph:add_vertex(G, Source, MaxModified),
     MaxModified.
 
@@ -434,8 +456,9 @@ modify_erlcinfo(G, Source, LastModified, Dirs) ->
 restore_erlcinfo(G, InclDirs) ->
     case file:read_file(erlcinfo_file()) of
         {ok, Data} ->
-            %% Since externally passed InclDirs can influence erlcinfo graph (see
-            %% modify_erlcinfo), we have to check here that they didn't change.
+            %% Since externally passed InclDirs can influence erlcinfo
+            %% graph (see modify_erlcinfo), we have to check here that
+            %% they didn't change.
             #erlcinfo{vsn=?ERLCINFO_VSN, info={Vs, Es, InclDirs}} =
                 binary_to_term(Data),
             lists:foreach(
@@ -455,7 +478,8 @@ store_erlcinfo(G, InclDirs) ->
     Es = lists:map(fun(E) -> digraph:edge(G, E) end, digraph:edges(G)),
     File = erlcinfo_file(),
     ok = filelib:ensure_dir(File),
-    Data = term_to_binary(#erlcinfo{info={Vs, Es, InclDirs}}, [{compressed, 2}]),
+    Info = #erlcinfo{info={Vs, Es, InclDirs}},
+    Data = term_to_binary(Info, [{compressed, 2}]),
     ok = file:write_file(File, Data).
 
 %% NOTE: If, for example, one of the entries in Files refers to
@@ -490,8 +514,11 @@ expand_file_names(Files, Dirs) ->
               end
       end, Files).
 
--spec internal_erl_compile(rebar_config:config(), file:filename(),
-    file:filename(), list()) -> ok | {ok, any()} | {error, any(), any()}.
+-spec internal_erl_compile(
+        rebar_config:config(),
+        file:filename(),
+        file:filename(),
+        list()) -> ok | {ok, any()} | {error, any(), any()}.
 internal_erl_compile(Config, Source, OutDir, ErlOpts) ->
     ok = filelib:ensure_dir(OutDir),
     Opts = [{outdir, OutDir}] ++ ErlOpts ++ [{i, "include"}, return],
