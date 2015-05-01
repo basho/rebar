@@ -1,8 +1,8 @@
 %% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %% ex: ts=4 sw=4 ft=erlang et
-{erl_opts,
- [
-  {i, "extra_include"},
-  {parse_transform, lisp},
-  {parse_transform, pascal}
- ]}.
+-module(pascal).
+
+-export([parse_transform/2]).
+
+parse_transform(Forms, _Options) ->
+    Forms.
