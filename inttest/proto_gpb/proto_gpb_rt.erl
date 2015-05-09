@@ -74,14 +74,14 @@ run(_Dir) ->
     ok = run_from_dir(fail_expected, "proto.bad", "rebar.bad.config").
 
 run_from_dir(fail_expected, _ProtoDir, ConfigFile) ->
-    %% we expect a fail to happen, however rebar should not crash
-    %% we make sure of that by scanning the error
+    %% we expect a failure to happen, however rebar should not crash;
+    %% We make sure of that by scanning the error.
     {error, {stopped, {1, Error}}} = retest_sh:run("./rebar --config "
                                                    ++ ConfigFile
                                                    ++ " compile",
                                                    []),
-    %% no matches of the string 'EXIT' should occur, these
-    %% indicate a rebar crash and not a exit with error
+    %% No matches of the string 'EXIT' should occur, these
+    %% indicate a rebar crash and not a exit with error.
     0 = string:str(lists:flatten(Error), "'EXIT'"),
     ok;
 run_from_dir(success_expected, ProtoDir, ConfigFile) ->
