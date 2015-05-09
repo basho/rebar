@@ -104,6 +104,14 @@
 %% if selected by the proto_compiler option
 {gpb_opts, []}.
 
+%% == Diameter compiler ==
+
+%% Diameter files to compile before the rest
+{dia_first_files, []}.
+
+%% Options for the diameter compiler
+{dia_opts, []}.
+
 %% == EUnit ==
 
 %% Options for eunit:test()
