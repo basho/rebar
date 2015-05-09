@@ -29,7 +29,12 @@
 
 %% Simulate gpb compiling some proto files,
 %% but generate only enough of what's needed for testing -- dummy stuff only.
+%% if a bad.proto file is supplied then gpb fails
 file(Proto, Opts) ->
+    ok = case filename:basename(Proto) of
+            "bad.proto" -> error;
+            _ -> ok
+         end,
     Prefix = proplists:get_value(module_name_prefix, Opts, ""),
     Suffix = proplists:get_value(module_name_suffix, Opts, ""),
     ProtoBase = filename:basename(Proto, ".proto"),

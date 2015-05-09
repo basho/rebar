@@ -176,7 +176,7 @@ compile_queue(Config, Pids, Targets) ->
         {fail, {_, {source, Unit}}=Error} ->
             maybe_report(Error),
             ?CONSOLE("Compiling ~s failed:\n",
-                     [unit_source(Unit)]),
+                     [maybe_absname(Config, unit_source(Unit))]),
             ?DEBUG("Worker compilation failed: ~p\n", [Error]),
             case rebar_config:get_xconf(Config, keep_going, false) of
                 false ->
