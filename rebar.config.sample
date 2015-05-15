@@ -91,9 +91,9 @@
 
 %% == Proto compiler ==
 {proto_opts, [
-    {compiler, protobuffs},
-    {src_dirs, ["src"]}
-]}.
+              {compiler, protobuffs},
+              {src_dirs, ["src"]}
+             ]}.
 %% Available compilers for protocol buffer files (*.proto):
 %%   protobuffs  (default)
 %%   gpb
