@@ -43,10 +43,11 @@
 %% ===================================================================
 
 dialyze(Config, AppFile) ->
-    {NewConfig, Plt} = plt(Config, AppFile),
+    Opts = opts(Config),
+    {NewConfig, Plt} = plt(Config, AppFile, Opts),
     ok = check_plt_existence(Plt),
 
-    Opts = [
+    Args = [
             {analysis_type, succ_typings},
             %% http://erlang.org/pipermail/erlang-bugs/2015-February/004781.html
             %% TODO: remove once the minimum required Erlang/OTP release
@@ -56,10 +57,10 @@ dialyze(Config, AppFile) ->
             {check_plt, false},
             {init_plt, Plt},
             {files_rec, ["ebin"]},
-            {warnings, warnings(Config)}
+            {warnings, warnings(Opts)}
            ],
-    ?DEBUG("dialyze opts:~n~p~n", [Opts]),
-    case run(Opts) of
+    ?DEBUG("dialyze opts:~n~p~n", [Args]),
+    case run(Args) of
         [] ->
             {ok, NewConfig};
         Ws ->
@@ -68,15 +69,17 @@ dialyze(Config, AppFile) ->
     end.
 
 'build-plt'(Config, AppFile) ->
-    {Config1, AppDirs} = app_dirs(Config, AppFile),
-    {NewConfig, Plt} = plt(Config1, AppFile),
-    Opts = [
+    Opts = opts(Config),
+    {Config1, AppDirs} = app_dirs(Config, AppFile, Opts),
+    {NewConfig, Plt} = plt(Config1, AppFile, Opts),
+
+    Args = [
             {analysis_type, plt_build},
             {output_plt, Plt},
             {files_rec, AppDirs}
            ],
-    ?DEBUG("build-plt opts:~n~p~n", [Opts]),
-    case run(Opts) of
+    ?DEBUG("build-plt opts:~n~p~n", [Args]),
+    case run(Args) of
         [] ->
             {ok, NewConfig};
         Ws ->
@@ -87,10 +90,11 @@ dialyze(Config, AppFile) ->
     end.
 
 'check-plt'(Config, AppFile) ->
-    {NewConfig, Plt} = plt(Config, AppFile),
+    Opts = opts(Config),
+    {NewConfig, Plt} = plt(Config, AppFile, Opts),
     ok = check_plt_existence(Plt),
 
-    Opts = [
+    Args = [
             {analysis_type, plt_check},
             %% http://erlang.org/pipermail/erlang-bugs/2015-February/004781.html
             %% Without this, the PLT will be checked twice.
@@ -99,8 +103,8 @@ dialyze(Config, AppFile) ->
             {check_plt, false},
             {init_plt, Plt}
            ],
-    ?DEBUG("build-plt opts:~n~p~n", [Opts]),
-    case run(Opts) of
+    ?DEBUG("build-plt opts:~n~p~n", [Args]),
+    case run(Args) of
         [] ->
             {ok, NewConfig};
         Ws ->
@@ -109,7 +113,8 @@ dialyze(Config, AppFile) ->
     end.
 
 'delete-plt'(Config, AppFile) ->
-    {NewConfig, Plt} = plt(Config, AppFile),
+    Opts = opts(Config),
+    {NewConfig, Plt} = plt(Config, AppFile, Opts),
     ?DEBUG("Delete PLT '~s'~n", [Plt]),
     ok = rebar_file_utils:delete_each([Plt]),
     {ok, NewConfig}.
@@ -133,22 +138,24 @@ info_help(Description) ->
        "~s.~n"
        "~n"
        "Valid rebar.config options:~n"
-       "  ~p~n"
-       "  ~p~n"
-       "  ~p~n"
-       "  ~p~n"
        "  ~p~n",
        [
         Description,
-        {dialyzer_plt_location, shared},
-        {dialyzer_plt_location, local},
-        {dialyzer_plt_location, "custom_path"},
-        {dialyzer_plt_extra_apps, [app1, app2]},
-        {dialyzer_warnings, [unmatched_returns, error_handling]}
+        {dialyzer,
+         [
+          {plt_location, shared},
+          {plt_location, local},
+          {plt_location, "custom_dir"},
+          {plt_extra_apps, [app1, app2]},
+          {warnings, [unmatched_returns, error_handling]}
+         ]}
        ]).
 
-plt(Config, AppFile) ->
-    PltDir = plt_dir(Config),
+opts(Config) ->
+    rebar_config:get_local(Config, dialyzer, []).
+
+plt(Config, AppFile, Opts) ->
+    PltDir = plt_dir(Config, Opts),
     {NewConfig, RawAppName} = rebar_app_utils:app_name(Config, AppFile),
     AppName = atom_to_list(RawAppName),
     OtpRel = rebar_utils:otp_release(),
@@ -156,8 +163,8 @@ plt(Config, AppFile) ->
     ok = filelib:ensure_dir(Plt),
     {NewConfig, Plt}.
 
-plt_dir(Config) ->
-    Location = rebar_config:get_local(Config, dialyzer_plt_location, shared),
+plt_dir(Config, Opts) ->
+    Location = proplists:get_value(plt_location, Opts, shared),
     plt_dir1(Config, Location).
 
 plt_dir1(_Config, Location) when is_list(Location) ->
@@ -192,8 +199,8 @@ run(Opts) ->
             ?ABORT("Dialyzer error:~n~s~n", [Reason])
     end.
 
-warnings(Config) ->
-    rebar_config:get_local(Config, dialyzer_warnings, []).
+warnings(Opts) ->
+    proplists:get_value(warnings, Opts, []).
 
 print_warnings(Ws, Option) ->
     lists:foreach(
@@ -214,12 +221,12 @@ format_warning(W, Option) ->
 strip_newline(Warning) ->
     string:strip(Warning, right, $\n).
 
-app_dirs(Config, AppFile) ->
+app_dirs(Config, AppFile, Opts) ->
     {NewConfig, AppFileApps} = app_file_apps(Config, AppFile),
     ?DEBUG("app file apps:~n~p~n", [AppFileApps]),
     Deps = deps_apps(Config),
     ?DEBUG("deps apps:~n~p~n", [Deps]),
-    ExtraApps = rebar_config:get_local(Config, dialyzer_plt_extra_apps, []),
+    ExtraApps = proplists:get_value(plt_extra_apps, Opts, []),
     ?DEBUG("extra apps:~n~p~n", [ExtraApps]),
     %% erts is assumed, and has to be present unconditionally.
     Erts = [erts],

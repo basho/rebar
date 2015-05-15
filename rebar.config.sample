@@ -269,16 +269,15 @@
 
 %% == Dialyzer ==
 
-%% Store PLT in ~/.rebar/plt (Default)
-{dialyzer_plt_location, shared}.
-
-%% Store PLT locally inside the project in .rebar
-{dialyzer_plt_location, local}.
-
-%% Store PLT in custom directory
-{dialyzer_plt_location, "custom_path"}.
-
-%% Extra apps to include in the PLT
-{dialyzer_plt_extra_apps, [app1, app2]}.
-
-{dialyzer_warnings, [unmatched_returns, error_handling]}.
+{dialyzer,
+ [
+  %% Store PLT in ~/.rebar/plt (Default)
+  {plt_location, shared},
+  %% Store PLT locally inside the project in .rebar
+  {plt_location, local},
+  %% Store PLT in custom directory
+  {plt_location, "custom_dir"},
+  %% Extra apps to include in the PLT
+  {plt_extra_apps, [app1, app2]},
+  {warnings, [unmatched_returns, error_handling]}
+ ]}.
