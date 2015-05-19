@@ -77,12 +77,7 @@ and [Dialyzer](http://www.erlang.org/doc/man/dialyzer.html), causing a test
 failure.  
 If that happens, running `make clean` before running `make check` could solve the problem.  
 
-Dialyzer requires a PLT (Persitent Lookup Table) to work with. By default, it will look for  
-`$HOME/.dialyzer.plt` (alternatively, the `DIALYZER_PLT` environment variable can be set  
-to point to a different location). If a PLT file cannot be found, Dialyzer (via `make check`) will  
-fail- the output will indicate `"Could not read PLT file"`, including the path it tried to use.  
-See the [Dialyzer man page](http://www.erlang.org/doc/man/dialyzer.html) or [this further explanation](http://www.erlang.org/doc/apps/dialyzer/dialyzer_chapter.html) for details on creating the initial  
-PLT file.
+Dialyzer requires a PLT (Persitent Lookup Table) to work with, and `make check` will fail without it. The PLT that rebar uses needs to initially be created with `make build_plt`, and is named based on the version of Erlang/OTP in use. See the [Dialyzer man page](http://www.erlang.org/doc/man/dialyzer.html) or [this further explanation](http://www.erlang.org/doc/apps/dialyzer/dialyzer_chapter.html) for additional information.
 
 If you change any of the files with known but safe to ignore Dialyzer warnings, you may  
 have to adapt the line number(s) in [dialyzer_reference](dialyzer_reference). If you do that, 
