@@ -143,8 +143,8 @@ info_help(Description) ->
         Description,
         {dialyzer,
          [
-          {plt_location, shared},
           {plt_location, local},
+          {plt_location, shared},
           {plt_location, "custom_dir"},
           {plt_extra_apps, [app1, app2]},
           {warnings, [unmatched_returns, error_handling]}
@@ -164,7 +164,7 @@ plt(Config, AppFile, Opts) ->
     {NewConfig, Plt}.
 
 plt_dir(Config, Opts) ->
-    Location = proplists:get_value(plt_location, Opts, shared),
+    Location = proplists:get_value(plt_location, Opts, local),
     plt_dir1(Config, Location).
 
 plt_dir1(_Config, Location) when is_list(Location) ->
@@ -174,12 +174,12 @@ plt_dir1(_Config, Location) when is_list(Location) ->
         true ->
             Location
     end;
-plt_dir1(_Config, shared) ->
-    {ok, Home} = init:get_argument(home),
-    filename:join([Home, ".rebar", "plt"]);
 plt_dir1(Config, local) ->
     BaseDir = rebar_utils:base_dir(Config),
-    filename:join([BaseDir, ".rebar"]).
+    filename:join([BaseDir, ".rebar"]);
+plt_dir1(_Config, shared) ->
+    {ok, Home} = init:get_argument(home),
+    filename:join([Home, ".rebar", "plt"]).
 
 check_plt_existence(Plt) ->
     case filelib:is_regular(Plt) of
