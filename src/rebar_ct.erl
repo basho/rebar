@@ -67,8 +67,16 @@ info(help, ct) ->
        "  ~p~n"
        "  ~p~n"
        "Valid command line options:~n"
-       "  suites=foo,bar - run <test>/foo_SUITE and <test>/bar_SUITE~n"
-       "  case=\"mycase\" - run individual test case foo_SUITE:mycase~n",
+       "  suites=Suite1,Suite2,...,SuiteN~n"
+       "      - run Suite1_SUITE, Suite2_SUITE, ..., SuiteN_SUITE~n"
+       "      in the test folder.~n"
+       "  groups=Group1,Group2,...,GroupN~n"
+       "      - run test groups Group1, Group2, ..., GroupN of specified suites.~n"
+       "  cases=Case1,Case2,...,CaseM~n"
+       "      - run test cases Case1, Case2, ..., CaseN of specified suites.~n"
+       "  case=\"mycase\" - run individual test case Suite1_SUITE:mycase.~n"
+       "      This option is deprecated and remains for backward compability.~n"
+       "      It is recommended to use 'cases' instead.~n",
        [
         {ct_dir, "itest"},
         {ct_log_dir, "test/logs"},
@@ -227,7 +235,8 @@ make_cmd(TestDir, RawLogDir, Config) ->
                       get_cover_config(Config, Cwd) ++
                       get_ct_config_file(TestDir) ++
                       get_suites(Config, TestDir) ++
-                      get_case(Config) ++
+                      get_groups(Config) ++
+                      get_cases(Config) ++
                       get_extra_params(Config) ++
                       get_config_file(TestDir);
               SpecFlags ->
@@ -343,17 +352,24 @@ get_suites(Config, TestDir) ->
         undefined ->
             " -dir " ++ TestDir;
         Suites ->
-            Suites1 = string:tokens(Suites, ","),
-            Suites2 = [find_suite_path(Suite, TestDir) || Suite <- Suites1],
-            string:join([" -suite"] ++ Suites2, " ")
+            Suites1 = [find_suite_path(Suite, TestDir) || Suite <- Suites],
+            string:join([" -suite"] ++ Suites1, " ")
     end.
 
 get_suites(Config) ->
     case rebar_config:get_global(Config, suites, undefined) of
         undefined ->
-            rebar_config:get_global(Config, suite, undefined);
+            %% The option 'suite' is deprecated and remains
+            %% for backward compatibility.
+            %% It is recommended to use 'suites' instead.
+            case get_deprecated_global(Config, suite, suites) of
+                undefined ->
+                    undefined;
+                Suite ->
+                    [Suite]
+            end;
         Suites ->
-            Suites
+            string:tokens(Suites, ",")
     end.
 
 find_suite_path(Suite, TestDir) ->
@@ -368,10 +384,40 @@ find_suite_path(Suite, TestDir) ->
             Path
     end.
 
-get_case(Config) ->
-    case rebar_config:get_global(Config, 'case', undefined) of
+get_groups(Config) ->
+    case rebar_config:get_global(Config, groups, undefined) of
         undefined ->
-            "";
-        Case ->
-            " -case " ++ Case
+            %% The option 'group' was added only for consistency
+            %% because there are options 'suite' and 'case'.
+            case get_deprecated_global(Config, group, groups) of
+                undefined ->
+                    "";
+                Group ->
+                    " -group " ++ Group
+            end;
+        Groups ->
+            Groups1 = string:tokens(Groups, ","),
+            string:join([" -group"] ++ Groups1, " ")
     end.
+
+get_cases(Config) ->
+    case rebar_config:get_global(Config, cases, undefined) of
+        undefined ->
+            %% The option 'case' is deprecated and remains
+            %% for backward compatibility.
+            %% It is recommended to use 'cases' instead.
+            case get_deprecated_global(Config, 'case', cases) of
+                undefined ->
+                    "";
+                Case ->
+                    " -case " ++ Case
+            end;
+        Cases ->
+            Cases1 = string:tokens(Cases, ","),
+            string:join([" -case"] ++ Cases1, " ")
+    end.
+
+get_deprecated_global(Config, OldOpt, NewOpt) ->
+    rebar_utils:get_deprecated_global(
+      Config, OldOpt, NewOpt, undefined, "in the future").
+

@@ -450,7 +450,7 @@ eunit       [suite[s]=foo]               Run EUnit tests in foo.erl and
             [random_suite_order=Seed]    with a random seed for the PRNG, or a
                                          specific one.
 
-ct          [suite[s]=] [case=]          Run common_test suites
+ct          [suite[s]= [group[s]= [case[s]=]]] Run common_test suites
 
 qc                                       Test QuickCheck properties
 
