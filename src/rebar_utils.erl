@@ -72,6 +72,8 @@
 %% for internal use only
 -export([otp_release/0]).
 
+-dialyzer({no_missing_calls, escript_foldl/3}).
+
 -include("rebar.hrl").
 
 %% ====================================================================

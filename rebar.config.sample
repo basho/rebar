@@ -91,9 +91,9 @@
 
 %% == Proto compiler ==
 {proto_opts, [
-    {compiler, protobuffs},
-    {src_dirs, ["src"]}
-]}.
+              {compiler, protobuffs},
+              {src_dirs, ["src"]}
+             ]}.
 %% Available compilers for protocol buffer files (*.proto):
 %%   protobuffs  (default)
 %%   gpb
@@ -266,3 +266,18 @@
 {xref_queries,
  [{"(XC - UC) || (XU - X - B"
    " - (\"mod\":\".*foo\"/\"4\"))",[]}]}.
+
+%% == Dialyzer ==
+
+{dialyzer,
+ [
+  %% Store PLT in ~/.rebar/plt (Default)
+  {plt_location, shared},
+  %% Store PLT locally inside the project in .rebar
+  {plt_location, local},
+  %% Store PLT in custom directory
+  {plt_location, "custom_dir"},
+  %% Extra apps to include in the PLT
+  {plt_extra_apps, [app1, app2]},
+  {warnings, [unmatched_returns, error_handling]}
+ ]}.

@@ -17,14 +17,18 @@ _rebar()
         --keep-going \
         --recursive \
         --version"
-    cmdsnvars="check-deps \
+    cmdsnvars=" \
+        build-plt \
+        check-deps \
         clean \
         compile \
+        check-plt \
         create \
         create-app \
         create-lib \
         create-node \
         ct \
+        dialyze \
         doc \
         delete-deps \
         escriptize \

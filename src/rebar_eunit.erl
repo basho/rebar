@@ -72,6 +72,8 @@
 %% for internal use only
 -export([info/2]).
 
+-dialyzer({no_missing_calls, pre15b02_eunit_primitive/3}).
+
 -include("rebar.hrl").
 
 -define(EUNIT_DIR, ".eunit").
