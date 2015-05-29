@@ -413,8 +413,14 @@ otp_release1([$R,N|_]=Rel) when is_integer(N) ->
 %% the "\n".
 otp_release1(Rel) ->
     File = filename:join([code:root_dir(), "releases", Rel, "OTP_VERSION"]),
-    {ok, Vsn} = file:read_file(File),
-
+    Vsn = case file:read_file(File) of
+              {ok, V} -> V;
+              {error, enoent} ->
+                  FileNotInstalled = filename:join([code:root_dir(),
+                                                    "OTP_VERSION"]),
+                  {ok, V} = file:read_file(FileNotInstalled),
+                  V
+          end,
     %% It's fine to rely on the binary module here because we can
     %% be sure that it's available when the otp_release string does
     %% not begin with $R.
