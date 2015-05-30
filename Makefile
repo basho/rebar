@@ -9,7 +9,7 @@ all:
 	./bootstrap
 
 clean:
-	@rm -rf rebar .rebar ebin/*.beam inttest/rt.work rt.work .eunit
+	@rm -rf rebar .rebar/erlcinfo ebin/*.beam inttest/rt.work rt.work .eunit
 
 distclean: clean
 	@rm -rf deps
