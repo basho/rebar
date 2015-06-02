@@ -403,7 +403,17 @@ patch_env(Config, [E | Rest]) ->
 %% ====================================================================
 
 otp_release() ->
-    otp_release1(erlang:system_info(otp_release)).
+    %% We cache the return of otp_release1, since otherwise, we're repeatedly
+    %% reading the same file off the hard drive and generating warnings if they
+    %% aren't there.
+    case erlang:get(otp_release_cache) of
+        undefined ->
+            Vsn = otp_release1(erlang:system_info(otp_release)),
+            erlang:put(otp_release_cache, Vsn),
+            Vsn;
+        Vsn ->
+            Vsn
+    end.
 
 %% If OTP <= R16, otp_release is already what we want.
 otp_release1([$R,N|_]=Rel) when is_integer(N) ->
@@ -411,18 +421,39 @@ otp_release1([$R,N|_]=Rel) when is_integer(N) ->
 %% If OTP >= 17.x, erlang:system_info(otp_release) returns just the
 %% major version number, we have to read the full version from
 %% a file. See http://www.erlang.org/doc/system_principles/versions.html
-%% Read vsn string from the 'OTP_VERSION' file and return as list without
-%% the "\n".
 otp_release1(Rel) ->
-    File = filename:join([code:root_dir(), "releases", Rel, "OTP_VERSION"]),
-    Vsn = case file:read_file(File) of
-              {ok, V} -> V;
-              {error, enoent} ->
-                  FileNotInstalled = filename:join([code:root_dir(),
-                                                    "OTP_VERSION"]),
-                  {ok, V} = file:read_file(FileNotInstalled),
-                  V
-          end,
+    Files = [
+             filename:join([code:root_dir(), "releases", Rel, "OTP_VERSION"]),
+             filename:join([code:root_dir(), "OTP_VERSION"])
+            ],
+
+    %% It's possible that none of the above files exist on the filesystem, in
+    %% which case, we're just going to rely on the provided "Rel" (which should
+    %% just be the value of `erlang:system_info(otp_release)`).
+    case read_otp_version_files(Files) of
+        undefined ->
+            warn_missing_otp_version_file(Rel),
+            Rel;
+        Vsn ->
+            Vsn
+    end.
+
+warn_missing_otp_version_file(Rel) ->
+    ?WARN("No OTP_VERSION file found. Using version string ~p.~n", [Rel]).
+
+%% Try to open each file path provided, and if any of them exist on the
+%% filesystem, read their contents and return the value of the first one found.
+read_otp_version_files([]) ->
+    undefined;
+read_otp_version_files([File | Rest]) ->
+    case file:read_file(File) of
+        {ok, Vsn} -> normalize_otp_version(Vsn);
+        {error, enoent} -> read_otp_version_files(Rest)
+    end.
+
+%% Takes the Version binary as read from the OTP_VERSION file and strips any
+%% trailing "**" and trailing "\n", returning the string as a list.
+normalize_otp_version(Vsn) ->
     %% It's fine to rely on the binary module here because we can
     %% be sure that it's available when the otp_release string does
     %% not begin with $R.
