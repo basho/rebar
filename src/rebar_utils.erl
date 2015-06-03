@@ -403,9 +403,14 @@ patch_env(Config, [E | Rest]) ->
 %% ====================================================================
 
 otp_release() ->
-    %% We cache the return of otp_release1, since otherwise, we're repeatedly
-    %% reading the same file off the hard drive and generating warnings if they
-    %% aren't there.
+    %% NOTE: All and any pdict use has been erased from rebar a long
+    %% time ago in a big refactoring, and while extra processes (think
+    %% base_compiler) may have to re-cache the vsn string, this is
+    %% tolerable as an exception. After all, it's a write-once value.
+    %%
+    %% We cache the return of otp_release1, since otherwise, we're
+    %% repeatedly reading the same file off the hard drive and
+    %% generating warnings if they aren't there.
     case erlang:get(otp_release_cache) of
         undefined ->
             Vsn = otp_release1(erlang:system_info(otp_release)),
