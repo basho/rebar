@@ -318,7 +318,7 @@ remember_cwd_predirs(Cwd, Predirs) ->
                         {ok, Existing} ->
                             ?ABORT("Internal consistency assertion failed.~n"
                                    "sub_dir ~s already associated with ~s.~n"
-                                   "Duplicate sub_dirs or deps entries?",
+                                   "Duplicate sub_dirs or deps entries?~n",
                                    [Dir, Existing])
                     end
             end,
