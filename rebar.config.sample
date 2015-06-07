@@ -271,9 +271,7 @@
 
 {dialyzer,
  [
-  %% Store PLT in ~/.rebar/plt (Default)
-  {plt_location, shared},
-  %% Store PLT locally inside the project in .rebar
+  %% Store PLT locally inside the project in .rebar (Default)
   {plt_location, local},
   %% Store PLT in custom directory
   {plt_location, "custom_dir"},
