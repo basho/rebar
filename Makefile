@@ -34,8 +34,8 @@ binary: clean all
 	(cd ../rebar.wiki && git commit -m "Update $(VSN)" rebar)
 
 deps:
-	@REBAR_EXTRA_DEPS=1 ./rebar get-deps
-	$(MAKE) -C deps/retest
+	@REBAR_EXTRA_DEPS=1 $(REBAR) get-deps
+	@(cd deps/retest && $(REBAR) compile escriptize)
 
 test: test_eunit test_inttest
 
