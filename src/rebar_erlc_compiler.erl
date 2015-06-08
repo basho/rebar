@@ -410,6 +410,8 @@ update_erlcinfo(G, Dirs, Source) ->
                     %% The file doesn't exist anymore,
                     %% erase it from the graph.
                     %% All the edges will be erased automatically.
+                    ?WARN("File missing. Remove from dep graph:~n~s~n",
+                          [Source]),
                     digraph:del_vertex(G, Source),
                     modified;
                 LastModified when LastUpdated < LastModified ->
@@ -439,6 +441,9 @@ update_max_modified_deps(G, Source) ->
     digraph:add_vertex(G, Source, MaxModified),
     MaxModified.
 
+modify_erlcinfo(_G, Source, 0, _Dirs) ->
+    ?WARN("modify_erlcinfo: failed to open file:~n~s~n", [Source]),
+    unmodified;
 modify_erlcinfo(G, Source, LastModified, Dirs) ->
     {ok, Fd} = file:open(Source, [read]),
     Incls = parse_attrs(Fd, []),
