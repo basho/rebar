@@ -25,6 +25,10 @@
 %%% NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 %%% CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+%% rebar-specific modifications:
+%% 1. rename to rmemo.erl
+%% 2. add support for R13 (see ets_tab/0)
+
 -module(rmemo).
 
 -behaviour(gen_server).
