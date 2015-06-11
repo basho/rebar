@@ -180,14 +180,27 @@ init(_) ->
 
 -spec ets_tab() -> ets:tab().
 ets_tab() ->
+    ErtsApp = filename:join(code:lib_dir(erts, ebin), "erts.app"),
+    Concurrency =
+        %% If erts.app exists, we run on at least R14. That means we
+        %% can use ets read_concurrency.
+        %% TODO: Remove and revert to vanilla memo.erl from
+        %% https://github.com/tuncer/memo once we require at least
+        %% R14B and drop support for R13.
+        case filelib:is_regular(ErtsApp) of
+            true ->
+                [{read_concurrency, true}];
+            false ->
+                []
+        end,
     ets:new(
       ?TABLE,
       [
        named_table,
        protected,
-       set,
-       {read_concurrency, true}
+       set
       ]
+      ++ Concurrency
      ).
 
 %%--------------------------------------------------------------------
