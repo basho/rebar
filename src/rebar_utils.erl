@@ -405,15 +405,15 @@ patch_env(Config, [E | Rest]) ->
 %% ====================================================================
 
 otp_release() ->
-    rmemo:call(fun otp_release1/1, [(erlang:system_info(otp_release))]).
+    rmemo:call(fun otp_release_1/1, [(erlang:system_info(otp_release))]).
 
 %% If OTP <= R16, otp_release is already what we want.
-otp_release1([$R,N|_]=Rel) when is_integer(N) ->
+otp_release_1([$R,N|_]=Rel) when is_integer(N) ->
     Rel;
 %% If OTP >= 17.x, erlang:system_info(otp_release) returns just the
 %% major version number, we have to read the full version from
 %% a file. See http://www.erlang.org/doc/system_principles/versions.html
-otp_release1(Rel) ->
+otp_release_1(Rel) ->
     Files = [
              filename:join([code:root_dir(), "releases", Rel, "OTP_VERSION"]),
              filename:join([code:root_dir(), "OTP_VERSION"])
