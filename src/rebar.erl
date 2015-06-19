@@ -214,6 +214,12 @@ run_aux(BaseConfig, Commands) ->
         {error,{already_started,crypto}} -> ok
     end,
 
+    %% Make sure memoization server is running
+    case rmemo:start() of
+        {ok, _} -> ok;
+        {error, {already_started, _}} -> ok
+    end,
+
     %% Convert command strings to atoms
     CommandAtoms = [list_to_atom(C) || C <- Commands],
 

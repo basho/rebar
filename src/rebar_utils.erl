@@ -237,9 +237,11 @@ prop_check(false, Msg, Args) -> ?ABORT(Msg, Args).
 
 %% Convert all the entries in the code path to absolute paths.
 expand_code_path() ->
-    CodePath = lists:foldl(fun(Path, Acc) ->
-                                   [filename:absname(Path) | Acc]
-                           end, [], code:get_path()),
+    CodePath = lists:foldl(
+                 fun(Path, Acc) ->
+                         Path1 = rmemo:call(filename, absname, [Path]),
+                         [Path1 | Acc]
+                 end, [], code:get_path()),
     code:set_path(lists:reverse(CodePath)).
 
 %%
@@ -403,30 +405,15 @@ patch_env(Config, [E | Rest]) ->
 %% ====================================================================
 
 otp_release() ->
-    %% NOTE: All and any pdict use has been erased from rebar a long
-    %% time ago in a big refactoring, and while extra processes (think
-    %% base_compiler) may have to re-cache the vsn string, this is
-    %% tolerable as an exception. After all, it's a write-once value.
-    %%
-    %% We cache the return of otp_release1, since otherwise, we're
-    %% repeatedly reading the same file off the hard drive and
-    %% generating warnings if they aren't there.
-    case erlang:get(otp_release_cache) of
-        undefined ->
-            Vsn = otp_release1(erlang:system_info(otp_release)),
-            erlang:put(otp_release_cache, Vsn),
-            Vsn;
-        Vsn ->
-            Vsn
-    end.
+    rmemo:call(fun otp_release_1/1, [(erlang:system_info(otp_release))]).
 
 %% If OTP <= R16, otp_release is already what we want.
-otp_release1([$R,N|_]=Rel) when is_integer(N) ->
+otp_release_1([$R,N|_]=Rel) when is_integer(N) ->
     Rel;
 %% If OTP >= 17.x, erlang:system_info(otp_release) returns just the
 %% major version number, we have to read the full version from
 %% a file. See http://www.erlang.org/doc/system_principles/versions.html
-otp_release1(Rel) ->
+otp_release_1(Rel) ->
     Files = [
              filename:join([code:root_dir(), "releases", Rel, "OTP_VERSION"]),
              filename:join([code:root_dir(), "OTP_VERSION"])
