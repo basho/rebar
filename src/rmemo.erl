@@ -216,7 +216,7 @@ ets_tab() ->
 handle_call({save, Key, Res}, _From, State) ->
     {reply, save(Key, Res), State};
 handle_call(_Request, _From, State) ->
-    {reply, {error, undefined_call}, State}.
+    {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% @private
