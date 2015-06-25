@@ -66,6 +66,10 @@ files() ->
      {copy, "mibs", "mibs"},
      {copy, "asn1", "asn1"},
      {create, "ebin/foo.app", app(foo, ?MODULES)},
+     {create, "src/._do_not_compile.erl",
+              "syntax error\n"
+              "this file is here to verify that rebar does not try to compile\n"
+              "files like OS X resource forks and should not be processed at all\n"},
      %% deps
      {create, "deps/foobar/ebin/foobar.app", app(foobar, [foobar])},
      {copy, "foobar.erl", "deps/foobar/src/foobar.erl"}
