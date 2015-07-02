@@ -165,7 +165,14 @@ info_help(Description) ->
        "~n"
        "Valid rebar.config options:~n"
        "  ~p~n"
-       "  ~p~n",
+       "  ~p~n"
+       "Cross-arch environment variables:~n"
+       "  REBAR_TARGET_ARCH to set the tool chain name to use~n"
+       "  REBAR_TARGET_ARCH_WORDSIZE optional "
+       "(if CC fails to determine word size)~n"
+       "  fallback word size is 32~n"
+       "  REBAR_TARGET_ARCH_VSN optional "
+       "(if a special version of CC/CXX is requested)~n",
        [
         Description,
         {port_env, [{"CFLAGS", "$CFLAGS -Ifoo"},
@@ -183,8 +190,10 @@ setup_env(Config, ExtraEnv) ->
 
     %% Get any port-specific envs; use port_env first and then fallback
     %% to port_envs for compatibility
-    RawPortEnv = rebar_config:get_list(Config, port_env,
-                          rebar_config:get_list(Config, port_envs, [])),
+    RawPortEnv = rebar_config:get_list(
+                   Config,
+                   port_env,
+                   rebar_config:get_list(Config, port_envs, [])),
 
     PortEnv = filter_env(RawPortEnv, []),
     Defines = get_defines(Config),
@@ -571,17 +580,17 @@ default_env() ->
     Arch = os:getenv("REBAR_TARGET_ARCH"),
     Vsn = os:getenv("REBAR_TARGET_ARCH_VSN"),
     [
-     {"CC" , get_tool(Arch,Vsn,"gcc","cc")},
-     {"CXX", get_tool(Arch,Vsn,"g++","c++")},
-     {"AR" , get_tool(Arch,"ar","ar")},
-     {"AS" , get_tool(Arch,"as","as")},
-     {"CPP" , get_tool(Arch,Vsn,"cpp","cpp")},
-     {"LD" , get_tool(Arch,"ld","ld")},
-     {"RANLIB" , get_tool(Arch,Vsn,"ranlib","ranlib")},
-     {"STRIP" , get_tool(Arch,"strip","strip")},
-     {"NM" , get_tool(Arch,"nm","nm")},
-     {"OBJCOPY" , get_tool(Arch,"objcopy","objcopy")},
-     {"OBJDUMP" , get_tool(Arch,"objdump","objdump")},
+     {"CC", get_tool(Arch, Vsn,"gcc", "cc")},
+     {"CXX", get_tool(Arch, Vsn,"g++", "c++")},
+     {"AR", get_tool(Arch, "ar", "ar")},
+     {"AS", get_tool(Arch, "as", "as")},
+     {"CPP", get_tool(Arch, Vsn, "cpp", "cpp")},
+     {"LD", get_tool(Arch, "ld", "ld")},
+     {"RANLIB", get_tool(Arch, Vsn, "ranlib", "ranlib")},
+     {"STRIP", get_tool(Arch, "strip", "strip")},
+     {"NM", get_tool(Arch, "nm", "nm")},
+     {"OBJCOPY", get_tool(Arch, "objcopy", "objcopy")},
+     {"OBJDUMP", get_tool(Arch, "objdump", "objdump")},
 
      {"DRV_CXX_TEMPLATE",
       "$CXX -c $CXXFLAGS $DRV_CFLAGS $PORT_IN_FILES -o $PORT_OUT_FILE"},
@@ -600,9 +609,12 @@ default_env() ->
      {"EXE_CFLAGS" , "-g -Wall -fPIC -MMD $ERL_CFLAGS"},
      {"EXE_LDFLAGS", "$ERL_LDFLAGS"},
 
-     {"ERL_CFLAGS", lists:concat([" -I\"", erl_interface_dir(include),
-                                  "\" -I\"", filename:join(erts_dir(), "include"),
-                                  "\" "])},
+     {"ERL_CFLAGS", lists:concat(
+                      [
+                       " -I\"", erl_interface_dir(include),
+                       "\" -I\"", filename:join(erts_dir(), "include"),
+                       "\" "
+                      ])},
      {"ERL_EI_LIBDIR", lists:concat(["\"", erl_interface_dir(lib), "\""])},
      {"ERL_LDFLAGS"  , " -L$ERL_EI_LIBDIR -lerl_interface -lei"},
      {"ERLANG_ARCH"  , rebar_utils:wordsize()},
@@ -651,20 +663,17 @@ default_env() ->
      {"win32", "EXE_LINK_TEMPLATE",
       "$LINKER $PORT_IN_FILES $LDFLAGS $EXE_LDFLAGS /OUT:$PORT_OUT_FILE"},
      %% ERL_CFLAGS are ok as -I even though strictly it should be /I
-     {"win32", "ERL_LDFLAGS", " /LIBPATH:$ERL_EI_LIBDIR erl_interface.lib ei.lib"},
+     {"win32", "ERL_LDFLAGS",
+      " /LIBPATH:$ERL_EI_LIBDIR erl_interface.lib ei.lib"},
      {"win32", "DRV_CFLAGS", "/Zi /Wall $ERL_CFLAGS"},
      {"win32", "DRV_LDFLAGS", "/DLL $ERL_LDFLAGS"}
     ].
 
-get_tool(Arch,Tool,Default) ->
-    get_tool(Arch,false,Tool,Default).
+get_tool(Arch, Tool, Default) ->
+    get_tool(Arch, false, Tool, Default).
 
 get_tool(false, _, _, Default) -> Default;
-get_tool("",_,_, Default) -> Default;
+get_tool("", _, _, Default) -> Default;
 get_tool(Arch, false, Tool, _Default) -> Arch++"-"++Tool;
 get_tool(Arch, "", Tool, _Default) -> Arch++"-"++Tool;
 get_tool(Arch, Vsn, Tool, _Default) -> Arch++"-"++Tool++"-"++Vsn.
-
-
-
-    
