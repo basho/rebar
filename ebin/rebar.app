@@ -69,7 +69,7 @@
          {log_level, warn},
 
          %% Log colored
-         {log_colored, true},
+         {log_colored, uncolored},
 
          %% any_dir processing modules
          {any_dir_modules, [

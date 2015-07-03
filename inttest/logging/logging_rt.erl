@@ -38,25 +38,9 @@ files() ->
 
 run(_Dir) ->
     SharedExpected = "==> logging_rt \\(compile\\)",
+    {ERROR, WARN, INFO, DEBUG} = log_labels(),
     %% provoke ERROR due to an invalid app file
     retest:log(info, "Check 'compile' failure output~n"),
-    {ERROR, WARN, INFO, DEBUG} =
-        case application:get_env(rebar, log_colored) of
-            {ok, true} ->
-                {
-                 "\\e\\[1m\\e\\[31mERROR: \\e\\[0m",
-                 "\\e\\[33mWARN: \\e\\[0m",
-                 "\\e\\[32mINFO: \\e\\[0m",
-                 "\\e\\[34mDEBUG: \\e\\[0m"
-                };
-            _ ->
-                {
-                 "ERROR: ",
-                 "WARN: ",
-                 "INFO: ",
-                 "DEBUG: "
-                }
-        end,
     ok = check_output("./rebar compile -q", should_fail,
                       [SharedExpected, ERROR],
                       [WARN, INFO, DEBUG]),
@@ -75,6 +59,14 @@ run(_Dir) ->
                       [SharedExpected, DEBUG],
                       [ERROR, INFO]),
     ok.
+
+log_labels() ->
+    {
+      "(\\e\\[1m\\e\\[31mERROR: \\e\\[0m|ERROR: )",
+      "(\\e\\[33mWARN: \\e\\[0m|WARN: )",
+      "(\\e\\[32mINFO: \\e\\[0m|INFO: )",
+      "(\\e\\[34mDEBUG: \\e\\[0m|DEBUG: )"
+    }.
 
 check_output(Cmd, FailureMode, Expected, Unexpected) ->
     case {retest:sh(Cmd), FailureMode} of
