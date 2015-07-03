@@ -24,7 +24,7 @@ run(_Dir) ->
     ?assertMatch({ok, _}, retest_sh:run("./rebar fwibble -v", [])),
     ?assertEqual(false, filelib:is_regular("fwibble.test")),
     Ref = retest:sh("./rebar -C bad.config -v clean", [{async, true}]),
-    {ok, _} = retest:sh_expect(Ref, "ERROR: Plugin .*bad_plugin.erl "
+    {ok, _} = retest:sh_expect(Ref, ".*ERROR: .*Plugin .*bad_plugin.erl "
                                "contains compilation errors:.*",
                                [{newline, any}]),
     ok.

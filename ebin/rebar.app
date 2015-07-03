@@ -68,6 +68,9 @@
          %% Default log level
          {log_level, warn},
 
+         %% Log colored
+         {log_colored, uncolored},
+
          %% any_dir processing modules
          {any_dir_modules, [
                             rebar_require_vsn,

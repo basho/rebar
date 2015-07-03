@@ -43,6 +43,9 @@
 %% Public API
 %% ===================================================================
 
+%% TODO: Once we have the new getopt version, use a flag that
+%% takes an optional arg but has a default value and fetch the
+%% setting via rebar_config, after it has been set in rebar:main.
 init(Config) ->
     Verbosity = rebar_config:get_global(Config, verbose, default_level()),
     case valid_level(Verbosity) of
@@ -60,9 +63,10 @@ log(Level, Str, Args) ->
 
 log(Device, Level, Str, Args) ->
     {ok, LogLevel} = application:get_env(rebar, log_level),
+    {ok, LogColored} = application:get_env(rebar, log_colored),
     case should_log(LogLevel, Level) of
         true ->
-            io:format(Device, log_prefix(Level) ++ Str, Args);
+            io:format(Device, log_prefix(Level, LogColored) ++ Str, Args);
         false ->
             ok
     end.
@@ -90,7 +94,40 @@ should_log(error, error) -> true;
 should_log(error, _)     -> false;
 should_log(_, _)         -> false.
 
+log_prefix(Level, uncolored) ->
+    log_prefix(Level);
+log_prefix(Level, colored) ->
+    color_for_level(Level) ++ log_prefix(Level) ++ reset_color().
+
 log_prefix(debug) -> "DEBUG: ";
 log_prefix(info)  -> "INFO:  ";
 log_prefix(warn)  -> "WARN:  ";
 log_prefix(error) -> "ERROR: ".
+
+color_for_level(debug) ->
+    color_foreground(blue);
+color_for_level(info) ->
+    color_foreground(green);
+color_for_level(warn) ->
+    color_foreground(yellow);
+color_for_level(error) ->
+    color_bold() ++ color_foreground(red).
+
+%% -type color() :: 'black' | 'red' | 'green' | 'yellow'
+%%                | 'blue' | 'magenta' | 'cyan' | 'white'.
+%% -spec color_foreground(color()) -> string().
+%%
+%% To silence Dialyzer, disable following colors, because they're
+%% unused as of right now: black, magenta, cyan, white
+%%
+%% color_foreground(black)   -> "\e[30m";
+%% color_foreground(magenta) -> "\e[35m";
+%% color_foreground(cyan)    -> "\e[36m";
+%% color_foreground(white)   -> "\e[37m";
+color_foreground(red)     -> "\e[31m";
+color_foreground(green)   -> "\e[32m";
+color_foreground(yellow)  -> "\e[33m";
+color_foreground(blue)    -> "\e[34m".
+
+color_bold()  -> "\e[1m".
+reset_color() -> "\e[0m".

@@ -38,26 +38,35 @@ files() ->
 
 run(_Dir) ->
     SharedExpected = "==> logging_rt \\(compile\\)",
+    {ERROR, WARN, INFO, DEBUG} = log_labels(),
     %% provoke ERROR due to an invalid app file
     retest:log(info, "Check 'compile' failure output~n"),
     ok = check_output("./rebar compile -q", should_fail,
-                      [SharedExpected, "ERROR: "],
-                      ["WARN: ", "INFO: ", "DEBUG: "]),
+                      [SharedExpected, ERROR],
+                      [WARN, INFO, DEBUG]),
     %% fix bad app file
     ok = file:write_file(?APP_FILE, app(logging, [])),
     retest:log(info, "Check 'compile' success output~n"),
     ok = check_output("./rebar compile", should_succeed,
                       [SharedExpected],
-                      ["ERROR: ", "WARN: ", "INFO: ", "DEBUG: "]),
+                      [ERROR, WARN, INFO, DEBUG]),
     retest:log(info, "Check 'compile -v' success output~n"),
     ok = check_output("./rebar compile -v", should_succeed,
                       [SharedExpected],
-                      ["ERROR: ", "INFO: ", "DEBUG: "]),
+                      [ERROR, INFO, DEBUG]),
     retest:log(info, "Check 'compile -vv' success output~n"),
     ok = check_output("./rebar compile -vv", should_succeed,
-                      [SharedExpected, "DEBUG: "],
-                      ["ERROR: ", "INFO: "]),
+                      [SharedExpected, DEBUG],
+                      [ERROR, INFO]),
     ok.
+
+log_labels() ->
+    {
+      "(\\e\\[1m\\e\\[31mERROR: \\e\\[0m|ERROR: )",
+      "(\\e\\[33mWARN: \\e\\[0m|WARN: )",
+      "(\\e\\[32mINFO: \\e\\[0m|INFO: )",
+      "(\\e\\[34mDEBUG: \\e\\[0m|DEBUG: )"
+    }.
 
 check_output(Cmd, FailureMode, Expected, Unexpected) ->
     case {retest:sh(Cmd), FailureMode} of
@@ -73,7 +82,7 @@ check_output(Cmd, FailureMode, Expected, Unexpected) ->
     end.
 
 check_output1(Cmd, Captured, Expected, Unexpected) ->
-    ReOpts = [{capture, all, list}],
+    ReOpts = [{capture, all, list}, unicode],
     ExMatches =
         lists:zf(
           fun(Pattern) ->
