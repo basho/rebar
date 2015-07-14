@@ -63,11 +63,12 @@ _rebar () {
         'jobs[Number of workers]::workers:(0 1 2 3 4 5 6 7 8 9)' \
         'suites[Common Test suites]::suite name:_path_files -W "(src test)" -g "*.erl(:r)"' \
         'verbose[Verbosity level]::verbosity level:(0 1 2 3)' \
+        'libid[Library id]:' \
         'appid[Application id]:' \
+        'nodeid[Node id]:' \
         'overlay_vars[Overlay variables file]:' \
         'previous_release[Previous release path]:' \
         'profiler[Select profiler]::flag:(fprof eflame)' \
-        'nodeid[Node id]:' \
         'root_dir[Reltool config root directory]::directory:_files -/' \
         'shell[Start a shell similar to erl -pa ebin -pa deps/*/ebin]' \
         'skip_deps[Skip deps]::flag:(true false)' \

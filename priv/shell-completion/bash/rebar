@@ -55,11 +55,12 @@ _rebar()
         jobs= \
         suites= \
         verbose=1 \
+        libid= \
         appid= \
+        nodeid= \
         overlay_vars= \
         previous_release= \
         profiler= \
-        nodeid= \
         root_dir= \
         skip_deps=true \
         skip_apps= \
