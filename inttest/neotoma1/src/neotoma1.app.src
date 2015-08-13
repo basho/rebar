@@ -1,0 +1,6 @@
+{application, neotoma1,
+    [{vsn, "1"},
+     {modules, []},
+     {registered, []},
+     {applications, [kernel, stdlib]}]}.
+
