@@ -59,6 +59,11 @@ xref(Config, _) ->
     OrigPath = code:get_path(),
     true = code:add_path(rebar_utils:ebin_dir()),
 
+    %% Add extra paths to code path to, for example, be used
+    %%   when behaviour modules are defined
+    [code:add_path(Path)
+     || Path <- rebar_config:get(Config, xref_extra_paths, [])],
+
     %% Get list of xref checks we want to run
     ConfXrefChecks = rebar_config:get(Config, xref_checks,
                                       [exports_not_used,
