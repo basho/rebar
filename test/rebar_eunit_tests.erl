@@ -131,7 +131,7 @@ eunit_with_suites_and_tests_test_() ->
 
                {"Selected suite's generator test raises an error",
                 ?_assert(string:str(RebarOut,
-                                    "assertEqual_failed") =/= 0)},
+                                    "assertEqual") =/= 0)},
 
                {"Selected suite tests is run once",
                 ?_assert(string:str(RebarOut, "Failed: 1.") =/= 0)}]
