@@ -236,8 +236,10 @@ test_compile_config_and_opts(Config, ErlOpts, Cmd) ->
     Opts = [O || O <- Opts0, O =/= no_debug_info],
     Config4 = rebar_config:set(Config3, erl_opts, Opts),
 
+    FirstErlFiles = rebar_config:get_list(Config4, erl_first_files, []),
     FirstFilesAtom = list_to_atom(Cmd ++ "_first_files"),
-    FirstErls = rebar_config:get_list(Config4, FirstFilesAtom, []),
+    FirstErlsOther = rebar_config:get_list(Config4, FirstFilesAtom, []),
+    FirstErls = FirstErlFiles ++ FirstErlsOther,
     Config5 = rebar_config:set(Config4, erl_first_files, FirstErls),
     {Config5, Opts}.
 
