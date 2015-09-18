@@ -6,6 +6,10 @@
 if [ `uname -s` = 'SunOS' -a "${POSIX_SHELL}" != "true" ]; then
     POSIX_SHELL="true"
     export POSIX_SHELL
+    # To support 'whoami' on old Solaris systems, add /usr/ucb to path
+    # (New Solaris systems do not have 'whoami')
+    PATH=/usr/ucb:$PATH
+    export PATH
     exec /usr/bin/ksh $0 "$@"
 fi
 
