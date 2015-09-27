@@ -71,7 +71,9 @@ compile_lfe(Source, _Target, Config) ->
             ?FAIL;
         _ ->
             ErlOpts = rebar_utils:erl_opts(Config),
-            Opts = [{i, "include"}, {outdir, "ebin"}, return] ++ ErlOpts,
+            LfeOpts = [report, verbose, {i, "include"}, {outdir, "ebin"},
+                       return],
+            Opts = LfeOpts ++ ErlOpts,
             case lfe_comp:file(Source, Opts) of
                 {ok, _Mod, Ws} ->
                     rebar_base_compiler:ok_tuple(Config, Source, Ws);
