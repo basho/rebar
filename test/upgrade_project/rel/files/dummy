@@ -6,9 +6,6 @@
 if [ `uname -s` = 'SunOS' -a "${POSIX_SHELL}" != "true" ]; then
     POSIX_SHELL="true"
     export POSIX_SHELL
-    # To support 'whoami' add /usr/ucb to path
-    PATH=/usr/ucb:$PATH
-    export PATH
     exec /usr/bin/ksh $0 "$@"
 fi
 
@@ -24,7 +21,7 @@ RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
 # Note the trailing slash on $PIPE_DIR/
 PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
 RUNNER_USER=
-WHOAMI=$(whoami)
+WHOAMI=$(id -un)
 
 # Make sure this script is running as the appropriate user
 if ([ "$RUNNER_USER" ] && [ "x$WHOAMI" != "x$RUNNER_USER" ]); then

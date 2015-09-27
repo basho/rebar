@@ -6,7 +6,8 @@
 if [ `uname -s` = 'SunOS' -a "${POSIX_SHELL}" != "true" ]; then
     POSIX_SHELL="true"
     export POSIX_SHELL
-    # To support 'whoami' add /usr/ucb to path
+    # To support 'whoami' on old Solaris systems, add /usr/ucb to path
+    # (New Solaris systems do not have 'whoami')
     PATH=/usr/ucb:$PATH
     export PATH
     exec /usr/bin/ksh $0 "$@"
@@ -25,17 +26,31 @@ RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
 # Note the trailing slash on $PIPE_DIR/
 PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
 RUNNER_USER=
-WHOAMI=$(whoami)
 
 # Make sure this script is running as the appropriate user
-if ([ "$RUNNER_USER" ] && [ "x$WHOAMI" != "x$RUNNER_USER" ]); then
-    type sudo > /dev/null 2>&1
+if [ "$RUNNER_USER" ]; then
+    WHOAMI=$(id -un 2>/dev/null || whoami 2>/dev/null)
     if [ $? -ne 0 ]; then
-        echo "sudo doesn't appear to be installed and your EUID isn't $RUNNER_USER" 1>&2
+        echo "Could not determine user name."
         exit 1
     fi
-    echo "Attempting to restart script through sudo -H -u $RUNNER_USER" >&2
-    exec sudo -H -u $RUNNER_USER -i $RUNNER_SCRIPT_DIR/$RUNNER_SCRIPT $@
+    if [ "x$WHOAMI" != "x$RUNNER_USER" ]; then
+        # The 'su' command is more portable, but can't be configured as 'sudo'
+        # can to allow non-interactive calls from non-root users.
+        type sudo > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            echo "Attempting to restart script through sudo -H -u $RUNNER_USER" >&2
+            exec sudo -H -u $RUNNER_USER -i $RUNNER_SCRIPT_DIR/$RUNNER_SCRIPT $@
+        else
+            if [ "x$WHOAMI" != "xroot" ]; then
+                echo "Only root can run $RUNNER_SCRIPT as $RUNNER_USER without requiring a password."
+                exit 1
+            else
+                echo "Attempting to restart script through su $RUNNER_USER" >&2
+                exec su $RUNNER_USER -c $RUNNER_SCRIPT_DIR/$RUNNER_SCRIPT $@
+            fi
+        fi
+    fi
 fi
 
 # Identify the script name
