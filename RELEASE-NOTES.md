@@ -1,3 +1,21 @@
+# 2.6.1
+
+* rebar/514: [Add license to relnotes tool per reviewer request](https://github.com/rebar/rebar/pull/514)
+* rebar/518: [Generate reserved file for erlc regression test](https://github.com/rebar/rebar/pull/518)
+* rebar/520: [Fixed version of #451](https://github.com/rebar/rebar/pull/520)
+* rebar/521: [rebar_utils: fix comment](https://github.com/rebar/rebar/pull/521)
+* rebar/522: [Fixed version of #395](https://github.com/rebar/rebar/pull/522)
+* rebar/524: [completion: add libid= to bash and zsh scripts](https://github.com/rebar/rebar/pull/524)
+* rebar/530: [Allow behaviors defined inside xref_extra_path](https://github.com/rebar/rebar/pull/530)
+* rebar/535: [Add regression test for covered common test](https://github.com/rebar/rebar/pull/535)
+* rebar/537: [Fix eunit test on OTP18](https://github.com/rebar/rebar/pull/537)
+* rebar/538: [Fix #536](https://github.com/rebar/rebar/pull/538)
+* rebar/539: [Add erl_first_files in eunit_first_files and qc_first_files](https://github.com/rebar/rebar/pull/539)
+* rebar/540: [Complete port compiler help string](https://github.com/rebar/rebar/pull/540)
+* rebar/543: [rmemo: use a better R13 check (Reported-by: Stavros Aronis)](https://github.com/rebar/rebar/pull/543)
+* rebar/545: [Fix #544](https://github.com/rebar/rebar/pull/545)
+* rebar/546: [Added report and verbose options for LFE compile.](https://github.com/rebar/rebar/pull/546)
+
 # 2.6.0
 
 * rebar/203: [Pluggable proto compilers gpb](https://github.com/rebar/rebar/pull/203)
