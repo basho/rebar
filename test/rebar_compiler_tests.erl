@@ -84,11 +84,11 @@ not_keep_going_test_() ->
      setup,
      fun() ->
              setup_basic_project(),
-             setup_rebar_config(),
-             rebar("compile")
+             setup_rebar_config()
      end,
      fun teardown/1,
-     fun(RebarOut)->
+     fun()->
+             RebarOut = rebar("compile"),
              [
               {"Exit after error",
                ?_assert(string:str(RebarOut, "ERROR: compile failed") =/= 0)}
