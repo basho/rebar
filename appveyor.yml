@@ -1,0 +1,13 @@
+version: 2.6.1.{build}
+branches:
+  only:
+  - master
+build_script:
+- cmd: bootstrap.bat
+test_script:
+- cmd: >-
+    rebar eunit
+
+    deps/retest/retest -l debug inttest
+artifacts:
+- path: rebar
