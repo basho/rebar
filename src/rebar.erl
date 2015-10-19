@@ -502,8 +502,8 @@ option_spec_list() ->
       "Profile this run of rebar. Via profiler= you can optionally select "
       "either fprof (default) or eflame. The result can be found in "
       "fprof.analysis or eflame.svg. Additionally, in fprof mode, if "
-      "erlgrind can be found in $PATH, a Cachegrind file will be generated "
-      "as well."},
+      "erlgrind can be found in $PATH, a Cachegrind file (fprof.cgrind) "
+      "will be generated as well."},
      {keep_going, $k, "keep-going", undefined,
       "Keep running after a command fails"},
      {recursive, $r, "recursive", boolean,
