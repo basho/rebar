@@ -4,20 +4,22 @@
 
 -compile(export_all).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
 
 files() ->
-    [{create, "ebin/a1.app", app(a1)},
-     {copy, "../../rebar", "rebar"},
+    [
+     {create, "ebin/a1.app", app(a1)},
      {copy, "rebar.config", "rebar.config"},
      {copy, "app.config", "app.config"},
-     {copy, "test_SUITE.erl", "itest/test_SUITE.erl"}].
+     {copy, "test_SUITE.erl", "itest/test_SUITE.erl"}
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     {ok, _} = retest:sh("./rebar compile ct"),
     {ok, _} = retest:sh("./rebar compile ct -v"),
     ok.
-
-
 
 %%
 %% Generate the contents of a simple .app file

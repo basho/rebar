@@ -30,13 +30,18 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
-    [{create, "ebin/foo.app", app(foo)},
-     {copy, "../../rebar","rebar"},
+    [
+     {create, "ebin/foo.app", app(foo)},
      {copy, "src", "src"},
      {copy,
       "rebar-cover_export_json.config",
-      "rebar-cover_export_json.config"}].
+      "rebar-cover_export_json.config"}
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     ifdef_test(),

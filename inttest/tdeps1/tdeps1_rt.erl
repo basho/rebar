@@ -4,16 +4,18 @@
 
 -compile(export_all).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 %% Exercise transitive dependencies
 %% A -> B -> C, where A includes a .hrl from B which includes .hrl from C
-
 files() ->
     [
      %% A application
      {create, "ebin/a.app", app(a, [a])},
      {copy, "a.rebar.config", "rebar.config"},
      {copy, "a.erl", "src/a.erl"},
-     {copy, "../../rebar", "rebar"},
 
      %% B application
      {create, "repo/b/ebin/b.app", app(b, [])},
@@ -23,7 +25,7 @@ files() ->
      %% C application
      {create, "repo/c/ebin/c.app", app(c, [])},
      {copy, "c.hrl", "repo/c/include/c.hrl"}
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 apply_cmds([], _Params) ->
     ok;
@@ -39,7 +41,7 @@ run(_Dir) ->
                "git add -A",
                "git config user.email 'tdeps@example.com'",
                "git config user.name 'tdeps'",
-               "git commit -a -m 'Initial Commit'"],
+               "git commit -a -m \"Initial Commit\""],
     apply_cmds(GitCmds, [{dir, "repo/b"}]),
     apply_cmds(GitCmds, [{dir, "repo/c"}]),
 

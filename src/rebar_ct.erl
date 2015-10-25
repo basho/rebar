@@ -113,7 +113,12 @@ run_test(TestDir, LogDir, Config, _File) ->
                  false ->
                      " >> " ++ RawLog ++ " 2>&1";
                  true ->
+                 case os:type() of
+                   {win32, nt} ->
+                     " >> " ++ RawLog ++ " 2>&1";
+                   _ ->
                      " 2>&1 | tee -a " ++ RawLog
+                 end
              end,
 
     ShOpts = [{env,[{"TESTDIR", TestDir}]}, return_on_error],
@@ -155,14 +160,27 @@ failure_logger(Command, {Rc, Output}) ->
 check_fail_log(Config, RawLog, Command, Result) ->
     check_log(Config, RawLog, failure_logger(Command, Result)).
 
-check_log(Config,RawLog,Fun) ->
-    {ok, Msg} =
-        rebar_utils:sh("grep -e \"TEST COMPLETE\" -e \"{error,make_failed}\" "
-                       ++ RawLog, [{use_stdout, false}]),
-    MakeFailed = string:str(Msg, "{error,make_failed}") =/= 0,
-    RunFailed = string:str(Msg, ", 0 failed") =:= 0,
+check_log(Config,RawLogFilename,Fun) ->
+    %% read the file and split into a list separated by newlines
+    {ok, RawLog} = file:read_file(RawLogFilename),
+    Msg = string:tokens(binary_to_list(RawLog), "\n"),
+    %% now filter out all the list entries that do not have test
+    %% completion strings
+    CompleteRuns = lists:filter(fun(M) ->
+                                  string:str(M, "TEST COMPLETE") =/= 0
+                                end, Msg),
+    MakeFailed = lists:filter(fun(M) ->
+                                  string:str(M, "{error,make_failed}") =/= 0
+                              end, Msg),
+    %% the run has failed if at least one of the tests failed
+    RunFailed = lists:foldl(fun(M, Acc) ->
+                              %% the "0 failed" string must be present for
+                              %% the test to be considered successful
+                              TestFailed = string:str(M, "0 failed") =:= 0,
+                              TestFailed orelse Acc
+                            end, false, CompleteRuns),
     if
-        MakeFailed ->
+        MakeFailed =/= [] ->
             show_log(Config, RawLog),
             ?ERROR("Building tests failed\n",[]),
             ?FAIL;
@@ -182,8 +200,7 @@ show_log(Config, RawLog) ->
     ?CONSOLE("Showing log\n", []),
     case rebar_log:is_verbose(Config) of
         false ->
-            {ok, Contents} = file:read_file(RawLog),
-            ?CONSOLE("~s", [Contents]);
+            ?CONSOLE("~s", [RawLog]);
         true ->
             ok
     end.

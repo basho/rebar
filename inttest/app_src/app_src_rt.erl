@@ -30,9 +30,14 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
-    [{copy, "../../rebar", "rebar"},
-     {create, "src/app_src.app.src", app(app_src)}].
+    [
+     {create, "src/app_src.app.src", app(app_src)}
+    ] ++ inttest_utils:rebar_setup().
 
 run(Dir) ->
     retest_log:log(debug, "Running in Dir: ~s~n", [Dir]),

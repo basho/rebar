@@ -42,15 +42,18 @@
          "foo_sup.beam",
          "test_pb.beam"]).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
     [
-     {copy, "../../rebar", "rebar"},
      {copy, "rebar.config", "rebar.config"},
      {copy, "include", "include"},
      {copy, "src", "src"},
      {copy, "mock", "deps"},
      {create, "ebin/foo.app", app(foo, ?MODULES)}
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     ?assertMatch({ok, _}, retest_sh:run("./rebar clean", [])),

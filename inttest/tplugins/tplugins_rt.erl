@@ -8,9 +8,12 @@
 -define(COMPILE_ERROR,
         "ERROR: Plugin bad_plugin contains compilation errors:").
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
     [
-     {copy, "../../rebar", "rebar"},
      {copy, "rebar.config", "rebar.config"},
      {copy, "bad.config", "bad.config"},
      {copy, "fish.erl", "src/fish.erl"},
@@ -18,7 +21,7 @@ files() ->
      {copy, "bad_plugin.erl", "bad_plugins/bad_plugin.erl"},
      {create, "fwibble.test", <<"fwibble">>},
      {create, "ebin/fish.app", app(fish, [fish])}
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     ?assertMatch({ok, _}, retest_sh:run("./rebar fwibble -v", [])),
