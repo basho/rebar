@@ -56,7 +56,7 @@ eunit_test_() ->
                ?_assert(string:str(RebarOut, "myapp_mymod:") =/= 0)},
 
               {"Tests are only run once",
-               ?_assert(string:str(RebarOut, "All 2 tests passed") =/= 0)}]
+               ?_assert(string:str(RebarOut, "2 tests passed") =/= 0)}]
      end}.
 
 eunit_with_suites_and_tests_test_() ->
@@ -80,7 +80,7 @@ eunit_with_suites_and_tests_test_() ->
                 ?_assert(string:str(RebarOut, "myapp_mymod:") =:= 0)},
 
                {"Selected suite tests are only run once",
-                ?_assert(string:str(RebarOut, "All 4 tests passed") =/= 0)}]
+                ?_assert(string:str(RebarOut, "4 tests passed") =/= 0)}]
       end},
      {"Ensure EUnit runs selected _tests suites",
       setup, fun() ->
@@ -102,7 +102,7 @@ eunit_with_suites_and_tests_test_() ->
                 ?_assert(string:str(RebarOut, "myapp_mymod:") =:= 0)},
 
                {"Selected suite tests are only run once",
-                ?_assert(string:str(RebarOut, "All 2 tests passed") =/= 0)}]
+                ?_assert(string:str(RebarOut, "2 tests passed") =/= 0)}]
       end},
      {"Ensure EUnit runs a specific test defined in a selected suite",
       setup, fun() ->
@@ -154,7 +154,7 @@ eunit_with_suites_and_tests_test_() ->
                                "myapp_mymod2_tests:myfunc2_test/0") =/= 0)]},
 
                {"Selected suite tests are run once",
-                ?_assert(string:str(RebarOut, "All 3 tests passed") =/= 0)}]
+                ?_assert(string:str(RebarOut, "3 tests passed") =/= 0)}]
       end},
      {"Ensure EUnit runs specific test in a _tests suite",
       setup,
@@ -190,7 +190,7 @@ eunit_with_suites_and_tests_test_() ->
                           =/= 0)]},
 
                {"Selected suite tests is run once",
-                ?_assert(string:str(RebarOut, "All 2 tests passed") =/= 0)}]
+                ?_assert(string:str(RebarOut, "2 tests passed") =/= 0)}]
       end},
      {"Ensure EUnit runs a specific test by qualified function name",
       setup,
@@ -325,7 +325,11 @@ environment_test_() ->
 
 assert_rebar_runs() ->
     prepare_rebar_script(),
-    ?assert(string:str(os:cmd(filename:nativename("./" ++ ?TMP_DIR ++ "rebar")),
+    {ok, Cwd} = file:get_cwd(),
+    ok = file:set_cwd(?TMP_DIR),
+    RebarOut = os:cmd(filename:nativename("./rebar")),
+    ok = file:set_cwd(Cwd),
+    ?assert(string:str(RebarOut,
                        "No command to run specified!") =/= 0).
 
 basic_setup_test_() ->

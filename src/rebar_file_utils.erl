@@ -88,7 +88,7 @@ mv(Source, Dest) ->
                         ?FMT("move /y \"~s\" \"~s\" 1> nul",
                              [filename:nativename(Source),
                               filename:nativename(Dest)]),
-                        [{use_stdout, false}, return_on_error]),
+                        [{use_stdout, false}, abort_on_error]),
             case R of
                 [] ->
                     ok;
@@ -131,14 +131,14 @@ delete_each_dir_win32([]) -> ok;
 delete_each_dir_win32([Dir | Rest]) ->
     {ok, []} = rebar_utils:sh(?FMT("rd /q /s \"~s\"",
                                    [filename:nativename(Dir)]),
-                              [{use_stdout, false}, return_on_error]),
+                              [{use_stdout, false}, abort_on_error]),
     delete_each_dir_win32(Rest).
 
 xcopy_win32(Source,Dest)->
     {ok, R} = rebar_utils:sh(
                 ?FMT("xcopy \"~s\" \"~s\" /q /y /e 2> nul",
                      [filename:nativename(Source), filename:nativename(Dest)]),
-                [{use_stdout, false}, return_on_error]),
+                [{use_stdout, false}, abort_on_error]),
     case length(R) > 0 of
         %% when xcopy fails, stdout is empty and and error message is printed
         %% to stderr (which is redirected to nul)
@@ -162,8 +162,10 @@ cp_r_win32({false, Source} = S,{true, DestDir}) ->
     cp_r_win32(S, {false, filename:join(DestDir, filename:basename(Source))});
 cp_r_win32({false, Source},{false, Dest}) ->
     %% from file to file
-    {ok,_} = file:copy(Source, Dest),
-    ok;
+    case file:copy(Source, Dest) of
+        {ok,_} -> ok;
+        _ -> throw(rebar_abort)
+    end;
 cp_r_win32({true, SourceDir}, {false, DestDir}) ->
     case filelib:is_regular(DestDir) of
         true ->

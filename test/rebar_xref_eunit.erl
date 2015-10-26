@@ -192,8 +192,8 @@ prepare_rebar_script() ->
         {unix, _} ->
             [] = os:cmd("chmod u+x " ++ Rebar);
         {win32, _} ->
-            {ok, _} = file:copy(?REBAR_SCRIPT ++ ".bat",
-                                ?TMP_DIR ++ "rebar.bat")
+            {ok, _} = file:copy(?REBAR_SCRIPT ++ ".cmd",
+                                ?TMP_DIR ++ "rebar.cmd")
     end.
 
 rebar() ->
