@@ -44,18 +44,24 @@
 'generate-upgrade'(Config0, ReltoolFile) ->
     %% Get the old release path
     {Config, ReltoolConfig} = rebar_rel_utils:load_config(Config0, ReltoolFile),
+    ?DEBUG("reltool.config: ~p~n", [ReltoolConfig]),
     TargetParentDir = rebar_rel_utils:get_target_parent_dir(Config,
                                                             ReltoolConfig),
     TargetDir = rebar_rel_utils:get_target_dir(Config, ReltoolConfig),
+    ?DEBUG("target dir: ~p~n", [TargetDir]),
 
     PrevRelPath = rebar_rel_utils:get_previous_release_path(Config),
     OldVerPath = filename:join([TargetParentDir, PrevRelPath]),
+    ?DEBUG("old version path: ~p~n", [OldVerPath]),
 
     %% Run checks to make sure that building a package is possible
     {NewVerPath, NewName, NewVer, OldVer} = run_checks(Config, OldVerPath,
                                                        ReltoolConfig),
+    ?DEBUG("old version: ~p~n", [OldVer]),
     NameVer = NewName ++ "_" ++ NewVer,
     OldRelName = get_old_rel_name(OldVerPath, OldVer, NewName),
+    ?DEBUG("new version path: ~p~n", [NewVerPath]),
+    ?DEBUG("old version: ~p~n", [NewVer]),
 
     %% Save the code path prior to doing anything
     OrigPath = code:get_path(),
