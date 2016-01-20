@@ -4,6 +4,10 @@
 
 -compile(export_all).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 %% Exercises update deps, with recursive dependency updates.
 %% Initially:
 %%     A(v0.5) -> B(v0.2.3) -> C(v1.0)
@@ -25,7 +29,6 @@ files() ->
      {template, "a.erl", "apps/a1/src/a1.erl", dict:from_list([{module, a1}])},
 
      {copy, "root.rebar.config", "rebar.config"},
-     {copy, "../../rebar", "rebar"},
 
      %% B application
      {create, "repo/b/ebin/b.app", app(b, [], "0.2.3")},
@@ -64,57 +67,62 @@ files() ->
      {copy, "c.rebar.config", "c.rebar.config"},
      {copy, "c2.rebar.config", "c2.rebar.config"},
      {copy, "c3.rebar.config", "c3.rebar.config"}
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 apply_cmds([], _Params) ->
     ok;
 apply_cmds([Cmd | Rest], Params) ->
-    io:format("Running: ~s (~p)\n", [Cmd, Params]),
-    {ok, _} = retest_sh:run(Cmd, Params),
+    io:format("Running: ~p (~p)\n", [Cmd, Params]),
+    {ok, _} = retest:run(Cmd, Params),
     apply_cmds(Rest, Params).
 
-run(_Dir) ->
+run(Dir) ->
     %% Initialize the b/c/d apps as git repos so that dependencies pull
     %% properly
     GitCmds = ["git init",
                "git add -A",
-               "git config user.email 'tdeps@example.com'",
-               "git config user.name 'tdeps'",
-               "git commit -a -m 'Initial Commit'"],
+               "git config user.email \"tdeps@example.com\"",
+               "git config user.name \"tdeps\"",
+               "git commit -a -m \"Initial Commit\""],
     BCmds = ["git tag 0.2.3",
-             "cp ../../b2.rebar.config rebar.config",
-             "cp ../../b2.app ebin/b.app",
-             "git commit -a -m 'update to 0.2.4'",
+             {copy, "../../b2.rebar.config", "rebar.config"},
+             {copy, "../../b2.app", "ebin/b.app"},
+             {touch, "ebin/b.app"},
+             "git commit -a -m \"update to 0.2.4\"",
              "git tag 0.2.4",
-             "cp ../../b3.rebar.config rebar.config",
-             "cp ../../b3.app ebin/b.app",
-             "git commit -a -m 'update to 0.2.5'",
+             {copy, "../../b3.rebar.config", "rebar.config"},
+             {copy, "../../b3.app", "ebin/b.app"},
+             {touch, "ebin/b.app"},
+             "git commit -a -m \"update to 0.2.5\"",
              "git tag 0.2.5",
-             "cp ../../b4.rebar.config rebar.config",
-             "cp ../../b4.app ebin/b.app",
-             "git commit -a -m 'update to 0.2.6'",
+             {copy, "../../b4.rebar.config", "rebar.config"},
+             {copy, "../../b4.app", "ebin/b.app"},
+             {touch, "ebin/b.app"},
+             "git commit -a -m \"update to 0.2.6\"",
              "git tag 0.2.6"],
              %"git checkout 0.2.3"],
     CCmds = ["git tag 1.0",
-             "cp ../../c2.hrl include/c.hrl",
-             "cp ../../c2.app ebin/c.app",
-             "cp ../../c.rebar.config rebar.config",
+             {copy, "../../c2.hrl", "include/c.hrl"},
+             {copy, "../../c2.app", "ebin/c.app"},
+             {copy, "../../c.rebar.config", "rebar.config"},
              "git add rebar.config",
-             "git commit -a -m 'update to 1.1'",
+             "git commit -a -m \"update to 1.1\"",
              "git tag 1.1",
-             "cp ../../c3.app ebin/c.app",
-             "cp ../../c2.rebar.config rebar.config",
-             "git commit -a -m 'update to 1.2'",
+             {copy, "../../c3.app", "ebin/c.app"},
+             {copy, "../../c2.rebar.config", "rebar.config"},
+             "git commit -a -m \"update to 1.2\"",
              "git tag 1.2",
-             "cp ../../c4.app ebin/c.app",
-             "cp ../../c3.rebar.config rebar.config",
-             "git commit -a -m 'update to 1.3'",
+             {copy, "../../c4.app", "ebin/c.app"},
+             {copy, "../../c3.rebar.config", "rebar.config"},
+             {touch, "rebar.config"},
+             "git commit -a -m \"update to 1.3\"",
              "git tag 1.3"],
              %"git checkout 1.0"],
     DCmds = ["git tag 0.7"],
     ECmds = ["git tag 2.0",
-             "cp ../../e2.app ebin/e.app",
-             "git commit -a -m 'update to 2.1'",
+             {copy, "../../e2.app", "ebin/e.app"},
+             {touch, "ebin/e.app"},
+             "git commit -a -m \"update to 2.1\"",
              "git tag 2.1"],
     FCmds = ["git tag 0.1"],
 
@@ -126,13 +134,16 @@ run(_Dir) ->
 
     {ok, _} = retest_sh:run("./rebar -v get-deps", []),
     {ok, _} = retest_sh:run("./rebar -v compile", []),
-    os:cmd("cp a2.rebar.config apps/a1/rebar.config"),
+    retest:run({copy, "a2.rebar.config", "apps/a1/rebar.config"},
+               [{dir, Dir}]),
     {ok, _} = retest_sh:run("./rebar -v update-deps", []),
     {ok, _} = retest_sh:run("./rebar -v compile", []),
-    os:cmd("cp a3.rebar.config apps/a1/rebar.config"),
+    retest:run({copy, "a3.rebar.config", "apps/a1/rebar.config"},
+               [{dir, Dir}]),
     {ok, _} = retest_sh:run("./rebar -v update-deps", []),
     {ok, _} = retest_sh:run("./rebar -v compile", []),
-    os:cmd("cp a4.rebar.config apps/a1/rebar.config"),
+    retest:run({copy, "a4.rebar.config", "apps/a1/rebar.config"},
+               [{dir, Dir}]),
     {ok, _} = retest_sh:run("./rebar -v update-deps", []),
     {ok, _} = retest_sh:run("./rebar -v compile", []),
     ok.

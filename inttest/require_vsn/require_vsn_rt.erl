@@ -28,12 +28,15 @@
 -export([files/0,
          run/1]).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
     [
-     {copy, "../../rebar", "rebar"},
      {copy, "rebar.config", "rebar.config"},
      {create, "ebin/require_vsn.app", app(require_vsn, [])}
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     SharedExpected = "==> require_vsn_rt \\(compile\\)",

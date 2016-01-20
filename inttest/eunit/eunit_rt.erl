@@ -5,14 +5,19 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
-    [{create, "ebin/foo.app", app(foo)},
-     {copy, "../../rebar", "rebar"},
+    [
+     {create, "ebin/foo.app", app(foo)},
      {copy, "src", "src"},
      {copy, "eunit_src", "eunit_src"},
      {copy,
       "rebar-eunit_compile_opts.config",
-      "rebar-eunit_compile_opts.config"}].
+      "rebar-eunit_compile_opts.config"}
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     ifdef_test(),

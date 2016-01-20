@@ -4,12 +4,15 @@
 
 -compile(export_all).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 %% Exercise transitive dependencies where there are multiple files
 %% depending on the same set of deps as well as lib_dir directives
 %% A -> B -> C -> D -> E
 %%      |--> G(via lib_dir)
 %% |--> F -> D -> E
-
 files() ->
     [
      %% A1 application
@@ -17,7 +20,6 @@ files() ->
      {template, "a.erl", "src/a.erl", dict:from_list([{module, a}, {dep, b}])},
 
      {copy, "a.rebar.config", "rebar.config"},
-     {copy, "../../rebar", "rebar"},
 
      %% B application
      {create, "repo/b/ebin/b.app", app(b, [b])},
@@ -52,7 +54,7 @@ files() ->
      {create, "repo/b/apps/g/ebin/g.app", app(g, [])},
      {copy, "e.hrl", "repo/b/apps/g/include/g.hrl"}
 
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 apply_cmds([], _Params) ->
     ok;
@@ -68,7 +70,7 @@ run(_Dir) ->
                "git add -A",
                "git config user.email 'tdeps@example.com'",
                "git config user.name 'tdeps'",
-               "git commit -a -m 'Initial Commit'"],
+               "git commit -a -m \"Initial Commit\""],
     ok = apply_cmds(GitCmds, [{dir, "repo/b"}]),
     ok = apply_cmds(GitCmds, [{dir, "repo/c"}]),
     ok = apply_cmds(GitCmds, [{dir, "repo/d"}]),

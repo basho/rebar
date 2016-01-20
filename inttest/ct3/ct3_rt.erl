@@ -28,19 +28,23 @@
 
 -compile(export_all).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
 
 files() ->
-    [{create, "ebin/a1.app", app(a1)},
-     {copy, "../../rebar", "rebar"},
+    [
+     {create, "ebin/a1.app", app(a1)},
      {copy, "rebar.config", "rebar.config"},
      {copy, "app.config", "itest/app.config"},
      {copy, "test_SUITE.erl", "itest/test_SUITE.erl"},
      {copy, "converted"},
-     {copy, "unconverted"}].
+     {copy, "unconverted"}
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     {ok, _} = retest:sh("./rebar compile ct -v",
-                        [{env, [{"ERL_FLAGS", "-name ct_rt3"}]}]),
+                        [{env, [{"ERL_FLAGS", "-name ct_rt3@localhost"}]}]),
     ok.
 
 %%

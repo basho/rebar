@@ -31,13 +31,16 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
     [
-     {copy, "../../rebar", "rebar"},
      {copy, "rebar.config", "rebar.config"},
      {copy, "c_src", "c_src"},
      {create, "ebin/foo.app", app(foo, [])}
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     %% wait a bit for new files to have different timestamps
@@ -45,47 +48,75 @@ run(_Dir) ->
     %% test.so is created during first compile
     ?assertEqual(0, filelib:last_modified("priv/test.so")),
     ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
-    TestSo1 = filelib:last_modified("priv/test.so"),
+    TestSo1 = filelib:last_modified("priv/test" ++
+                                    shared_library_file_extension(os:type())),
     ?assert(TestSo1 > 0),
     wait(),
     %% nothing happens during second compile
     ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
-    TestSo2 = filelib:last_modified("priv/test.so"),
-    Test1o2 = filelib:last_modified("c_src/test1.o"),
-    Test2o2 = filelib:last_modified("c_src/test2.o"),
+    TestSo2 = filelib:last_modified("priv/test" ++
+                                    shared_library_file_extension(os:type())),
+    Test1o2 = filelib:last_modified("c_src/test1" ++
+                                    object_file_extension(os:type())),
+    Test2o2 = filelib:last_modified("c_src/test2" ++
+                                    object_file_extension(os:type())),
     ?assertEqual(TestSo1, TestSo2),
     ?assert(TestSo1 >= Test1o2),
     ?assert(TestSo1 >= Test2o2),
     wait(),
     %% when test2.c changes, at least test2.o and test.so are rebuilt
-    ?assertMatch({ok, _}, retest_sh:run("touch c_src/test2.c", [])),
+    ?assertMatch({ok, _}, retest:run({touch, "c_src/test2.c"}, [{dir, "."}])),
     ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
-    TestSo3 = filelib:last_modified("priv/test.so"),
-    Test2o3 = filelib:last_modified("c_src/test2.o"),
+    TestSo3 = filelib:last_modified("priv/test" ++
+                                    shared_library_file_extension(os:type())),
+    Test2o3 = filelib:last_modified("c_src/test2" ++
+                                    object_file_extension(os:type())),
     ?assert(TestSo3 > TestSo2),
     ?assert(Test2o3 > TestSo2),
-    wait(),
-    %% when test2.h changes, at least test2.o and test.so are rebuilt
-    ?assertMatch({ok, _}, retest_sh:run("touch c_src/test2.h", [])),
-    ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
-    TestSo4 = filelib:last_modified("priv/test.so"),
-    Test2o4 = filelib:last_modified("c_src/test2.o"),
-    ?assert(TestSo4 > TestSo3),
-    ?assert(Test2o4 > TestSo3),
-    wait(),
-    %% when test1.h changes, everything is rebuilt
-    ?assertMatch({ok, _}, retest_sh:run("touch c_src/test1.h", [])),
-    ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
-    TestSo5 = filelib:last_modified("priv/test.so"),
-    Test1o5 = filelib:last_modified("c_src/test1.o"),
-    Test2o5 = filelib:last_modified("c_src/test2.o"),
-    ?assert(TestSo5 > TestSo4),
-    ?assert(Test1o5 > TestSo4),
-    ?assert(Test2o5 > TestSo4),
-    ok.
+    %% detecting the a full recompile is needed when changing a .h file is a feature attained
+    %% by using the -MMD gcc flag which sadly is not available in Windows, so this part of the
+    %% test is only executed in Unix
+    case os:type() of
+        {win32, _} -> ok;
+        _ ->
+            wait(),
+            %% when test2.h changes, at least test2.o and test.so are rebuilt
+            ?assertMatch({ok, _},
+                retest:run({touch, "c_src/test2.h"}, [{dir, "."}])),
+            ?assertMatch({ok, _},
+                retest_sh:run("./rebar compile", [])),
+            TestSo4 = filelib:last_modified("priv/test" ++
+                                            shared_library_file_extension(os:type())),
+            Test2o4 = filelib:last_modified("c_src/test2" ++
+                                            object_file_extension(os:type())),
+            ?assert(TestSo4 > TestSo3),
+            ?assert(Test2o4 > TestSo3),
+            wait(),
+            %% when test1.h changes, everything is rebuilt
+            ?assertMatch({ok, _},
+                retest:run({touch, "c_src/test1.h"}, [{dir, "."}])),
+            ?assertMatch({ok, _},
+                retest_sh:run("./rebar compile", [])),
+            TestSo5 = filelib:last_modified("priv/test" ++
+                                            shared_library_file_extension(os:type())),
+            Test1o5 = filelib:last_modified("c_src/test1" ++
+                                            object_file_extension(os:type())),
+            Test2o5 = filelib:last_modified("c_src/test2" ++
+                                            object_file_extension(os:type())),
+            ?assert(TestSo5 > TestSo4),
+            ?assert(Test1o5 > TestSo4),
+            ?assert(Test2o5 > TestSo4),
+            ok
+    end.
 
 wait() ->
     timer:sleep(1000).
+
+object_file_extension({win32, nt}) -> ".o";
+object_file_extension(_) -> ".o".
+
+shared_library_file_extension({win32, nt}) -> ".dll";
+shared_library_file_extension(_) -> ".so".
 
 %%
 %% Generate the contents of a simple .app file

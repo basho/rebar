@@ -54,9 +54,12 @@
          "foo_worker.beam",
          "SIMPLE-ASN.beam"]).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
     [
-     {copy, "../../rebar", "rebar"},
      {copy, "rebar.config", "rebar.config"},
      {copy, "rebar-no_debug_info.config", "rebar-no_debug_info.config"},
      {copy, "include", "include"},
@@ -73,7 +76,7 @@ files() ->
      %% deps
      {create, "deps/foobar/ebin/foobar.app", app(foobar, [foobar])},
      {copy, "foobar.erl", "deps/foobar/src/foobar.erl"}
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),

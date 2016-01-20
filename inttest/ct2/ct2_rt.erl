@@ -4,13 +4,17 @@
 
 -compile(export_all).
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
 
 files() ->
-    [{create, "ebin/foo.app", app(foo)},
-     {copy, "../../rebar", "rebar"},
+    [
+     {create, "ebin/foo.app", app(foo)},
      {copy, "foo.test.spec", "foo.test.spec"},
      {copy, "deps/bar.test.spec", "deps/bar.test.spec"},
-     {copy, "foo_SUITE.erl", "test/foo_SUITE.erl"}].
+     {copy, "foo_SUITE.erl", "test/foo_SUITE.erl"}
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     Ref = retest:sh("./rebar compile ct -vvv", [async]),

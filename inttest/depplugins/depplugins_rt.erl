@@ -21,9 +21,12 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
     [
-     {copy, "../../rebar", "rebar"},
      {copy, "rebar.config", "rebar.config"},
      {copy, "base_dir_cwd_plugin.erl", "base_dir_cwd_plugin.erl"},
      {create, "ebin/fish.app", app(fish, [])},
@@ -38,7 +41,7 @@ files() ->
       "deps/testplugin/plugins/testplugin_mod.erl"},
      {copy, "dep_cwd_plugin.erl", "deps/testplugin/dep_cwd_plugin.erl"},
      {create, "deps/testplugin/ebin/testplugin.app", app(testplugin, [])}
-    ].
+    ] ++ inttest_utils:rebar_setup().
 
 run(_Dir) ->
     ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),

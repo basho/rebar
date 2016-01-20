@@ -1,13 +1,24 @@
 version: 2.6.1.{build}
-branches:
-  only:
-  - master
+clone_depth: 1
 build_script:
-- cmd: bootstrap.bat
+- cmd: >-
+    bootstrap.bat
+
+    set REBAR_EXTRA_DEPS=1
+
+    .\rebar get-deps
+
+    copy rebar deps\retest
+
+    copy rebar.cmd deps\retest
+
+    cd deps\retest & .\rebar compile escriptize
 test_script:
 - cmd: >-
     rebar eunit
 
-    deps/retest/retest -l debug inttest
+    "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+
+    cd deps\retest & retest -l debug -t 120000 ..\..\inttest
 artifacts:
 - path: rebar

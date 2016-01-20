@@ -30,10 +30,12 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+setup([Target]) ->
+  retest_utils:load_module(filename:join(Target, "inttest_utils.erl")),
+  ok.
+
 files() ->
-    [
-     {copy, "../../rebar", "rebar"}
-    ].
+    inttest_utils:rebar_setup().
 
 run(_Dir) ->
     Cmd = "./rebar list-deps",
