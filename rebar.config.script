@@ -1,7 +1,7 @@
 %% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %% ex: ts=4 sw=4 ft=erlang et
 
-ExtraDeps = [{retest, ".*", {git, "git://github.com/dizzyd/retest.git",
+ExtraDeps = [{retest, ".*", {git, "git://github.com/rebar/retest.git",
                              {tag, "1.1.0"}}}],
 
 case os:getenv("REBAR_EXTRA_DEPS") of
