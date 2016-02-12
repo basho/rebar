@@ -1,0 +1,1 @@
+{suites, "../", [foo_SUITE]}.

@@ -66,6 +66,7 @@ info(help, ct) ->
        "  ~p~n"
        "  ~p~n"
        "  ~p~n"
+       "  ~p~n"
        "Valid command line options:~n"
        "  suites=Suite1,Suite2,...,SuiteN~n"
        "      - run Suite1_SUITE, Suite2_SUITE, ..., SuiteN_SUITE~n"
@@ -81,7 +82,8 @@ info(help, ct) ->
         {ct_dir, "itest"},
         {ct_log_dir, "test/logs"},
         {ct_extra_params, "-boot start_sasl -s myapp"},
-        {ct_use_short_names, true}
+        {ct_use_short_names, true},
+        {ct_search_specs_from_test_dir, false}
        ]).
 
 run_test_if_present(TestDir, LogDir, Config, File) ->
@@ -235,7 +237,7 @@ make_cmd(TestDir, RawLogDir, Config) ->
     CodeDirs = [io_lib:format("\"~s\"", [Dir]) ||
                    Dir <- [EbinDir|NonLibCodeDirs]],
     CodePathString = string:join(CodeDirs, " "),
-    Cmd = case get_ct_specs(Config, Cwd) of
+    Cmd = case get_ct_specs(Config, search_ct_specs_from(Cwd, TestDir, Config)) of
               undefined ->
                   ?FMT("~s"
                        " -pa ~s"
@@ -276,10 +278,20 @@ make_cmd(TestDir, RawLogDir, Config) ->
     RawLog = filename:join(LogDir, "raw.log"),
     {Cmd, RawLog}.
 
+search_ct_specs_from(Cwd, TestDir, Config) ->
+    case rebar_config:get_local(Config, ct_search_specs_from_test_dir, false) of
+        true -> filename:join(Cwd, TestDir);
+        false ->
+          Cwd
+    end.
+
 build_name(Config) ->
+    %% generate a unique name for our test node, we want
+    %% to make sure the odds of name clashing are low
+    Random = integer_to_list(crypto:rand_uniform(0, 10000)),
     case rebar_config:get_local(Config, ct_use_short_names, false) of
-        true -> "-sname test";
-        false -> " -name test@" ++ net_adm:localhost()
+        true -> "-sname test" ++ Random;
+        false -> " -name test" ++ Random ++ "@" ++ net_adm:localhost()
     end.
 
 get_extra_params(Config) ->
