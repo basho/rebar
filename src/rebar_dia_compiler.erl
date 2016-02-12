@@ -88,6 +88,8 @@ info_help(Description) ->
 compile_dia(Source, Target, Config) ->
     ok = filelib:ensure_dir(Target),
     ok = filelib:ensure_dir(filename:join("include", "dummy.hrl")),
+    ok = filelib:ensure_dir(filename:join("ebin", "dummy.beam")),
+    true = code:add_path(filename:absname("ebin")),
     Opts = [{outdir, "src"}] ++ rebar_config:get(Config, dia_opts, []),
     case diameter_dict_util:parse({path, Source}, []) of
         {ok, Spec} ->
