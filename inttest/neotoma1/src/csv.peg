@@ -1,0 +1,31 @@
+rows <- head:row tail:(crlf row)* / ''
+`
+case Node of
+  [] -> [];
+  [""] -> [];
+  _ ->
+    Head = proplists:get_value(head, Node),
+    Tail = [R || [_,R] <- proplists:get_value(tail, Node)],
+    [Head|Tail]
+end
+`;
+
+row <- head:field tail:(field_sep field)* / ''
+`
+case Node of
+  [] -> [];
+  [""] -> [];
+  _ ->
+    Head = proplists:get_value(head, Node),
+    Tail = [F || [_,F] <- proplists:get_value(tail, Node)],
+    [Head|Tail]
+end
+`;
+field <- quoted_field / (!field_sep !crlf .)* `iolist_to_binary(Node)`;
+quoted_field <- '"' string:('""' / (!'"' .))* '"'
+`
+  String = proplists:get_value(string, Node),
+  re:replace(String, "[\"]{2}", "\"",[global, {return, binary}])
+`;
+field_sep <- ',' ~;
+crlf <- [\r]? [\n] ~;
