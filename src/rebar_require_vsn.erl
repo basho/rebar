@@ -31,7 +31,8 @@
 -include("rebar.hrl").
 
 -export([compile/2,
-         eunit/2]).
+         eunit/2,
+         version_tuple/1]).
 
 %% for internal use only
 -export([info/2,
@@ -103,12 +104,12 @@ check_versions(Config) ->
     case rebar_config:get(Config, require_min_otp_vsn, undefined) of
         undefined -> ?DEBUG("Min OTP version unconfigured~n", []);
         MinOtpVsn ->
-            {MinMaj, MinMin} = version_tuple(ShouldAbort, MinOtpVsn,
+            {MinMaj, MinMin, MinPatch} = version_tuple(ShouldAbort, MinOtpVsn,
                                              "configured"),
-            {OtpMaj, OtpMin} = version_tuple(ShouldAbort,
+            {OtpMaj, OtpMin, OtpPatch} = version_tuple(ShouldAbort,
                                              erlang:system_info(otp_release),
                                              "OTP Release"),
-            case {OtpMaj, OtpMin} >= {MinMaj, MinMin} of
+            case {OtpMaj, OtpMin, OtpPatch} >= {MinMaj, MinMin, MinPatch} of
                 true ->
                     ?DEBUG("~s satisfies the requirement for vsn ~s~n",
                            [erlang:system_info(otp_release),
@@ -122,12 +123,17 @@ check_versions(Config) ->
             end
     end.
 
+version_tuple(OtpRelease) ->
+    version_tuple(keep_going, OtpRelease, "").
+
 version_tuple(ShouldAbort, OtpRelease, Type) ->
-    case re:run(OtpRelease, "R?(\\d+)B?-?(\\d+)?", [{capture, all, list}]) of
+    case re:run(OtpRelease, "R?(\\d+)B?\.?(\\d+)?\.?-?(\\d+)?", [{capture, all, list}]) of
+        {match, [_Full, Maj, Min, Patch]} ->
+            {list_to_integer(Maj), list_to_integer(Min), list_to_integer(Patch)};
         {match, [_Full, Maj, Min]} ->
-            {list_to_integer(Maj), list_to_integer(Min)};
+            {list_to_integer(Maj), list_to_integer(Min), 0};
         {match, [_Full, Maj]} ->
-            {list_to_integer(Maj), 0};
+            {list_to_integer(Maj), 0, 0};
         nomatch ->
             maybe_abort(ShouldAbort,
                         "Cannot parse ~s version string: ~s~n",
