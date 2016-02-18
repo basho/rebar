@@ -1,0 +1,1 @@
+-define(WORLD, world).
