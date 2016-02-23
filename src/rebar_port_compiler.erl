@@ -495,9 +495,10 @@ expand_command(TmplName, Env, InFiles, OutFile) ->
 
 %%
 %% Given a string, determine if it is expandable
-%%
+%% A string is defined as expandable if it contains itself
+%%  (eg. CFLAGS = -m64 $CFLAGS)
 is_expandable(InStr) ->
-    case re:run(InStr,"\\\$",[{capture,none}]) of
+    case re:run(InStr,"\\\$"++InStr,[{capture,none}]) of
         match -> true;
         nomatch -> false
     end.
@@ -625,6 +626,11 @@ default_env() ->
      {"darwin9.*-64$", "CFLAGS", "-m64 $CFLAGS"},
      {"darwin9.*-64$", "CXXFLAGS", "-m64 $CXXFLAGS"},
      {"darwin9.*-64$", "LDFLAGS", "-arch x86_64 $LDFLAGS"},
+
+     %% OS X Lion onwards flags for 64-bit
+     {"darwin1[0-4].*-64$", "CFLAGS", "-m64 $CFLAGS"},
+     {"darwin1[0-4].*-64$", "CXXFLAGS", "-m64 $CXXFLAGS"},
+     {"darwin1[0-4].*-64$", "LDFLAGS", "-arch x86_64 $LDFLAGS"},
 
      %% OS X Snow Leopard, Lion, and Mountain Lion flags for 32-bit
      {"darwin1[0-2].*-32", "CFLAGS", "-m32 $CFLAGS"},
