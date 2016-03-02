@@ -106,7 +106,7 @@ process_commands([Command | Rest], ParentConfig) ->
                                                       ParentConfig2),
             %% Wipe out vsn cache to avoid invalid hits when
             %% dependencies are updated
-            rebar_config:set_xconf(ParentConfig3, vsn_cache, dict:new())
+            rebar_utils:init_vsn_cache(ParentConfig3)
         catch
             throw:rebar_abort ->
                 case rebar_config:get_xconf(ParentConfig1, keep_going, false) of
