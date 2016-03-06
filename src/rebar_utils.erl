@@ -760,7 +760,7 @@ cross_sizeof(Arch, Type) ->
                          >>),
     Cmd = Compiler ++ " -DTYPE=\""++Type++"\" " ++ TempFile,
     ShOpts = [{use_stdout, false}, return_on_error],
-    {ok, Res} = sh(Cmd, ShOpts),
+    {error, {_,Res}} = sh(Cmd, ShOpts),
     ok = file:delete(TempFile),
     case string:tokens(Res, ":") of
         [_, Ln | _] ->
