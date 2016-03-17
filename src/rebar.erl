@@ -284,7 +284,11 @@ help() ->
                       {"freebsd", compile, "c_src/freebsd_tweaks.sh"},
                       {eunit, "touch file2.out"},
                       {compile, "touch postcompile.out"}]}
-       ]).
+       ]),
+    ?CONSOLE(
+       "Environment variables:~n"
+       "  REBAR_DEPS_PREFER_LIBS to look for dependecies in system libs prior fetching.~n"
+       "~n", []).
 
 %%
 %% Parse command line arguments using getopt and also filtering out any
