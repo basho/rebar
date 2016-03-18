@@ -67,7 +67,9 @@
          processing_base_dir/1,
          processing_base_dir/2,
          patch_env/2,
-         cleanup_code_path/1
+         cleanup_code_path/1,
+         init_vsn_cache/1,
+         save_vsn_cache/1
         ]).
 
 %% for internal use only
@@ -268,6 +270,23 @@ expand_env_variable(InStr, VarName, RawVarValue) ->
             re:replace(InStr, RegEx, [VarValue, "\\2"], ReOpts)
     end.
 
+init_vsn_cache(Config) ->
+    init_vsn_cache(Config, os:getenv("REBAR_VSN_CACHE_FILE")).
+init_vsn_cache(Config, false) ->
+    rebar_config:set_xconf(Config, vsn_cache, dict:new());
+init_vsn_cache(Config, CacheFile) ->
+    {ok, CacheList} = file:consult(CacheFile),
+    CacheDict = dict:from_list(CacheList),
+    rebar_config:set_xconf(Config, vsn_cache, CacheDict).
+
+save_vsn_cache(Config) ->
+    save_vsn_cache(Config, os:getenv("REBAR_VSN_CACHE_FILE")).
+save_vsn_cache(_Config, false) ->
+    ok;
+save_vsn_cache(Config, CacheFile) ->
+    file:write_file(CacheFile,
+        [io_lib:format("~p.~n", [X]) || X <- dict:to_list(rebar_config:get_xconf(Config, vsn_cache))]).
+
 vcs_vsn(Config, Vsn, Dir) ->
     Key = {Vsn, Dir},
     Cache = rebar_config:get_xconf(Config, vsn_cache),
@@ -276,6 +295,7 @@ vcs_vsn(Config, Vsn, Dir) ->
             VsnString = vcs_vsn_1(Vsn, Dir),
             Cache1 = dict:store(Key, VsnString, Cache),
             Config1 = rebar_config:set_xconf(Config, vsn_cache, Cache1),
+            save_vsn_cache(Config1),
             {Config1, VsnString};
         {ok, VsnString} ->
             {Config, VsnString}
