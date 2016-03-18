@@ -148,6 +148,10 @@
 %% Option to use short names (i.e., -sname test) when starting ct
 {ct_use_short_names, true}.
 
+%% Recursively search for .spec files from the test dir, default
+%% is false (ie. the search will be from the current working directory)
+{ct_search_specs_from_test_dir, true}.
+
 %% == QuickCheck ==
 
 %% If qc_mod is unspecified, rebar tries to detect Triq or EQC
