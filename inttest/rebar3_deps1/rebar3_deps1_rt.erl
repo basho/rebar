@@ -19,7 +19,9 @@ files() ->
 
      %% B application
      {create, "repo/b/ebin/b.app", app(b, [])},
-     {copy, "b.hrl", "repo/b/include/b.hrl"}
+     {copy, "b.hrl", "repo/b/include/b.hrl"},
+
+     {copy, "c.txt", "repo/c/c.txt"}
 
     ] ++ inttest_utils:rebar_setup().
 
@@ -39,11 +41,13 @@ run(_Dir) ->
                "git config user.name 'tdeps'",
                "git commit -a -m \"Initial Commit\""],
     apply_cmds(GitCmds, [{dir, "repo/b"}]),
+    apply_cmds(GitCmds, [{dir, "repo/c"}]),
 
     {ok, _} = retest_sh:run("./rebar get-deps", []),
     {ok, _} = retest_sh:run("./rebar compile", []),
 
     true = filelib:is_regular("ebin/a.beam"),
+    true = filelib:is_regular("deps/c/c.txt"),
     ok.
 
 %%

@@ -283,6 +283,9 @@ info_help(Description) ->
           {rebar, "",
            {git, "git://github.com/rebar/rebar.git", {branch, "master"}},
            [raw]},
+          {rebar,
+           {git, "git://github.com/rebar/rebar.git", {branch, "master"}},
+           [raw]},
           {app_name, ".*", {hg, "https://www.example.org/url"}},
           {app_name, ".*", {rsync, "Url"}},
           {app_name, ".*", {svn, "https://www.example.org/url"}},
@@ -381,6 +384,8 @@ find_deps(Config, Mode, [{App, Source} | Rest], Acc) when is_tuple(Source) ->
     find_deps(Config, Mode, [{App, ".*", Source} | Rest], Acc);
 find_deps(Config, Mode, [{App, VsnRegex} | Rest], Acc) when is_atom(App) ->
     find_deps(Config, Mode, [{App, VsnRegex, undefined} | Rest], Acc);
+find_deps(Config, Mode, [{App, Source, Opts} | Rest], Acc) when is_tuple(Source) ->
+    find_deps(Config, Mode, [{App, ".*", Source, Opts} | Rest], Acc);
 find_deps(Config, Mode, [{App, VsnRegex, Source} | Rest], Acc) ->
     find_deps(Config, Mode, [{App, VsnRegex, Source, []} | Rest], Acc);
 find_deps(Config, Mode, [{App, VsnRegex, Source, Opts} | Rest], Acc)
