@@ -268,13 +268,22 @@ info_help(Description) ->
           {rebar, "1.0.*"},
           {rebar, ".*",
            {git, "git://github.com/rebar/rebar.git"}},
+          {rebar,
+           {git, "git://github.com/rebar/rebar.git"}},
           {rebar, ".*",
            {git, "git://github.com/rebar/rebar.git", "Rev"}},
+          {rebar,
+           {git, "git://github.com/rebar/rebar.git", "Rev"}},
           {rebar, "1.0.*",
+           {git, "git://github.com/rebar/rebar.git", {branch, "master"}}},
+          {rebar,
            {git, "git://github.com/rebar/rebar.git", {branch, "master"}}},
           {rebar, "1.0.0",
            {git, "git://github.com/rebar/rebar.git", {tag, "1.0.0"}}},
           {rebar, "",
+           {git, "git://github.com/rebar/rebar.git", {branch, "master"}},
+           [raw]},
+          {rebar,
            {git, "git://github.com/rebar/rebar.git", {branch, "master"}},
            [raw]},
           {app_name, ".*", {hg, "https://www.example.org/url"}},
@@ -371,8 +380,12 @@ find_deps(Config, read, [], Deps) ->
     {Config, lists:reverse(Deps)};
 find_deps(Config, Mode, [App | Rest], Acc) when is_atom(App) ->
     find_deps(Config, Mode, [{App, ".*", undefined} | Rest], Acc);
+find_deps(Config, Mode, [{App, Source} | Rest], Acc) when is_tuple(Source) ->
+    find_deps(Config, Mode, [{App, ".*", Source} | Rest], Acc);
 find_deps(Config, Mode, [{App, VsnRegex} | Rest], Acc) when is_atom(App) ->
     find_deps(Config, Mode, [{App, VsnRegex, undefined} | Rest], Acc);
+find_deps(Config, Mode, [{App, Source, Opts} | Rest], Acc) when is_tuple(Source) ->
+    find_deps(Config, Mode, [{App, ".*", Source, Opts} | Rest], Acc);
 find_deps(Config, Mode, [{App, VsnRegex, Source} | Rest], Acc) ->
     find_deps(Config, Mode, [{App, VsnRegex, Source, []} | Rest], Acc);
 find_deps(Config, Mode, [{App, VsnRegex, Source, Opts} | Rest], Acc)
