@@ -1,3 +1,7 @@
+**rebar is deprecated and will receive only bug fixes. We encourage you to move to [rebar3](https://github.com/erlang/rebar3).**
+
+----
+
 rebar
 =====
 
