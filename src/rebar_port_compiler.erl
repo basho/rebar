@@ -495,10 +495,9 @@ expand_command(TmplName, Env, InFiles, OutFile) ->
 
 %%
 %% Given a string, determine if it is expandable
-%% A string is defined as expandable if it contains itself
-%%  (eg. CFLAGS = -m64 $CFLAGS)
+%%
 is_expandable(InStr) ->
-    case re:run(InStr,"\\\$"++InStr,[{capture,none}]) of
+    case re:run(InStr,"\\\$",[{capture,none}]) of
         match -> true;
         nomatch -> false
     end.
