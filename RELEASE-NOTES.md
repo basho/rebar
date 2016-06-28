@@ -1,3 +1,32 @@
+# 2.6.2
+
+* rebar/532: [Automatically clean neotoma-generated erl files, regression test](https://github.com/rebar/rebar/pull/532)
+* rebar/549: [Add Windows continuous integration through AppVeyor](https://github.com/rebar/rebar/pull/549)
+* rebar/551: [fprof: document Cachegrind support](https://github.com/rebar/rebar/pull/551)
+* rebar/556: [fprof: further document Cachegrind support](https://github.com/rebar/rebar/pull/556)
+* rebar/557: [Fix windows eunit tests](https://github.com/rebar/rebar/pull/557)
+* rebar/558: [Add qualified name tests docs (see pr #119)](https://github.com/rebar/rebar/pull/558)
+* rebar/560: [Lock retest dependency](https://github.com/rebar/rebar/pull/560)
+* rebar/562: [Add support for Windows integration testing](https://github.com/rebar/rebar/pull/562)
+* rebar/567: [Allow windows release to use etc conf dir](https://github.com/rebar/rebar/pull/567)
+* rebar/570: [xref: fix dialyzer warning introduced in 69802f63120](https://github.com/rebar/rebar/pull/570)
+* rebar/573: [Provide additional debug logging on relup generation](https://github.com/rebar/rebar/pull/573)
+* rebar/578: [Add the latest OTP 18 version to the Travis build](https://github.com/rebar/rebar/pull/578)
+* rebar/580: [Additional Common Test regression tests](https://github.com/rebar/rebar/pull/580)
+* rebar/581: [Update retest dependency url](https://github.com/rebar/rebar/pull/581)
+* rebar/586: [Ensure ebin created for dia compiler](https://github.com/rebar/rebar/pull/586)
+* rebar/587: [rebar_require_vsn: Update regexp to account for newer OTP versions](https://github.com/rebar/rebar/pull/587)
+* rebar/588: [Look for ct .spec files in the ct_dir that was specified](https://github.com/rebar/rebar/pull/588)
+* rebar/589: [Introduce REBAR_DEPS_PREFER_LIBS env variable to alter search behaviour](https://github.com/rebar/rebar/pull/589)
+* rebar/590: [Treat port env vars as expandable only if they self reference](https://github.com/rebar/rebar/pull/590)
+* rebar/591: [Fix/eunit tests surefire crash](https://github.com/rebar/rebar/pull/591)
+* rebar/594: [Introduce REBAR_VSN_CACHE_FILE env variable to load/save vsn cache](https://github.com/rebar/rebar/pull/594)
+* rebar/599: [Fix bug when running gcc in cross_sizeof](https://github.com/rebar/rebar/pull/599)
+* rebar/602: [Support full-source rebar3-style deps (deps without Version Regexes)](https://github.com/rebar/rebar/pull/602)
+* rebar/603: [add deprecated message](https://github.com/rebar/rebar/pull/603)
+* rebar/605: [Add necessary OSX flags for port driver linking](https://github.com/rebar/rebar/pull/605)
+* rebar/606: [Revert 'Treat port env vars as expandable only if they self reference'](https://github.com/rebar/rebar/pull/606)
+
 # 2.6.1
 
 * rebar/514: [Add license to relnotes tool per reviewer request](https://github.com/rebar/rebar/pull/514)
