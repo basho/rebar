@@ -4,7 +4,7 @@
 %%
 %% rebar: Erlang Build Tools
 %%
-%% Copyright (c) 2011-2014 Tuncer Ayaz
+%% Copyright (c) 2011-2016 Tuncer Ayaz
 %%
 %% Permission is hereby granted, free of charge, to any person obtaining a copy
 %% of this software and associated documentation files (the "Software"), to deal
@@ -43,16 +43,13 @@
 %% ===================================================================
 
 qc(Config, _AppFile) ->
-    ?CONSOLE("NOTICE: Using experimental 'qc' command~n", []),
     run_qc(Config, qc_opts(Config)).
 
 triq(Config, _AppFile) ->
-    ?CONSOLE("NOTICE: Using experimental 'triq' command~n", []),
     ok = load_qc_mod(triq),
     run_qc(Config, qc_opts(Config), triq).
 
 eqc(Config, _AppFile) ->
-    ?CONSOLE("NOTICE: Using experimental 'eqc' command~n", []),
     ok = load_qc_mod(eqc),
     run_qc(Config, qc_opts(Config), eqc).
 
