@@ -573,8 +573,8 @@ default_env() ->
     Arch = os:getenv("REBAR_TARGET_ARCH"),
     Vsn = os:getenv("REBAR_TARGET_ARCH_VSN"),
     [
-     {"CC", get_tool(Arch, Vsn,"gcc", "cc")},
-     {"CXX", get_tool(Arch, Vsn,"g++", "c++")},
+     {"CC", get_tool(Arch, Vsn, "gcc", "cc")},
+     {"CXX", get_tool(Arch, Vsn, "g++", "c++")},
      {"AR", get_tool(Arch, "ar", "ar")},
      {"AS", get_tool(Arch, "as", "as")},
      {"CPP", get_tool(Arch, Vsn, "cpp", "cpp")},
