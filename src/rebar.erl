@@ -220,6 +220,9 @@ run_aux(BaseConfig, Commands) ->
         {error, {already_started, _}} -> ok
     end,
 
+    %% Make sure rebar_rnd module is generated, compiled, and loaded
+    {ok, rebar_rnd} = rebar_rand_compat:init("rebar_rnd"),
+
     %% Convert command strings to atoms
     CommandAtoms = [list_to_atom(C) || C <- Commands],
 

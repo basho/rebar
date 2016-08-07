@@ -293,9 +293,9 @@ randomize_suites(Config, Modules) ->
     end.
 
 randomize_suites1(Modules, Seed) ->
-    _ = random:seed(35, Seed, 1337),
+    _ = rebar_rnd:seed({35, Seed, 1337}),
     ?CONSOLE("Randomizing suite order with seed ~b~n", [Seed]),
-    [X||{_,X} <- lists:sort([{random:uniform(), M} || M <- Modules])].
+    [X||{_,X} <- lists:sort([{rebar_rnd:uniform(), M} || M <- Modules])].
 
 %%
 %% == get matching tests ==
