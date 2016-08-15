@@ -24,7 +24,10 @@ main(Args) ->
         true ->
             rm("ebin/*.beam");
         false ->
-            rm("ebin/rebar.beam")
+            case filelib:is_file("ebin/rebar.beam") of
+               true -> rm("ebin/rebar.beam");
+               false -> io:fwrite("No beam files found.~n")
+            end
     end,
 
     %% Add check for debug flag
