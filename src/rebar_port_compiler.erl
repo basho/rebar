@@ -211,27 +211,65 @@ replace_extension(File, OldExt, NewExt) ->
 %%
 
 compile_sources(Config, Specs, SharedEnv) ->
-    lists:foldl(
-      fun(#spec{sources=Sources, type=Type, opts=Opts}, NewBins) ->
-              Env = proplists:get_value(env, Opts, SharedEnv),
-              compile_each(Config, Sources, Type, Env, NewBins)
-      end, [], Specs).
+    {Res, Db} =
+        lists:foldl(
+          fun(#spec{sources=Sources, type=Type, opts=Opts}, NewBins) ->
+                  Env = proplists:get_value(env, Opts, SharedEnv),
+                  compile_each(Config, Sources, Type, Env, {NewBins, []})
+          end, [], Specs),
+    %% Rewrite clang compile commands database file only if something
+    %% was compiled.
+    case Res of
+        [] ->
+            ok;
+        _ ->
+            {ok, ClangDbFile} = file:open("compile_commands.json", [write]),
+            ok = io:fwrite(ClangDbFile, "[~n", []),
+            lists:foreach(fun(E) -> ok = io:fwrite(ClangDbFile, E, []) end, Db),
+            ok = io:fwrite(ClangDbFile, "]~n", []),
+            ok = file:close(ClangDbFile)
+    end,
+    Res.
 
-compile_each(_Config, [], _Type, _Env, NewBins) ->
-    lists:reverse(NewBins);
-compile_each(Config, [Source | Rest], Type, Env, NewBins) ->
+compile_each(_Config, [], _Type, _Env, {NewBins, CDB}) ->
+    {lists:reverse(NewBins), lists:reverse(CDB)};
+compile_each(Config, [Source | Rest], Type, Env, {NewBins, CDB}) ->
     Ext = filename:extension(Source),
     Bin = replace_extension(Source, Ext, ".o"),
+    Template = select_compile_template(Type, compiler(Ext)),
+    Cmd = expand_command(Template, Env, Source, Bin),
+    %% Omit all variables from cmd, and use that as cmd in
+    %% CDB, because otherwise clang-* will complain about it.
+    CDBCmd = string:join(
+               lists:filter(
+                 fun("$"++_) -> false;
+                    (_)      -> true
+                 end,
+                 string:tokens(Cmd, " ")),
+              " "),
+    Cwd = rebar_utils:get_cwd(),
+    %% If there are more source files, make sure we end the CDB entry
+    %% with a comma.
+    CDBEntSep = case Rest of
+                    [] -> "~n";
+                    _  -> ",~n"
+                end,
+    %% CDB entry
+    CDBEnt = ?FMT("{ \"file\"      : ~p~n"
+                  ", \"directory\" : ~p~n"
+                  ", \"command\"   : ~p~n}"
+                  "~s",
+                  [Source, Cwd, CDBCmd, CDBEntSep]
+                 ),
     case needs_compile(Source, Bin) of
         true ->
-            Template = select_compile_template(Type, compiler(Ext)),
-            Cmd = expand_command(Template, Env, Source, Bin),
             ShOpts = [{env, Env}, return_on_error, {use_stdout, false}],
             exec_compiler(Config, Source, Cmd, ShOpts),
-            compile_each(Config, Rest, Type, Env, [Bin | NewBins]);
+            compile_each(Config, Rest, Type, Env,
+                         {[Bin | NewBins], [CDBEnt | CDB]});
         false ->
             ?INFO("Skipping ~s\n", [Source]),
-            compile_each(Config, Rest, Type, Env, NewBins)
+            compile_each(Config, Rest, Type, Env, {NewBins, [CDBEnt, CDB]})
     end.
 
 exec_compiler(Config, Source, Cmd, ShOpts) ->
