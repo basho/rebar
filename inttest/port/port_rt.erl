@@ -48,6 +48,7 @@ run(_Dir) ->
     %% test.so is created during first compile
     ?assertEqual(0, filelib:last_modified("priv/test.so")),
     ?assertMatch({ok, _}, retest_sh:run("./rebar compile", [])),
+    ?assertMatch(true, filelib:is_regular("compile_commands.json")),
     TestSo1 = filelib:last_modified("priv/test" ++
                                     shared_library_file_extension(os:type())),
     ?assert(TestSo1 > 0),
