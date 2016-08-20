@@ -238,29 +238,7 @@ compile_each(Config, [Source | Rest], Type, Env, {NewBins, CDB}) ->
     Bin = replace_extension(Source, Ext, ".o"),
     Template = select_compile_template(Type, compiler(Ext)),
     Cmd = expand_command(Template, Env, Source, Bin),
-    %% Omit all variables from cmd, and use that as cmd in
-    %% CDB, because otherwise clang-* will complain about it.
-    CDBCmd = string:join(
-               lists:filter(
-                 fun("$"++_) -> false;
-                    (_)      -> true
-                 end,
-                 string:tokens(Cmd, " ")),
-              " "),
-    Cwd = rebar_utils:get_cwd(),
-    %% If there are more source files, make sure we end the CDB entry
-    %% with a comma.
-    CDBEntSep = case Rest of
-                    [] -> "~n";
-                    _  -> ",~n"
-                end,
-    %% CDB entry
-    CDBEnt = ?FMT("{ \"file\"      : ~p~n"
-                  ", \"directory\" : ~p~n"
-                  ", \"command\"   : ~p~n}"
-                  "~s",
-                  [Source, Cwd, CDBCmd, CDBEntSep]
-                 ),
+    CDBEnt = cdb_entry(Source, Cmd, Rest),
     case needs_compile(Source, Bin) of
         true ->
             ShOpts = [{env, Env}, return_on_error, {use_stdout, false}],
@@ -271,6 +249,32 @@ compile_each(Config, [Source | Rest], Type, Env, {NewBins, CDB}) ->
             ?INFO("Skipping ~s\n", [Source]),
             compile_each(Config, Rest, Type, Env, {NewBins, [CDBEnt, CDB]})
     end.
+
+%% Generate a clang compilation db entry for Src and Cmd
+cdb_entry(Src, Cmd, SrcRest) ->
+    %% Omit all variables from cmd, and use that as cmd in
+    %% CDB, because otherwise clang-* will complain about it.
+    CDBCmd = string:join(
+               lists:filter(
+                 fun("$"++_) -> false;
+                    (_)      -> true
+                 end,
+                 string:tokens(Cmd, " ")),
+               " "),
+
+    Cwd = rebar_utils:get_cwd(),
+    %% If there are more source files, make sure we end the CDB entry
+    %% with a comma.
+    Sep = case SrcRest of
+              [] -> "~n";
+              _  -> ",~n"
+          end,
+    %% CDB entry
+    ?FMT("{ \"file\"      : ~p~n"
+         ", \"directory\" : ~p~n"
+         ", \"command\"   : ~p~n"
+         "}~s",
+         [Src, Cwd, CDBCmd, Sep]).
 
 exec_compiler(Config, Source, Cmd, ShOpts) ->
     case rebar_utils:sh(Cmd, ShOpts) of
