@@ -1,3 +1,13 @@
+# 2.6.3
+
+* rebar/610: [qc: lift experimental notice](https://github.com/rebar/rebar/pull/610)
+* rebar/611: [port_compiler: consistently format default_env/0](https://github.com/rebar/rebar/pull/611)
+* rebar/612: [Introduce and use compat random number module](https://github.com/rebar/rebar/pull/612)
+* rebar/614: [Add an additional check for the existence of a 'rebar.beam' file](https://github.com/rebar/rebar/pull/614)
+* rebar/615: [port_compiler: generate clang compilation db](https://github.com/rebar/rebar/pull/615)
+* rebar/616: [port_compiler: clean up compile_each()](https://github.com/rebar/rebar/pull/616)
+* rebar/617: [port_compiler: auto-select C++ specific link template](https://github.com/rebar/rebar/pull/617)
+
 # 2.6.2
 
 * rebar/532: [Automatically clean neotoma-generated erl files, regression test](https://github.com/rebar/rebar/pull/532)
