@@ -36,10 +36,11 @@
 -include("rebar.hrl").
 
 -record(spec, {type::'drv' | 'exe',
+               link_lang::'cc' | 'cxx',
                target::file:filename(),
                sources = [] :: [file:filename(), ...],
                objects = [] :: [file:filename(), ...],
-               opts = [] ::list() | []}).
+               opts = [] :: list() | []}).
 
 %% ===================================================================
 %% Public API
@@ -65,13 +66,15 @@ compile(Config, AppFile) ->
             %% Only relink if necessary, given the Target
             %% and list of new binaries
             lists:foreach(
-              fun(#spec{target=Target, objects=Bins, opts=Opts}) ->
+              fun(#spec{target=Target, objects=Bins, opts=Opts,
+                        link_lang=LinkLang}) ->
                       AllBins = [sets:from_list(Bins),
                                  sets:from_list(NewBins)],
                       Intersection = sets:intersection(AllBins),
                       case needs_link(Target, sets:to_list(Intersection)) of
                           true ->
-                              LinkTemplate = select_link_template(Target),
+                              LinkTemplate = select_link_template(LinkLang,
+                                                                  Target),
                               Env = proplists:get_value(env, Opts, SharedEnv),
                               Cmd = expand_command(LinkTemplate, Env,
                                                    string:join(Bins, " "),
@@ -140,12 +143,14 @@ info_help(Description) ->
        "           EXE_CFLAGS  - flags that will be used for compiling~n"
        "           EXE_LDFLAGS - flags that will be used for linking~n"
        "           ERL_EI_LIBDIR - ei library directory~n"
-       "           DRV_CXX_TEMPLATE  - C++ command template~n"
-       "           DRV_CC_TEMPLATE   - C command template~n"
-       "           DRV_LINK_TEMPLATE - Linker command template~n"
-       "           EXE_CXX_TEMPLATE  - C++ command template~n"
-       "           EXE_CC_TEMPLATE   - C command template~n"
-       "           EXE_LINK_TEMPLATE - Linker command template~n"
+       "           DRV_CXX_TEMPLATE      - C++ command template~n"
+       "           DRV_CC_TEMPLATE       - C command template~n"
+       "           DRV_LINK_TEMPLATE     - C Linker command template~n"
+       "           DRV_LINK_CXX_TEMPLATE - C++ Linker command template~n"
+       "           EXE_CXX_TEMPLATE      - C++ command template~n"
+       "           EXE_CC_TEMPLATE       - C command template~n"
+       "           EXE_LINK_TEMPLATE     - C Linker command template~n"
+       "           EXE_LINK_CXX_TEMPLATE - C++ Linker command template~n"
        "~n"
        "           Note that if you wish to extend (vs. replace) these variables,~n"
        "           you MUST include a shell-style reference in your definition.~n"
@@ -361,6 +366,7 @@ port_spec_from_legacy(Config, AppFile) ->
     Sources = port_sources(rebar_config:get_list(Config, port_sources,
                                                  ["c_src/*.c"])),
     #spec { type = target_type(Target),
+            link_lang = cc,
             target = maybe_switch_extension(os:type(), Target),
             sources = Sources,
             objects = port_objects(Sources) }.
@@ -381,9 +387,17 @@ get_port_spec(Config, OsType, {Arch, Target, Sources}) ->
     get_port_spec(Config, OsType, {Arch, Target, Sources, []});
 get_port_spec(Config, OsType, {_Arch, Target, Sources, Opts}) ->
     SourceFiles = port_sources(Sources),
+    LinkLang =
+        case lists:any(
+               fun(Src) -> compiler(filename:extension(Src)) == "$CXX" end,
+               SourceFiles) of
+            true  -> cxx;
+            false -> cc
+        end,
     ObjectFiles = port_objects(SourceFiles),
     #spec{type=target_type(Target),
           target=maybe_switch_extension(OsType, Target),
+          link_lang=LinkLang,
           sources=SourceFiles,
           objects=ObjectFiles,
           opts=port_opts(Config, Opts)}.
@@ -586,10 +600,12 @@ select_compile_drv_template("$CXX") -> "DRV_CXX_TEMPLATE".
 select_compile_exe_template("$CC")  -> "EXE_CC_TEMPLATE";
 select_compile_exe_template("$CXX") -> "EXE_CXX_TEMPLATE".
 
-select_link_template(Target) ->
-    case target_type(Target) of
-        drv -> "DRV_LINK_TEMPLATE";
-        exe -> "EXE_LINK_TEMPLATE"
+select_link_template(LinkLang, Target) ->
+    case {LinkLang, target_type(Target)} of
+        {cc,  drv} -> "DRV_LINK_TEMPLATE";
+        {cxx, drv} -> "DRV_LINK_CXX_TEMPLATE";
+        {cc,  exe} -> "EXE_LINK_TEMPLATE";
+        {cxx, exe} -> "EXE_LINK_CXX_TEMPLATE"
     end.
 
 target_type(Target) -> target_type1(filename:extension(Target)).
@@ -629,12 +645,16 @@ default_env() ->
       "$CC -c $CFLAGS $DRV_CFLAGS $PORT_IN_FILES -o $PORT_OUT_FILE"},
      {"DRV_LINK_TEMPLATE",
       "$CC $PORT_IN_FILES $LDFLAGS $DRV_LDFLAGS -o $PORT_OUT_FILE"},
+     {"DRV_LINK_CXX_TEMPLATE",
+      "$CXX $PORT_IN_FILES $LDFLAGS $DRV_LDFLAGS -o $PORT_OUT_FILE"},
      {"EXE_CXX_TEMPLATE",
       "$CXX -c $CXXFLAGS $EXE_CFLAGS $PORT_IN_FILES -o $PORT_OUT_FILE"},
      {"EXE_CC_TEMPLATE",
       "$CC -c $CFLAGS $EXE_CFLAGS $PORT_IN_FILES -o $PORT_OUT_FILE"},
      {"EXE_LINK_TEMPLATE",
       "$CC $PORT_IN_FILES $LDFLAGS $EXE_LDFLAGS -o $PORT_OUT_FILE"},
+     {"EXE_LINK_CXX_TEMPLATE",
+      "$CXX $PORT_IN_FILES $LDFLAGS $EXE_LDFLAGS -o $PORT_OUT_FILE"},
      {"DRV_CFLAGS" , "-g -Wall -fPIC -MMD $ERL_CFLAGS"},
      {"DRV_LDFLAGS", "-shared $ERL_LDFLAGS"},
      {"EXE_CFLAGS" , "-g -Wall -fPIC -MMD $ERL_CFLAGS"},
