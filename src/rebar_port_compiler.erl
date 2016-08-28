@@ -244,15 +244,16 @@ compile_each(Config, [Source | Rest], Type, Env, {NewBins, CDB}) ->
     Template = select_compile_template(Type, compiler(Ext)),
     Cmd = expand_command(Template, Env, Source, Bin),
     CDBEnt = cdb_entry(Source, Cmd, Rest),
+    NewCDB = [CDBEnt | CDB],
     case needs_compile(Source, Bin) of
         true ->
             ShOpts = [{env, Env}, return_on_error, {use_stdout, false}],
             exec_compiler(Config, Source, Cmd, ShOpts),
             compile_each(Config, Rest, Type, Env,
-                         {[Bin | NewBins], [CDBEnt | CDB]});
+                         {[Bin | NewBins], NewCDB});
         false ->
             ?INFO("Skipping ~s\n", [Source]),
-            compile_each(Config, Rest, Type, Env, {NewBins, [CDBEnt, CDB]})
+            compile_each(Config, Rest, Type, Env, {NewBins, NewCDB})
     end.
 
 %% Generate a clang compilation db entry for Src and Cmd
@@ -394,7 +395,8 @@ get_port_spec(Config, OsType, {_Arch, Target, Sources, Opts}) ->
     LinkLang =
         case lists:any(
                fun(Src) -> compiler(filename:extension(Src)) == "$CXX" end,
-               SourceFiles) of
+               SourceFiles)
+        of
             true  -> cxx;
             false -> cc
         end,
