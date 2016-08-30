@@ -216,15 +216,15 @@ replace_extension(File, OldExt, NewExt) ->
 %%
 
 compile_sources(Config, Specs, SharedEnv) ->
-    {Res, Db} =
+    {NewBins, Db} =
         lists:foldl(
-          fun(#spec{sources=Sources, type=Type, opts=Opts}, NewBins) ->
+          fun(#spec{sources=Sources, type=Type, opts=Opts}, Acc) ->
                   Env = proplists:get_value(env, Opts, SharedEnv),
-                  compile_each(Config, Sources, Type, Env, {NewBins, []})
-          end, [], Specs),
+                  compile_each(Config, Sources, Type, Env, Acc)
+          end, {[], []}, Specs),
     %% Rewrite clang compile commands database file only if something
     %% was compiled.
-    case Res of
+    case NewBins of
         [] ->
             ok;
         _ ->
@@ -234,7 +234,7 @@ compile_sources(Config, Specs, SharedEnv) ->
             ok = io:fwrite(ClangDbFile, "]~n", []),
             ok = file:close(ClangDbFile)
     end,
-    Res.
+    NewBins.
 
 compile_each(_Config, [], _Type, _Env, {NewBins, CDB}) ->
     {lists:reverse(NewBins), lists:reverse(CDB)};
