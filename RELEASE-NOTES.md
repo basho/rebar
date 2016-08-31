@@ -1,3 +1,7 @@
+# 2.6.4
+
+* rebar/619: [Fix cdb processing when a file is skipped](https://github.com/rebar/rebar/pull/619)
+
 # 2.6.3
 
 * rebar/610: [qc: lift experimental notice](https://github.com/rebar/rebar/pull/610)
