@@ -94,6 +94,7 @@ is_arch(ArchRegex) ->
         nomatch ->
             false
     end.
+
 %%
 %% REBAR_TARGET_ARCH, if used, should be set to the "standard"
 %% target string. That is a prefix for binutils tools.
