@@ -593,7 +593,7 @@ unabbreviate_command_names([Command | Commands]) ->
         [FullCommand] ->
             [FullCommand | unabbreviate_command_names(Commands)];
         Candidates ->
-            ?ABORT("Found more than one match for abbreviated command name "
+            ?ABORT("Found more than one match for abbreviated command name"
                    " '~s',~nplease be more specific. Possible candidates:~n"
                    "  ~s~n",
                    [Command, string:join(Candidates, ", ")])
