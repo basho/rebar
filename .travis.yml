@@ -10,6 +10,7 @@ otp_release:
   - R14B03
   - 17.0
   - 18.0
+  - 19.1
 before_script:
   - hostname -f
   - cc -v
