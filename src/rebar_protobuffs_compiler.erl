@@ -108,8 +108,9 @@ compile_each(Config, [{Proto, Beam, Hrl} | Rest]) ->
         true ->
             ?CONSOLE("Compiling ~s\n", [Proto]),
             ErlOpts = rebar_utils:erl_opts(Config),
-            case protobuffs_compile:scan_file(Proto,
-                                              [{compile_flags,ErlOpts}]) of
+            ProtobuffOpts = rebar_config:get(Config, protobuff_opts,
+                                             [{compile_flags, ErlOpts}]),
+            case protobuffs_compile:scan_file(Proto, ProtobuffOpts) of
                 ok ->
                     %% Compilation worked, but we need to move the
                     %% beam and .hrl file into the ebin/ and include/
