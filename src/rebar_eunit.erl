@@ -183,14 +183,18 @@ run_eunit(Config, CodePath, SrcErls) ->
             ok
     end,
 
+    KeepGoing = rebar_config:get_global(keep_going, false),
+
     %% Stop cover to clean the cover_server state. This is important if we want
     %% eunit+cover to not slow down when analyzing many Erlang modules.
     ok = rebar_cover_utils:exit(),
 
-    case EunitResult of
-        ok ->
+    case {EunitResult, KeepGoing} of
+        {ok, _} ->
             ok;
-        _ ->
+        {_, true} ->
+            ok;
+        {_, false} ->
             ?ABORT("One or more eunit tests failed.~n", [])
     end,
 
