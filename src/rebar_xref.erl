@@ -44,7 +44,13 @@
 %% Public API
 %% ===================================================================
 
-xref(Config, _) ->
+xref(Config, _X) ->
+    case is_skipped_app() of
+        true  -> ok;
+        false -> xref0(Config, _X)
+    end.
+            
+xref0(Config, _) ->
     %% Spin up xref
     {ok, _} = xref:start(xref),
     ok = xref:set_library_path(xref, code_path(Config)),
@@ -298,4 +304,30 @@ find_function_source(M, F, A, Bin) ->
         %% are not in the source.
         %% parameterized modules add new/1 and instance/1 for example.
         [] -> {Source, function_not_found}
+    end.
+
+%% Return: true , if we are in the context of a 'Skipped App'
+is_skipped_app() ->
+    case rebar_config:get_global(skip_app, undefined) of
+        undefined ->
+            %% no skip list
+            false;
+
+        SkipApps ->
+
+            %% Where we are at the moment
+            Cwd = rebar_utils:get_cwd(),
+
+            %% Return true if app should be skipped
+            SkipPred = fun(App) ->
+                               case re:run(Cwd, App) of
+                                   {match,_} -> true;
+                                   _         -> false
+                               end
+                       end,
+
+            %% Check if 'we' are among the skipped apps.
+            lists:foldl(fun(SkippedApp, Bool) ->
+                                SkipPred(SkippedApp) or Bool
+                        end, false, string:tokens(SkipApps, ","))
     end.
